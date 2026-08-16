@@ -18,6 +18,6 @@ None; this package neither assembles nor sends a provider request.
 
 ## Known Limitations and Deferred Work
 
-- **`when` clauses are persisted but not yet resolved** — the dispatcher treats every binding as always active; a context-key registry will gate bindings on their `when` clause.
+- **No feature contributes context keys yet** — the `uiWhenContext` registry starts empty, so a binding gated on an unset key stays inactive until a feature sets it.
 - **The composer send action's `run` is a no-op placeholder** — wiring the `InputBar` submit to the dispatched action is a separate `ui-conversation` change.
 - **Firefox on Linux filters modifier events from content pages** — `Alt` is absent from a combined keydown and lone modifier keydowns never dispatch to `http` pages (they do reach privileged `about:` pages), so `Alt` chords and the pre-key pressed-modifier preview are unavailable there; Chromium works. The recorder already prefers `getModifierState()`; the events are absent, not merely misflagged.

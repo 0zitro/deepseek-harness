@@ -15,6 +15,7 @@ import type { UiActionId } from '../ui-action.ts'
 import { UiActionRegistry } from './action-registry.ts'
 import { createKeybindingDispatcher } from './dispatch.ts'
 import { KeybindingsSection, type KeybindingsSectionInjected } from './KeybindingsSection.tsx'
+import { UiWhenContext } from './when-context.ts'
 import { en, NS, zh } from './locales.ts'
 
 /** Services required by the keybindings plugin. */
@@ -70,13 +71,14 @@ export function apply(ctx: Context): void {
   ctx.effect(() => ctx.locale.register(NS, { zh, en }), 'ui-keybindings: dictionaries')
 
   new UiActionRegistry(ctx)
+  new UiWhenContext(ctx)
 
   const host = ctx.settingsScope.bind<KeybindingsSettings>({ namespace: KEYBINDINGS_SETTINGS_NAMESPACE })
   const bindings = bindBindings(host)
 
-  // Dispatch keystrokes to the persisted bindings.
+  // Dispatch keystrokes to the persisted bindings, gated by the when context.
   ctx.effect(
-    () => createKeybindingDispatcher(bindings.value, ctx.uiActions.actions),
+    () => createKeybindingDispatcher(bindings.value, ctx.uiActions.actions, ctx.uiWhenContext.context),
     'ui-keybindings: dispatch',
   )
 
