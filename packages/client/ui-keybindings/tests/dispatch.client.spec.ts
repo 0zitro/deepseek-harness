@@ -53,6 +53,17 @@ describe('dispatchKeydown', () => {
     expect(run).toHaveBeenCalledOnce()
   })
 
+  it('prevents the native default when a binding matches', () => {
+    const run = vi.fn()
+    const matcher = new ChordMatcher<KeybindingEntry>([entry([{ key: 'Enter', modifiers: [] }])], () => true)
+    const actions: UiActionDefinition[] = [{ id: COMPOSER_SEND_ACTION, label: 'Send', run }]
+    const event = keydown('Enter')
+    const preventDefault = vi.spyOn(event, 'preventDefault')
+    dispatchKeydown(matcher, actions, event)
+    expect(run).toHaveBeenCalledOnce()
+    expect(preventDefault).toHaveBeenCalledOnce()
+  })
+
   it('ignores modifier keydowns', () => {
     const run = vi.fn()
     const matcher = new ChordMatcher<KeybindingEntry>([entry([{ key: 'Enter', modifiers: [] }])], () => true)
