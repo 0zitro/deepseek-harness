@@ -13,6 +13,7 @@ import {
 } from '../keybinding-settings.ts'
 import type { UiActionId } from '../ui-action.ts'
 import { UiActionRegistry } from './action-registry.ts'
+import { createKeybindingDispatcher } from './dispatch.ts'
 import { KeybindingsSection, type KeybindingsSectionInjected } from './KeybindingsSection.tsx'
 import { en, NS, zh } from './locales.ts'
 
@@ -72,6 +73,12 @@ export function apply(ctx: Context): void {
 
   const host = ctx.settingsScope.bind<KeybindingsSettings>({ namespace: KEYBINDINGS_SETTINGS_NAMESPACE })
   const bindings = bindBindings(host)
+
+  // Dispatch keystrokes to the persisted bindings.
+  ctx.effect(
+    () => createKeybindingDispatcher(bindings.value, ctx.uiActions.actions),
+    'ui-keybindings: dispatch',
+  )
 
   // `slots.inject` awaits the `settings.section` declaration (owned by
   // ui-settings-general), whose activation order is not constrained.

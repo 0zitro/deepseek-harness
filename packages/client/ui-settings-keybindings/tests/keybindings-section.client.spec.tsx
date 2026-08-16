@@ -32,7 +32,7 @@ function emptyWorkspaces() {
 }
 
 function mount(actions: readonly UiActionDefinition[] = [
-  { id: COMPOSER_SEND_ACTION, label: 'Send message', defaultKeybinding: ENTER },
+  { id: COMPOSER_SEND_ACTION, label: 'Send message', defaultKeybinding: ENTER, run: () => {} },
 ]) {
   const actionsStore = createSnapshotStore<readonly UiActionDefinition[]>(actions)
   const bindingsStore = createSnapshotStore<readonly KeybindingEntry[]>([])
@@ -75,7 +75,7 @@ describe('KeybindingsSection', () => {
   })
 
   it('shows the description and an empty chord when an action has no default', () => {
-    mount([{ id: PREVIEW_ACTION, label: 'Preview', description: 'Toggle the preview pane' }])
+    mount([{ id: PREVIEW_ACTION, label: 'Preview', description: 'Toggle the preview pane', run: () => {} }])
     expect(screen.getByText('Preview')).toBeDefined()
     expect(screen.getByText('Toggle the preview pane')).toBeDefined()
     expect(screen.getByRole('button', { name: /Press keys/ })).toBeDefined()

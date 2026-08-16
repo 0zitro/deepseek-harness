@@ -1,3 +1,4 @@
+// @vitest-environment jsdom
 /** Keybindings orchestrator registration: the action registry, slot injection, and the bound list. */
 import { Context } from '@deepseek-ai/cordis'
 import { describe, expect, it, vi } from 'vitest'
