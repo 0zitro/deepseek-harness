@@ -16,3 +16,10 @@ export const en = {
   'sendMessage.label': 'Send message',
   'sendMessage.description': 'Keyboard shortcut that submits the composer.',
 } satisfies Record<KeybindingsKey, string>
+
+declare module '@deepseek-ai/dsh-client-ui-slots' {
+  interface LocaleNamespaceMap {
+    /** Keybindings settings copy. */
+    keybindings: KeybindingsKey
+  }
+}

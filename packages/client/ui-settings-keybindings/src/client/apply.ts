@@ -12,14 +12,7 @@ import {
   KEYBINDINGS_SETTINGS_NAMESPACE, type KeybindingsSettings,
 } from '../keybinding-settings.ts'
 import { KeybindingsSection, type KeybindingsSectionInjected } from './KeybindingsSection.tsx'
-import { en, NS, zh, type KeybindingsKey } from './locales.ts'
-
-declare module '@deepseek-ai/dsh-client-ui-slots' {
-  interface LocaleNamespaceMap {
-    /** Keybindings settings copy. */
-    keybindings: KeybindingsKey
-  }
-}
+import { en, NS, zh } from './locales.ts'
 
 /** Services required by the keybindings plugin. */
 export const inject = ['slots', 'settingsScope', 'locale']
