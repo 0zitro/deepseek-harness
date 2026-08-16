@@ -63,9 +63,9 @@ describe('ui-settings-keybindings apply', () => {
     const injected = entry.inject as unknown as () => KeybindingsSectionInjected
     const face = injected()
     expect(face.hooks.sendMessage.getSnapshot()).toEqual(DEFAULT_SEND_KEYBINDING)
-    face.setSendMessage({ key: 'k', modifiers: ['ctrl'] })
-    expect(face.hooks.sendMessage.getSnapshot()).toEqual({ key: 'k', modifiers: ['ctrl'] })
-    expect(b.set).toHaveBeenCalledWith('sendMessage', { key: 'k', modifiers: ['ctrl'] })
+    face.setSendMessage({ strokes: [{ key: 'k', modifiers: ['ctrl'] }] })
+    expect(face.hooks.sendMessage.getSnapshot()).toEqual({ strokes: [{ key: 'k', modifiers: ['ctrl'] }] })
+    expect(b.set).toHaveBeenCalledWith('sendMessage', { strokes: [{ key: 'k', modifiers: ['ctrl'] }] })
   })
 
   it('adopts a durable binding change pushed from the settings scope', async () => {
@@ -75,8 +75,8 @@ describe('ui-settings-keybindings apply', () => {
     const entry = b.slots.entries('settings.section')[0]!
     const injected = entry.inject as unknown as () => KeybindingsSectionInjected
     const face = injected()
-    b.mutateSection({ sendMessage: { key: 'j', modifiers: ['meta'] } })
-    expect(face.hooks.sendMessage.getSnapshot()).toEqual({ key: 'j', modifiers: ['meta'] })
+    b.mutateSection({ sendMessage: { strokes: [{ key: 'j', modifiers: ['meta'] }] } })
+    expect(face.hooks.sendMessage.getSnapshot()).toEqual({ strokes: [{ key: 'j', modifiers: ['meta'] }] })
   })
 
   it('does not persist an unchanged binding', async () => {
