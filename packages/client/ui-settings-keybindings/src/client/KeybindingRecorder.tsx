@@ -2,8 +2,7 @@
 import { useState, type KeyboardEvent as ReactKeyboardEvent } from 'react'
 import type { Keybinding, KeybindingModifier } from '../keybinding.ts'
 import {
-  KEYBINDING_MODIFIER_LABELS, keybindingFromEvent, keybindingKeyLabel,
-  keybindingLabels, modifiersOf,
+  KEYBINDING_MODIFIER_LABELS, keybindingFromEvent, keybindingLabels, modifiersOf,
 } from '../keybinding.ts'
 import css from './keybindings.module.css'
 
@@ -16,11 +15,9 @@ export interface KeybindingRecorderProps {
   label: string
 }
 
-/** Ordered chip labels for an in-progress capture (key may still be unset). */
-function captureChips(modifiers: KeybindingModifier[], key: string | null): string[] {
-  const result = modifiers.map(modifier => KEYBINDING_MODIFIER_LABELS[modifier])
-  if (key !== null) result.push(keybindingKeyLabel(key))
-  return result
+/** Ordered chip labels for the currently held modifiers during a capture. */
+function captureChips(modifiers: KeybindingModifier[]): string[] {
+  return modifiers.map(modifier => KEYBINDING_MODIFIER_LABELS[modifier])
 }
 
 /**
@@ -41,6 +38,7 @@ export function KeybindingRecorder({ binding, onChange, label }: KeybindingRecor
   const onKeyDown = (event: ReactKeyboardEvent<HTMLButtonElement>) => {
     if (!listening) return
     // IME composition never records a binding.
+    /* v8 ignore next -- jsdom cannot synthesize nativeEvent.isComposing; a button never hosts IME */
     if (event.nativeEvent.isComposing) return
     // Escape cancels without persisting.
     if (event.key === 'Escape') {
@@ -61,7 +59,7 @@ export function KeybindingRecorder({ binding, onChange, label }: KeybindingRecor
     disarm()
   }
 
-  const displayed = listening ? captureChips(live, null) : keybindingLabels(binding)
+  const displayed = listening ? captureChips(live) : keybindingLabels(binding)
 
   return (
     <button
