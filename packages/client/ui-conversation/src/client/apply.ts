@@ -23,6 +23,7 @@ import type { IConversation } from './service.ts'
 import { ComposerBlockRegistry } from './input/blocks.ts'
 import type { ComposerBlock } from './input/blocks.ts'
 import { InputHub } from './input/hub.ts'
+import { ComposerSubmission } from './input/composer-submission.ts'
 import { ComposerSubmissionPolicy } from './input/submission-policy.ts'
 import { InputBar } from './skeleton/InputBar.tsx'
 import { EnterBehaviorRow } from './settings/EnterBehaviorRow.tsx'
@@ -433,6 +434,9 @@ export function apply(ctx: Context): void {
   // Presentation registrants depend directly on their slot declarations;
   // this service remains only where conversation actions are required.
   ctx.plugin(ConversationController, { input: inputHub, blocks: composerBlocks })
+
+  // Global submission face: actions submit the current session's draft here.
+  ctx.plugin(ComposerSubmission, { inputHub, policy: submissionPolicy, sessions })
 
   // The plan strip rides the input dock above the queue rows (same posture).
   ctx.plugin(todoDockEntry)
