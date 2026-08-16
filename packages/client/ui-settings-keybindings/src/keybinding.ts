@@ -9,6 +9,7 @@
  * against UI state.
  */
 import z from '@deepseek-ai/schemastery'
+import { UiActionIdSchema, type UiActionId } from './ui-action.ts'
 
 /** Modifier keys a stroke may hold, in canonical (sorted) order. */
 export const KEYBINDING_MODIFIERS = ['ctrl', 'meta', 'alt', 'shift'] as const
@@ -39,6 +40,12 @@ export interface Keybinding {
   strokes: KeyStroke[]
   /** Optional `when` clause; absence means the binding is always active. */
   when?: string
+}
+
+/** A persisted keybinding entry: one binding gesture bound to one UI action. */
+export interface KeybindingEntry extends Keybinding {
+  /** The action this binding invokes. */
+  action: UiActionId
 }
 
 /** The structural shape a live keyboard event must satisfy to be matched. */
@@ -130,9 +137,10 @@ export const KeyStrokeSchema: z<KeyStroke> = z.object({
   modifiers: z.array(z.union([...KEYBINDING_MODIFIERS])),
 })
 
-/** Schemastery schema for one binding. */
-export const KeybindingSchema: z<Keybinding> = z.object({
+/** Schemastery schema for one keybinding entry. */
+export const KeybindingEntrySchema: z<KeybindingEntry> = z.object({
   strokes: z.array(KeyStrokeSchema),
+  action: UiActionIdSchema,
   when: z.string(),
 })
 

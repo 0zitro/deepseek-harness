@@ -1,22 +1,33 @@
 import { describe, expect, it } from 'vitest'
-import { KEYBINDINGS_SETTINGS_NAMESPACE, KeybindingsSettingsSchema } from '../src/keybinding-settings.ts'
+import {
+  DEFAULT_KEYBINDING_ENTRIES, KEYBINDINGS_SETTINGS_NAMESPACE, KeybindingsSettingsSchema,
+} from '../src/keybinding-settings.ts'
+import { COMPOSER_SEND_ACTION } from '../src/ui-action.ts'
 
 describe('keybinding settings', () => {
   it('uses the ui-keybindings namespace', () => {
     expect(KEYBINDINGS_SETTINGS_NAMESPACE).toBe('ui-keybindings')
   })
 
-  it('accepts a chord with a when clause', () => {
+  it('defaults the list to the send action bound to Enter', () => {
+    expect(DEFAULT_KEYBINDING_ENTRIES).toEqual([
+      { strokes: [{ key: 'Enter', modifiers: [] }], action: COMPOSER_SEND_ACTION },
+    ])
+  })
+
+  it('accepts a list of entries with a when clause', () => {
     expect(KeybindingsSettingsSchema({
-      sendMessage: {
+      bindings: [{
         strokes: [{ key: 'k', modifiers: ['ctrl'] }, { key: 's', modifiers: ['ctrl'] }],
+        action: COMPOSER_SEND_ACTION,
         when: 'agentBusy',
-      },
+      }],
     })).toEqual({
-      sendMessage: {
+      bindings: [{
         strokes: [{ key: 'k', modifiers: ['ctrl'] }, { key: 's', modifiers: ['ctrl'] }],
+        action: COMPOSER_SEND_ACTION,
         when: 'agentBusy',
-      },
+      }],
     })
   })
 })
