@@ -1,11 +1,12 @@
 import { describe, expect, it } from 'vitest'
 import {
   DEFAULT_SEND_KEYBINDING, KEYBINDING_MODIFIER_LABELS, KEYBINDING_MODIFIERS,
-  KeybindingSchema, KeyStrokeSchema, isRecordableKey, keybindingKeyLabel,
+  KeybindingEntrySchema, KeyStrokeSchema, isRecordableKey, keybindingKeyLabel,
   keybindingLabels, modifiersOf, normalizeEventKey, strokeFromEvent, strokeLabels,
   strokeMatches,
 } from '../src/keybinding.ts'
 import type { KeyGesture } from '../src/keybinding.ts'
+import { COMPOSER_SEND_ACTION } from '../src/ui-action.ts'
 
 function gesture(
   key: string,
@@ -116,9 +117,16 @@ describe('constants and schema', () => {
     expect(DEFAULT_SEND_KEYBINDING).toEqual({ strokes: [{ key: 'Enter', modifiers: [] }] })
   })
 
-  it('parses a stroke and a binding', () => {
+  it('parses a stroke and an entry', () => {
     expect(KeyStrokeSchema({ key: 'a', modifiers: ['ctrl'] })).toEqual({ key: 'a', modifiers: ['ctrl'] })
-    expect(KeybindingSchema({ strokes: [{ key: 'a', modifiers: ['ctrl'] }], when: 'agentBusy' }))
-      .toEqual({ strokes: [{ key: 'a', modifiers: ['ctrl'] }], when: 'agentBusy' })
+    expect(KeybindingEntrySchema({
+      strokes: [{ key: 'a', modifiers: ['ctrl'] }],
+      action: COMPOSER_SEND_ACTION,
+      when: 'agentBusy',
+    })).toEqual({
+      strokes: [{ key: 'a', modifiers: ['ctrl'] }],
+      action: COMPOSER_SEND_ACTION,
+      when: 'agentBusy',
+    })
   })
 })
