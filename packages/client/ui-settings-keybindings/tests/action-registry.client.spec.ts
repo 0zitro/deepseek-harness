@@ -8,9 +8,9 @@ const PREVIEW_ACTION = 'composer.preview' as UiActionId
 describe('UiActionRegistry', () => {
   it('publishes registered actions in registration order', () => {
     const registry = new UiActionRegistry(new Context())
-    registry.register({ id: COMPOSER_SEND_ACTION, label: 'Send' })
-    registry.register({ id: PREVIEW_ACTION, label: 'Preview' })
-    expect(registry.actions.getSnapshot()).toEqual([
+    registry.register({ id: COMPOSER_SEND_ACTION, label: 'Send', run: () => {} })
+    registry.register({ id: PREVIEW_ACTION, label: 'Preview', run: () => {} })
+    expect(registry.actions.getSnapshot()).toMatchObject([
       { id: COMPOSER_SEND_ACTION, label: 'Send' },
       { id: PREVIEW_ACTION, label: 'Preview' },
     ])
@@ -18,7 +18,7 @@ describe('UiActionRegistry', () => {
 
   it('removes an action through the returned disposer', () => {
     const registry = new UiActionRegistry(new Context())
-    const dispose = registry.register({ id: COMPOSER_SEND_ACTION, label: 'Send' })
+    const dispose = registry.register({ id: COMPOSER_SEND_ACTION, label: 'Send', run: () => {} })
     dispose()
     expect(registry.actions.getSnapshot()).toEqual([])
   })

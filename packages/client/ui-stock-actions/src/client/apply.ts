@@ -27,5 +27,7 @@ export function apply(ctx: Context): void {
     label: t('composerSend.label'),
     description: t('composerSend.description'),
     defaultKeybinding: { strokes: [{ key: 'Enter', modifiers: [] }] },
+    // The composer wires the submit once the InputBar consumes its binding.
+    run: () => {},
   }), 'ui-stock-actions: composer send action')
 }

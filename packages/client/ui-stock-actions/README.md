@@ -15,4 +15,4 @@ None; this package neither assembles nor sends a provider request.
 ## Known Limitations and Deferred Work
 
 - **Only the composer send action is registered** — future built-in actions (panel toggles, navigation) are added here, one `ctx.uiActions.register` call each.
-- **`run` handlers are not yet wired** — this package registers identity and defaults only; dispatching a binding to the action's handler is a separate keybindings-orchestrator change.
+- **The composer send `run` is a no-op placeholder** — wiring it to the InputBar submit is a separate `ui-conversation` change.

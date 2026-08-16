@@ -18,11 +18,11 @@ describe('ui-stock-actions apply', () => {
     const register = vi.fn(() => () => {})
     ctx.provide('uiActions', { register })
     await ctx.plugin({ inject: [...inject], apply }).await()
-    expect(register).toHaveBeenCalledWith({
+    expect(register).toHaveBeenCalledWith(expect.objectContaining({
       id: 'composer.send',
       label: '发送消息',
       description: '提交输入框的按键组合。',
       defaultKeybinding: { strokes: [{ key: 'Enter', modifiers: [] }] },
-    })
+    }))
   })
 })
