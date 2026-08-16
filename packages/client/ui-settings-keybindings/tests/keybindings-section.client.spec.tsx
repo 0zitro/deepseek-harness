@@ -6,10 +6,14 @@ import { createSnapshotStore, type SessionListState, type WorkspaceListState } f
 import { makeTranslate } from '@deepseek-ai/dsh-client-test-runtime'
 import { KeybindingsSection } from '../src/client/KeybindingsSection.tsx'
 import type { KeybindingsSectionProps } from '../src/client/KeybindingsSection.tsx'
+import type { UiActionDefinition } from '../src/client/action-registry.ts'
 import { en } from '../src/client/locales.ts'
-import { DEFAULT_SEND_KEYBINDING, type Keybinding } from '../src/keybinding.ts'
+import { DEFAULT_SEND_KEYBINDING, type Keybinding, type KeybindingEntry } from '../src/keybinding.ts'
+import { COMPOSER_SEND_ACTION, type UiActionId } from '../src/ui-action.ts'
 
 afterEach(cleanup)
+
+const PREVIEW_ACTION = 'composer.preview' as UiActionId
 
 function emptySessions() {
   return bindSnapshotSelector(createSnapshotStore<SessionListState>({
@@ -24,19 +28,33 @@ function emptyWorkspaces() {
   }))
 }
 
-function mount() {
-  const store = createSnapshotStore<Keybinding>(DEFAULT_SEND_KEYBINDING)
-  const setSendMessage = vi.fn((next: Keybinding) => { store.set(next) })
+function mount(actions: readonly UiActionDefinition[] = [
+  { id: COMPOSER_SEND_ACTION, label: 'Send message', defaultKeybinding: DEFAULT_SEND_KEYBINDING },
+]) {
+  const actionsStore = createSnapshotStore<readonly UiActionDefinition[]>(actions)
+  const bindingsStore = createSnapshotStore<readonly KeybindingEntry[]>([])
+  const setBinding = vi.fn((action: UiActionId, next: Keybinding) => {
+    const entry: KeybindingEntry = {
+      strokes: next.strokes,
+      action,
+      ...(next.when === undefined ? {} : { when: next.when }),
+    }
+    bindingsStore.set([
+      ...bindingsStore.getSnapshot().filter(existing => existing.action !== action),
+      entry,
+    ])
+  })
   const props: KeybindingsSectionProps = {
     close: () => {},
     useSessions: emptySessions(),
     useWorkspaces: emptyWorkspaces(),
-    useSendMessage: bindSnapshotSelector(store),
-    setSendMessage,
+    useActions: bindSnapshotSelector(actionsStore),
+    useBindings: bindSnapshotSelector(bindingsStore),
+    setBinding,
     t: makeTranslate(en),
   }
   render(<KeybindingsSection {...props} />)
-  return { store, setSendMessage }
+  return { setBinding }
 }
 
 describe('KeybindingsSection', () => {
@@ -48,9 +66,16 @@ describe('KeybindingsSection', () => {
   })
 
   it('persists a when clause through the setter', () => {
-    const { setSendMessage } = mount()
+    const { setBinding } = mount()
     fireEvent.change(screen.getByPlaceholderText('e.g. composerFocused && !agentBusy'), { target: { value: 'agentBusy' } })
-    expect(setSendMessage).toHaveBeenCalledWith({ strokes: DEFAULT_SEND_KEYBINDING.strokes, when: 'agentBusy' })
+    expect(setBinding).toHaveBeenCalledWith(COMPOSER_SEND_ACTION, { strokes: DEFAULT_SEND_KEYBINDING.strokes, when: 'agentBusy' })
+  })
+
+  it('shows the description and an empty chord when an action has no default', () => {
+    mount([{ id: PREVIEW_ACTION, label: 'Preview', description: 'Toggle the preview pane' }])
+    expect(screen.getByText('Preview')).toBeDefined()
+    expect(screen.getByText('Toggle the preview pane')).toBeDefined()
+    expect(screen.getByRole('button', { name: /Press keys/ })).toBeDefined()
   })
 
   it('flags an invalid when clause on blur', () => {
@@ -62,20 +87,20 @@ describe('KeybindingsSection', () => {
   })
 
   it('persists a recorded chord through the setter', () => {
-    const { setSendMessage } = mount()
+    const { setBinding } = mount()
     const recorder = screen.getByRole('button', { name: /Send message/ })
     fireEvent.click(recorder)
     fireEvent.keyDown(recorder, { key: 'k', ctrlKey: true, metaKey: false, altKey: false, shiftKey: false })
     fireEvent.click(screen.getByRole('button', { name: 'Done' }))
-    expect(setSendMessage).toHaveBeenCalledWith({ strokes: [{ key: 'k', modifiers: ['ctrl'] }] })
+    expect(setBinding).toHaveBeenCalledWith(COMPOSER_SEND_ACTION, { strokes: [{ key: 'k', modifiers: ['ctrl'] }] })
   })
 
   it('clears the when clause back to undefined', () => {
-    const { setSendMessage } = mount()
+    const { setBinding } = mount()
     const input = screen.getByPlaceholderText('e.g. composerFocused && !agentBusy')
     fireEvent.change(input, { target: { value: 'agentBusy' } })
     fireEvent.change(input, { target: { value: '' } })
-    expect(setSendMessage).toHaveBeenLastCalledWith({ strokes: DEFAULT_SEND_KEYBINDING.strokes })
+    expect(setBinding).toHaveBeenLastCalledWith(COMPOSER_SEND_ACTION, { strokes: DEFAULT_SEND_KEYBINDING.strokes })
   })
 
   it('leaves the error state clear on an empty when clause', () => {
@@ -86,13 +111,13 @@ describe('KeybindingsSection', () => {
   })
 
   it('preserves the when clause while recording a chord', () => {
-    const { setSendMessage } = mount()
+    const { setBinding } = mount()
     const input = screen.getByPlaceholderText('e.g. composerFocused && !agentBusy')
     fireEvent.change(input, { target: { value: 'agentBusy' } })
     const recorder = screen.getByRole('button', { name: /Send message/ })
     fireEvent.click(recorder)
     fireEvent.keyDown(recorder, { key: 'k', ctrlKey: true, metaKey: false, altKey: false, shiftKey: false })
     fireEvent.click(screen.getByRole('button', { name: 'Done' }))
-    expect(setSendMessage).toHaveBeenLastCalledWith({ strokes: [{ key: 'k', modifiers: ['ctrl'] }], when: 'agentBusy' })
+    expect(setBinding).toHaveBeenLastCalledWith(COMPOSER_SEND_ACTION, { strokes: [{ key: 'k', modifiers: ['ctrl'] }], when: 'agentBusy' })
   })
 })

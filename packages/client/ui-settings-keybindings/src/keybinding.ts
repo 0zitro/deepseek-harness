@@ -48,6 +48,11 @@ export interface KeybindingEntry extends Keybinding {
   action: UiActionId
 }
 
+/** The gesture (strokes and when) of an entry, without its action. */
+export function keybindingOfEntry(entry: KeybindingEntry): Keybinding {
+  return { strokes: entry.strokes, ...(entry.when === undefined ? {} : { when: entry.when }) }
+}
+
 /** The structural shape a live keyboard event must satisfy to be matched. */
 export interface KeyGesture {
   key: string

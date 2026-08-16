@@ -1,20 +1,24 @@
-/** The Keybindings settings page: one recorder row plus its when clause per configured action. */
-import { useState } from 'react'
+/** The Keybindings settings page: one recorder row plus its when clause per registered action. */
+import { useMemo, useState } from 'react'
 import type { InjectFace, PropsLocale, PropsRuntime } from '@deepseek-ai/dsh-client-ui-slots'
 import type { SnapshotStore } from '@deepseek-ai/dsh-client-runtime/client'
+import { keybindingOfEntry, type Keybinding, type KeybindingEntry, type KeyStroke } from '../keybinding.ts'
+import type { UiActionId } from '../ui-action.ts'
 import { parseWhenClause } from '../when-clause.ts'
-import type { Keybinding, KeyStroke } from '../keybinding.ts'
+import type { UiActionDefinition } from './action-registry.ts'
 import { KeybindingRecorder } from './KeybindingRecorder.tsx'
 import css from './keybindings.module.css'
 
 /** Registration-side preference face. */
 export interface KeybindingsSectionInjected {
   hooks: {
-    /** Persisted send-message binding bound as useSendMessage. */
-    sendMessage: SnapshotStore<Keybinding>
+    /** Registered actions bound as useActions. */
+    actions: SnapshotStore<readonly UiActionDefinition[]>
+    /** Persisted entries bound as useBindings. */
+    bindings: SnapshotStore<readonly KeybindingEntry[]>
   }
-  /** Persist a newly recorded send-message binding. */
-  setSendMessage: (next: Keybinding) => void
+  /** Persist one action's binding. */
+  setBinding: (action: UiActionId, next: Keybinding) => void
 }
 
 /** Full Settings-page props. */
@@ -25,6 +29,28 @@ export type KeybindingsSectionProps =
 
 /** The section's localized translate face. */
 type SectionT = PropsLocale<'keybindings'>['t']
+
+/** One action resolved to its current gesture. */
+interface ResolvedAction {
+  definition: UiActionDefinition
+  binding: Keybinding
+}
+
+/** Resolve each action's current gesture, falling back to its default or an empty chord. */
+function resolveActions(
+  actions: readonly UiActionDefinition[],
+  bindings: readonly KeybindingEntry[],
+): readonly ResolvedAction[] {
+  return actions.map((definition) => {
+    const entry = bindings.find(existing => existing.action === definition.id)
+    return {
+      definition,
+      binding: entry === undefined
+        ? definition.defaultKeybinding ?? { strokes: [] }
+        : keybindingOfEntry(entry),
+    }
+  })
+}
 
 /** The when-clause text input, validating the expression on blur. */
 function WhenInput({ value, onChange, t }: { value: string; onChange: (when: string) => void; t: SectionT }) {
@@ -62,31 +88,46 @@ function WhenInput({ value, onChange, t }: { value: string; onChange: (when: str
   )
 }
 
-/**
- * The Keybindings page. A new action adds a hook, a setter, and one row here;
- * the recorder owns the strokes and the input owns the when clause, both
- * persisting through the injected setter.
- */
-export function KeybindingsSection({ useSendMessage, setSendMessage, t }: KeybindingsSectionProps) {
-  const binding = useSendMessage(value => value)
+/** One action's recorder and when clause, persisting through the injected setter. */
+function ActionRow(
+  { action, setBinding, t }: { action: ResolvedAction; setBinding: (action: UiActionId, next: Keybinding) => void; t: SectionT },
+) {
+  const { definition, binding } = action
 
   const setStrokes = (strokes: KeyStroke[]) => {
-    setSendMessage({ strokes, ...(binding.when === undefined ? {} : { when: binding.when }) })
+    setBinding(definition.id, { strokes, ...(binding.when === undefined ? {} : { when: binding.when }) })
   }
   const setWhen = (when: string) => {
-    setSendMessage({ strokes: binding.strokes, ...(when === '' ? {} : { when }) })
+    setBinding(definition.id, { strokes: binding.strokes, ...(when === '' ? {} : { when }) })
   }
 
   return (
-    <div className={css.section}>
+    <>
       <div className={css.row}>
         <div className={css.rowText}>
-          <div className={css.title}>{t('sendMessage.label')}</div>
-          <div className={css.desc}>{t('sendMessage.description')}</div>
+          <div className={css.title}>{definition.label}</div>
+          {definition.description !== undefined && <div className={css.desc}>{definition.description}</div>}
         </div>
-        <KeybindingRecorder strokes={binding.strokes} onStrokesChange={setStrokes} label={t('sendMessage.label')} doneLabel={t('recorder.done')} />
+        <KeybindingRecorder strokes={binding.strokes} onStrokesChange={setStrokes} label={definition.label} doneLabel={t('recorder.done')} />
       </div>
       <WhenInput value={binding.when ?? ''} onChange={setWhen} t={t} />
+    </>
+  )
+}
+
+/**
+ * The Keybindings page. One row per registered action; the recorder owns the
+ * strokes and the input owns the when clause, both persisting through the
+ * injected setter.
+ */
+export function KeybindingsSection({ useActions, useBindings, setBinding, t }: KeybindingsSectionProps) {
+  const actions = useActions(value => value)
+  const bindings = useBindings(value => value)
+  const rows = useMemo(() => resolveActions(actions, bindings), [actions, bindings])
+
+  return (
+    <div className={css.section}>
+      {rows.map(action => <ActionRow key={action.definition.id} action={action} setBinding={setBinding} t={t} />)}
     </div>
   )
 }

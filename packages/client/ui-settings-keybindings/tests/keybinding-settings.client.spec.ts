@@ -9,10 +9,8 @@ describe('keybinding settings', () => {
     expect(KEYBINDINGS_SETTINGS_NAMESPACE).toBe('ui-keybindings')
   })
 
-  it('defaults the list to the send action bound to Enter', () => {
-    expect(DEFAULT_KEYBINDING_ENTRIES).toEqual([
-      { strokes: [{ key: 'Enter', modifiers: [] }], action: COMPOSER_SEND_ACTION },
-    ])
+  it('defaults the list to empty', () => {
+    expect(DEFAULT_KEYBINDING_ENTRIES).toEqual([])
   })
 
   it('accepts a list of entries with a when clause', () => {
