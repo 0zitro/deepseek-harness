@@ -7,6 +7,7 @@ import {
 // Type-only: the ctx.settingsScope Context merge. Cross-plugin collaboration
 // goes through the service, never a value import (client bundle purity gate).
 import type {} from '@deepseek-ai/dsh-client-ui-settings/client'
+import type {} from '@deepseek-ai/dsh-client-ui-keybindings/client'
 import type {} from '@deepseek-ai/dsh-client-ui-layout/client'
 // Type-only: pulls the locale plugin's Context merge (ctx.locale).
 import type {} from '@deepseek-ai/dsh-client-locale/client'
@@ -51,7 +52,7 @@ declare module '@deepseek-ai/dsh-client-ui-slots' {
 /** Services required by the conversation plugin. */
 export const inject = [
   'slots', 'layout', 'sessions', 'workspaces', 'locale', 'connection', 'remote', 'settingsScope',
-  'conversationEvents', 'conversationViews',
+  'conversationEvents', 'conversationViews', 'uiWhenContext',
 ]
 
 // Static no-session sources for the composer-bar hooks compartment: module
@@ -290,11 +291,10 @@ export function apply(ctx: Context): void {
       if (sessionId === undefined) {
         return {
           keyboard: undefined,
+          send: () => { ctx.get('composer')?.send() },
           addImages: undefined,
           removeImage: undefined,
           draftImages: undefined,
-          resolveSubmitMode: (running, gesture, steeringAvailable) =>
-            submissionPolicy.resolve(running, gesture, steeringAvailable),
           toggleCommandMenu: undefined,
           stop: undefined,
           command: undefined,
@@ -306,6 +306,7 @@ export function apply(ctx: Context): void {
       const inputTriggers = inputHub.inputTriggers(sessionId)
       return {
         keyboard: shell,
+        send: () => { ctx.get('composer')?.send() },
         addImages: (files) => {
           try {
             const images = conversation.createDraftImages(files)
@@ -327,8 +328,6 @@ export function apply(ctx: Context): void {
           shell.removeImage(id)
         },
         draftImages: ids => conversation.draftImages(ids),
-        resolveSubmitMode: (running, gesture, steeringAvailable) =>
-          submissionPolicy.resolve(running, gesture, steeringAvailable),
         toggleCommandMenu: inputTriggers === undefined
           ? undefined
           : (selection) => {
@@ -437,6 +436,37 @@ export function apply(ctx: Context): void {
 
   // Global submission face: actions submit the current session's draft here.
   ctx.plugin(ComposerSubmission, { inputHub, policy: submissionPolicy, sessions })
+
+  // The command menu keeps focus on the textarea, so its open state is a
+  // context key (not a focus scope) — the dispatcher gates composer.send on it.
+  ctx.effect(() => {
+    let clear: (() => void) | undefined
+    let disposeLauncher: (() => void) | undefined
+    const setOpen = (open: boolean): void => {
+      clear?.()
+      clear = ctx.uiWhenContext.set('commandMenuOpen', open)
+    }
+    const sync = (): void => {
+      disposeLauncher?.()
+      disposeLauncher = undefined
+      const id = sessions.list.getSnapshot().current
+      const launcher = id === undefined ? undefined : inputHub.inputTriggers(id)?.launcher
+      if (launcher === undefined) {
+        setOpen(false)
+        return
+      }
+      const read = (): void => { setOpen(launcher.getSnapshot() === 'command') }
+      read()
+      disposeLauncher = launcher.subscribe(read)
+    }
+    sync()
+    const disposeSessions = sessions.list.subscribe(sync)
+    return () => {
+      clear?.()
+      disposeLauncher?.()
+      disposeSessions()
+    }
+  }, 'ui-conversation: commandMenuOpen')
 
   // The plan strip rides the input dock above the queue rows (same posture).
   ctx.plugin(todoDockEntry)

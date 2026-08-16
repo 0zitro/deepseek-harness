@@ -61,6 +61,7 @@ async function bench() {
   runtime.provide('layout', layoutFake)
   const locale = new LocaleRuntime(runtime.ctx)
   runtime.provide('locale', locale)
+  runtime.provide('uiWhenContext', { set: () => () => {} })
   runtime.slots.installLocale(locale)
 
   // The AppFrame role: the conversation-package slots must be declared by a

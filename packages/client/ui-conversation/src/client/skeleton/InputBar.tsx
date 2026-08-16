@@ -10,7 +10,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { ChangeEvent, KeyboardEvent, MouseEvent, ReactNode } from 'react'
 import clsx from 'clsx'
 import {
-  IconPlusOutline16, IconWarningOutline16, Toast, Tooltip,
+  FocusScope, IconPlusOutline16, IconWarningOutline16, Toast, Tooltip,
 } from '@deepseek-ai/dsh-client-ui-primitives'
 import { AttachmentRail, DropOverlay, ImageLightbox } from '@deepseek-ai/dsh-client-ui-attachment'
 import type { AttachmentRailItem } from '@deepseek-ai/dsh-client-ui-attachment'
@@ -44,8 +44,8 @@ interface ComposerRailItem extends AttachmentRailItem {
 export type InputBarProps = ComposerBarProps
 
 export function InputBar({
-  useSession, useInput, inputActions, keyboard, addImages, removeImage, draftImages,
-  resolveSubmitMode, toggleCommandMenu, stop, command, t,
+  useSession, useInput, inputActions, keyboard, send, addImages, removeImage, draftImages,
+  toggleCommandMenu, stop, command, t,
   renderSlot, useNotices, useLexicon, useMenuLauncher,
   useProjection, sessionId, variant, disabled: inert = false, blocked,
   workspacePickerOpen = false, onRequestWorkspace,
@@ -310,33 +310,9 @@ export function InputBar({
       if (keyboard.space()) e.preventDefault() // claim token already carries the trailing separator
       return
     }
-    if (e.key !== 'Enter') return
-    if (composing) return
-    // Menu-open Enter picks the highlight through arbitration; a no-highlight
-    // menu passes down to the machine's own adjudication.
-    const arbitrated = keyboard.arbitrate('enter', composing)
-    if (arbitrated !== 'pass') {
-      e.preventDefault()
-      return
-    }
-    e.preventDefault()
-    if (e.repeat) return // held-down Enter must not machine-gun sends
-    if (locked || machineBusy) return
-    const accelerated = e.ctrlKey || e.metaKey
-    // Empty-draft accelerated Enter acts on the queue instead of the (empty)
-    // draft: the machine rejects empty drafts, so the gesture steers every
-    // still-pending queued message into the running turn (the dock's per-row
-    // steer button applied to the whole queue). Steering needs the same
-    // window as the per-row button: a running ordinary session.
-    if (accelerated && canSteerQueue) {
-      keyboard.steerQueue()
-      return
-    }
-    keyboard.submit(resolveSubmitMode(
-      running,
-      accelerated ? 'accelerated' : 'enter',
-      subagent === null,
-    ))
+    // Enter submits through the keybindings dispatcher (composer.send), which
+    // gates on composerActive && !commandMenuOpen — the menu-open arbitration
+    // and the submit both resolve there, not here.
   }
 
   const onChange = (e: ChangeEvent<HTMLTextAreaElement>): void => {
@@ -551,7 +527,7 @@ export function InputBar({
     }
     if (inputActions === undefined) return // absent machine: the button is disabled
     /* v8 ignore next -- defensive: the primary button is disabled while empty||disabled, so a click cannot reach the false arm. */
-    if (!empty && !disabled && !machineBusy) inputActions.submit()
+    if (!empty && !disabled && !machineBusy) send()
   }
 
   // The Access seat: the projection-fed permission chip (renders nothing
@@ -638,7 +614,7 @@ export function InputBar({
   }
 
   return (
-    <div className={clsx(css.root, variant === 'hero' && css.hero)}>
+    <FocusScope name="composer" className={clsx(css.root, variant === 'hero' && css.hero)}>
       {dragActive && (
         <DropOverlay
           disabled={!canAcceptDrop}
@@ -803,6 +779,6 @@ export function InputBar({
         />
       )}
       {footer}
-    </div>
+    </FocusScope>
   )
 }

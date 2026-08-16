@@ -33,7 +33,7 @@ export function apply(ctx: Context): void {
     id: COMPOSER_SEND_ACTION,
     label: t('composerSend.label'),
     description: t('composerSend.description'),
-    defaultKeybinding: { strokes: [{ key: 'Enter', modifiers: [] }], when: 'composerActive' },
+    defaultKeybinding: { strokes: [{ key: 'Enter', modifiers: [] }], when: 'composerActive && !commandMenuOpen' },
     run: () => { ctx.composer.send() },
   }), 'ui-stock-actions: composer send action')
 
