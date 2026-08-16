@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest'
 import { Context } from '@deepseek-ai/cordis'
-import * as KeybindingsInvariant from '@deepseek-ai/dsh-client-ui-settings-keybindings/invariant'
+import * as KeybindingsInvariant from '@deepseek-ai/dsh-client-ui-keybindings/invariant'
 import InvariantRegistry from '@deepseek-ai/dsh-invariants'
 import { apply } from '../src/index.ts'
 

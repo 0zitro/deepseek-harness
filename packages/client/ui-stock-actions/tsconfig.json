@@ -12,7 +12,7 @@
       "path": "../../../vendor/cordis"
     },
     {
-      "path": "../ui-settings-keybindings"
+      "path": "../ui-keybindings"
     },
     {
       "path": "../locale"

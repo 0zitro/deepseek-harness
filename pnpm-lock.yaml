@@ -1333,9 +1333,9 @@ importers:
       '@deepseek-ai/dsh-client-ui-settings-general':
         specifier: workspace:^
         version: link:../../client/ui-settings-general
-      '@deepseek-ai/dsh-client-ui-settings-keybindings':
+      '@deepseek-ai/dsh-client-ui-keybindings':
         specifier: workspace:^
-        version: link:../../client/ui-settings-keybindings
+        version: link:../../client/ui-keybindings
       '@deepseek-ai/dsh-client-ui-settings-models':
         specifier: workspace:^
         version: link:../../client/ui-settings-models
@@ -2499,7 +2499,7 @@ importers:
         specifier: ^18.2.0
         version: 18.3.1
 
-  packages/client/ui-settings-keybindings:
+  packages/client/ui-keybindings:
     dependencies:
       '@deepseek-ai/dsh-settings':
         specifier: workspace:^
@@ -2780,9 +2780,9 @@ importers:
       '@deepseek-ai/dsh-client-test-runtime':
         specifier: workspace:^
         version: link:../../test-support/client-runtime
-      '@deepseek-ai/dsh-client-ui-settings-keybindings':
+      '@deepseek-ai/dsh-client-ui-keybindings':
         specifier: workspace:^
-        version: link:../ui-settings-keybindings
+        version: link:../ui-keybindings
       '@deepseek-ai/dsh-invariants':
         specifier: workspace:^
         version: link:../../runtime-diagnostics/invariants
