@@ -1,4 +1,4 @@
-/** Registers the Keybindings settings section and binds the send-message binding. */
+/** Registers the keybindings orchestrator: action registry, durable list, and the settings section. */
 import type { Context } from '@deepseek-ai/cordis'
 import {
   createSnapshotStore, shallowEqual, type SettingsScope, type SnapshotStore,
@@ -8,59 +8,54 @@ import type {} from '@deepseek-ai/dsh-client-ui-settings/client'
 // Type-only: pulls the locale plugin's Context merge (ctx.locale).
 import type {} from '@deepseek-ai/dsh-client-locale/client'
 import {
-  DEFAULT_SEND_KEYBINDING, type Keybinding, type KeybindingEntry,
+  DEFAULT_SEND_KEYBINDING, keybindingOfEntry, type Keybinding, type KeybindingEntry,
 } from '../keybinding.ts'
 import {
   DEFAULT_KEYBINDING_ENTRIES, KEYBINDINGS_SETTINGS_NAMESPACE, type KeybindingsSettings,
 } from '../keybinding-settings.ts'
-import { COMPOSER_SEND_ACTION } from '../ui-action.ts'
+import { COMPOSER_SEND_ACTION, type UiActionId } from '../ui-action.ts'
+import { UiActionRegistry } from './action-registry.ts'
 import { KeybindingsSection, type KeybindingsSectionInjected } from './KeybindingsSection.tsx'
 import { en, NS, zh } from './locales.ts'
 
 /** Services required by the keybindings plugin. */
 export const inject = ['slots', 'settingsScope', 'locale']
 
-/** One action binding bound to the durable keybindings list. */
-interface BindingScope {
-  value: SnapshotStore<Keybinding>
-  set: (next: Keybinding) => void
-}
-
-/** The strokes-and-when gesture of an entry, without its action. */
-function gestureOf(entry: KeybindingEntry): Keybinding {
-  return { strokes: entry.strokes, ...(entry.when === undefined ? {} : { when: entry.when }) }
+/** The durable keybindings list bound to the settings scope, plus a write-back. */
+interface BindingsScope {
+  value: SnapshotStore<readonly KeybindingEntry[]>
+  set: (action: UiActionId, next: Keybinding) => void
 }
 
 /**
- * Bind the composer send action to the durable keybindings list. The persisted
- * entry keeps its action id; only the gesture (strokes and when) is exposed
- * and edited here, so the section stays action-agnostic until the action
- * registry drives one row per action.
+ * Bind the persisted list to the settings scope. External edits are adopted
+ * back without being written out again; `set` replaces one action's entry,
+ * leaving every other action untouched.
  */
-function bindSendBinding(host: SettingsScope<KeybindingsSettings>): BindingScope {
-  const value = createSnapshotStore<Keybinding>(DEFAULT_SEND_KEYBINDING)
+function bindBindings(host: SettingsScope<KeybindingsSettings>): BindingsScope {
+  const value = createSnapshotStore<readonly KeybindingEntry[]>(DEFAULT_KEYBINDING_ENTRIES)
 
   const adopt = () => {
-    const entry = host.getSnapshot().value?.bindings.find(binding => binding.action === COMPOSER_SEND_ACTION)
-    if (entry === undefined) return
-    const next = gestureOf(entry)
+    const next = host.getSnapshot().value?.bindings ?? DEFAULT_KEYBINDING_ENTRIES
     if (shallowEqual(value.getSnapshot(), next)) return
     value.set(next)
   }
   host.subscribe(adopt)
   adopt()
 
-  const set = (next: Keybinding) => {
-    if (value.getSnapshot() === next) return
-    value.set(next)
+  const set = (action: UiActionId, next: Keybinding) => {
+    const existing = value.getSnapshot().find(entry => entry.action === action)
+    if (existing !== undefined && shallowEqual(keybindingOfEntry(existing), next)) return
+    const entry: KeybindingEntry = {
+      strokes: next.strokes,
+      action,
+      ...(next.when === undefined ? {} : { when: next.when }),
+    }
     const previous = host.getSnapshot().value?.bindings ?? DEFAULT_KEYBINDING_ENTRIES
-    const bindings = previous.map(entry => entry.action === COMPOSER_SEND_ACTION
-      ? {
-        strokes: next.strokes,
-        action: COMPOSER_SEND_ACTION,
-        ...(next.when === undefined ? {} : { when: next.when }),
-      }
-      : entry)
+    const bindings = previous.some(current => current.action === action)
+      ? previous.map(current => current.action === action ? entry : current)
+      : [...previous, entry]
+    value.set(bindings)
     void host.set('bindings', bindings)
   }
   return { value, set }
@@ -75,8 +70,19 @@ export function apply(ctx: Context): void {
 
   ctx.effect(() => ctx.locale.register(NS, { zh, en }), 'ui-keybindings: dictionaries')
 
+  new UiActionRegistry(ctx)
+
+  // Transitional: the composer send action belongs to the stock-actions
+  // package, which registers it once that package exists.
+  ctx.effect(() => ctx.uiActions.register({
+    id: COMPOSER_SEND_ACTION,
+    label: t('sendMessage.label'),
+    description: t('sendMessage.description'),
+    defaultKeybinding: DEFAULT_SEND_KEYBINDING,
+  }), 'ui-keybindings: composer send action')
+
   const host = ctx.settingsScope.bind<KeybindingsSettings>({ namespace: KEYBINDINGS_SETTINGS_NAMESPACE })
-  const sendMessage = bindSendBinding(host)
+  const bindings = bindBindings(host)
 
   // `slots.inject` awaits the `settings.section` declaration (owned by
   // ui-settings-general), whose activation order is not constrained.
@@ -87,8 +93,11 @@ export function apply(ctx: Context): void {
     label: () => t('title'),
     locale: NS,
     inject: (): KeybindingsSectionInjected => ({
-      hooks: { sendMessage: sendMessage.value },
-      setSendMessage: sendMessage.set,
+      hooks: {
+        actions: ctx.uiActions.actions,
+        bindings: bindings.value,
+      },
+      setBinding: bindings.set,
     }),
   }, KeybindingsSection))
 }

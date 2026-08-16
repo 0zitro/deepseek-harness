@@ -1,4 +1,4 @@
-/** Keybindings section registration: slot injection, locale-following label, and the bound send-message face. */
+/** Keybindings orchestrator registration: the action registry, slot injection, and the bound list. */
 import { Context } from '@deepseek-ai/cordis'
 import { describe, expect, it, vi } from 'vitest'
 import { resolveSlotLabel } from '@deepseek-ai/dsh-client-ui-slots'
@@ -69,11 +69,19 @@ describe('ui-settings-keybindings apply', () => {
     expect(resolveSlotLabel(entry.options.label)).toBe('快捷键')
   })
 
-  it('adopts the durable binding and persists through setSendMessage', async () => {
+  it('self-registers the composer send action transitionally', async () => {
+    const { face } = await mount()
+    expect(face.hooks.actions.getSnapshot()).toEqual([{
+      id: COMPOSER_SEND_ACTION,
+      label: '发送消息',
+      description: '提交输入框的按键组合。',
+      defaultKeybinding: DEFAULT_SEND_KEYBINDING,
+    }])
+  })
+
+  it('persists a binding through setBinding', async () => {
     const { face, set } = await mount()
-    expect(face.hooks.sendMessage.getSnapshot()).toEqual(DEFAULT_SEND_KEYBINDING)
-    face.setSendMessage({ strokes: [{ key: 'k', modifiers: ['ctrl'] }], when: 'agentBusy' })
-    expect(face.hooks.sendMessage.getSnapshot()).toEqual({ strokes: [{ key: 'k', modifiers: ['ctrl'] }], when: 'agentBusy' })
+    face.setBinding(COMPOSER_SEND_ACTION, { strokes: [{ key: 'k', modifiers: ['ctrl'] }], when: 'agentBusy' })
     expect(set).toHaveBeenCalledWith('bindings', [{
       strokes: [{ key: 'k', modifiers: ['ctrl'] }],
       action: COMPOSER_SEND_ACTION,
@@ -84,25 +92,22 @@ describe('ui-settings-keybindings apply', () => {
   it('adopts a durable binding change pushed from the settings scope', async () => {
     const { face, publish } = await mount()
     publish({ bindings: [{ strokes: [{ key: 'j', modifiers: ['meta'] }], action: COMPOSER_SEND_ACTION, when: 'agentBusy' }] })
-    expect(face.hooks.sendMessage.getSnapshot()).toEqual({ strokes: [{ key: 'j', modifiers: ['meta'] }], when: 'agentBusy' })
+    expect(face.hooks.bindings.getSnapshot()).toEqual([
+      { strokes: [{ key: 'j', modifiers: ['meta'] }], action: COMPOSER_SEND_ACTION, when: 'agentBusy' },
+    ])
   })
 
   it('does not persist an unchanged binding', async () => {
-    const { face, set } = await mount()
-    face.setSendMessage(DEFAULT_SEND_KEYBINDING)
+    const { face, set, publish } = await mount()
+    publish({ bindings: [{ strokes: DEFAULT_SEND_KEYBINDING.strokes, action: COMPOSER_SEND_ACTION }] })
+    face.setBinding(COMPOSER_SEND_ACTION, DEFAULT_SEND_KEYBINDING)
     expect(set).not.toHaveBeenCalled()
-  })
-
-  it('keeps the fallback when the send entry is absent', async () => {
-    const { face, publish } = await mount()
-    publish({ bindings: [] })
-    expect(face.hooks.sendMessage.getSnapshot()).toEqual(DEFAULT_SEND_KEYBINDING)
   })
 
   it('persists against the default list when the document is not yet loaded', async () => {
     const { face, set, publish } = await mount()
     publish(undefined)
-    face.setSendMessage({ strokes: [{ key: 'k', modifiers: ['ctrl'] }] })
+    face.setBinding(COMPOSER_SEND_ACTION, { strokes: [{ key: 'k', modifiers: ['ctrl'] }] })
     expect(set).toHaveBeenCalledWith('bindings', [{
       strokes: [{ key: 'k', modifiers: ['ctrl'] }],
       action: COMPOSER_SEND_ACTION,
@@ -115,7 +120,7 @@ describe('ui-settings-keybindings apply', () => {
       { strokes: [{ key: 'Enter', modifiers: [] }], action: COMPOSER_SEND_ACTION },
       { strokes: [{ key: 'p', modifiers: ['ctrl'] }], action: PREVIEW_ACTION },
     ] })
-    face.setSendMessage({ strokes: [{ key: 'k', modifiers: ['ctrl'] }] })
+    face.setBinding(COMPOSER_SEND_ACTION, { strokes: [{ key: 'k', modifiers: ['ctrl'] }] })
     expect(set).toHaveBeenCalledWith('bindings', [
       { strokes: [{ key: 'k', modifiers: ['ctrl'] }], action: COMPOSER_SEND_ACTION },
       { strokes: [{ key: 'p', modifiers: ['ctrl'] }], action: PREVIEW_ACTION },
