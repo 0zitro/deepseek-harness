@@ -4,6 +4,7 @@ import { ChordMatcher } from '../chord.ts'
 import { isRecordableKey, type KeybindingEntry } from '../keybinding.ts'
 import { evaluateWhen, parseWhenClause, type WhenContext } from '../when-clause.ts'
 import type { UiActionDefinition } from './action-registry.ts'
+import type { ReadonlySnapshot } from './when-context.ts'
 
 /** Run the action a matched entry references, if it is still registered. */
 export function runMatched(matched: KeybindingEntry, actions: readonly UiActionDefinition[]): void {
@@ -38,7 +39,7 @@ export function dispatchKeydown(
 export function createKeybindingDispatcher(
   bindings: SnapshotStore<readonly KeybindingEntry[]>,
   actions: SnapshotStore<readonly UiActionDefinition[]>,
-  context: SnapshotStore<WhenContext>,
+  context: ReadonlySnapshot<WhenContext>,
 ): () => void {
   const active = (entry: KeybindingEntry) => resolveWhen(entry.when, context.getSnapshot())
   let matcher = new ChordMatcher<KeybindingEntry>(bindings.getSnapshot(), active)
