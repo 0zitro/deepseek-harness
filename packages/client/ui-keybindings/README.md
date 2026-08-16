@@ -1,4 +1,4 @@
-# @deepseek-ai/dsh-client-ui-settings-keybindings
+# @deepseek-ai/dsh-client-ui-keybindings
 
 English | [中文](README.zh.md)
 

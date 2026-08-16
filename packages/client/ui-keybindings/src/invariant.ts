@@ -1,16 +1,16 @@
 /**
- * Package-owned invariant companion for `@deepseek-ai/dsh-client-ui-settings-keybindings`.
- * @module @deepseek-ai/dsh-client-ui-settings-keybindings/invariant
+ * Package-owned invariant companion for `@deepseek-ai/dsh-client-ui-keybindings`.
+ * @module @deepseek-ai/dsh-client-ui-keybindings/invariant
  */
 
 /* jscpd:ignore-start */
 import type { Context } from '@deepseek-ai/cordis'
 import type { InvariantInstaller } from '@deepseek-ai/dsh-invariants'
 
-const PACKAGE_NAME = '@deepseek-ai/dsh-client-ui-settings-keybindings'
+const PACKAGE_NAME = '@deepseek-ai/dsh-client-ui-keybindings'
 
 /** Cordis companion plugin name. */
-export const name = 'client-ui-settings-keybindings-invariant'
+export const name = 'client-ui-keybindings-invariant'
 /** Service required before the companion can reserve package ownership. */
 export const inject = ['invariants']
 

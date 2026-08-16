@@ -1,7 +1,7 @@
 /** Registers the built-in UI actions and their default keybindings. */
 import type { Context } from '@deepseek-ai/cordis'
 // Type-only: pulls the keybindings Context merge (ctx.uiActions) and its id type.
-import type { UiActionId } from '@deepseek-ai/dsh-client-ui-settings-keybindings/client'
+import type { UiActionId } from '@deepseek-ai/dsh-client-ui-keybindings/client'
 // Type-only: pulls the locale plugin's Context merge (ctx.locale).
 import type {} from '@deepseek-ai/dsh-client-locale/client'
 import { en, NS, zh } from './locales.ts'

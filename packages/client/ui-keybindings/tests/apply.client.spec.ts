@@ -6,7 +6,7 @@ import { resolveSlotLabel } from '@deepseek-ai/dsh-client-ui-slots'
 import { SlotRegistry } from '@deepseek-ai/dsh-client-runtime/client'
 import { LocaleRuntime } from '@deepseek-ai/dsh-client-locale/client'
 import { usePinnedBrowserLanguages } from '@deepseek-ai/dsh-client-test-runtime'
-import { apply, inject } from '@deepseek-ai/dsh-client-ui-settings-keybindings/client'
+import { apply, inject } from '@deepseek-ai/dsh-client-ui-keybindings/client'
 import { KeybindingsSection } from '../src/client/KeybindingsSection.tsx'
 import type { KeybindingsSectionInjected } from '../src/client/KeybindingsSection.tsx'
 import type { Keybinding } from '../src/keybinding.ts'
@@ -58,7 +58,7 @@ async function mount() {
   return { ...b, face: injected() }
 }
 
-describe('ui-settings-keybindings apply', () => {
+describe('ui-keybindings apply', () => {
   it('declares the services it uses', () => {
     expect(inject).toEqual(['slots', 'settingsScope', 'locale'])
   })
