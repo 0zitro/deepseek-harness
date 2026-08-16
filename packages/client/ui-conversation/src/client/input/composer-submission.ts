@@ -41,9 +41,13 @@ export class ComposerSubmission extends Service {
     this.submit('queue')
   }
 
-  /** Raw steer, ignoring the preference. */
+  /** Raw steer, ignoring the preference; an empty draft steers the whole queue. */
   steer(): void {
-    this.submit('steer')
+    const shell = this.currentShell()
+    if (shell === undefined) return
+    const session = this.currentSession()
+    if (this.canSteerQueue(shell, session)) shell.steerQueue()
+    else shell.submit('steer')
   }
 
   private submitResolved(gesture: ComposerSubmitGesture): void {
@@ -59,6 +63,17 @@ export class ComposerSubmission extends Service {
 
   private submit(mode: InputSubmitMode): void {
     this.currentShell()?.submit(mode)
+  }
+
+  private canSteerQueue(
+    shell: SessionInputShell,
+    session: { running: boolean; origin?: 'subagent' } | undefined,
+  ): boolean {
+    const state = shell.state.getSnapshot()
+    return state.draft.trim() === ''
+      && (session?.running ?? false)
+      && session?.origin !== 'subagent'
+      && state.queue.some(row => row.placement === 'queued')
   }
 
   private currentShell(): SessionInputShell | undefined {
