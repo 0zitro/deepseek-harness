@@ -4,8 +4,9 @@ import { createSnapshotStore } from '@deepseek-ai/dsh-client-runtime/client'
 import { ChordMatcher } from '../src/chord.ts'
 import { type KeybindingEntry, type KeyStroke } from '../src/keybinding.ts'
 import { COMPOSER_SEND_ACTION, type UiActionId } from '../src/ui-action.ts'
+import type { WhenContext } from '../src/when-clause.ts'
 import type { UiActionDefinition } from '../src/client/action-registry.ts'
-import { createKeybindingDispatcher, dispatchKeydown, runMatched } from '../src/client/dispatch.ts'
+import { createKeybindingDispatcher, dispatchKeydown, resolveWhen, runMatched } from '../src/client/dispatch.ts'
 
 function entry(strokes: KeyStroke[], action: UiActionId = COMPOSER_SEND_ACTION): KeybindingEntry {
   return { strokes, action }
@@ -25,6 +26,21 @@ describe('runMatched', () => {
 
   it('no-ops when the action is no longer registered', () => {
     runMatched(entry([{ key: 'Enter', modifiers: [] }]), [])
+  })
+})
+
+describe('resolveWhen', () => {
+  it('treats an absent clause as always active', () => {
+    expect(resolveWhen(undefined, {})).toBe(true)
+  })
+
+  it('evaluates a clause against the context', () => {
+    expect(resolveWhen('composerFocused', { composerFocused: true })).toBe(true)
+    expect(resolveWhen('composerFocused', {})).toBe(false)
+  })
+
+  it('treats a malformed clause as inactive', () => {
+    expect(resolveWhen('a &&', { a: true })).toBe(false)
   })
 })
 
@@ -70,14 +86,27 @@ describe('createKeybindingDispatcher', () => {
   it('dispatches a persisted binding to its action and disposes cleanly', () => {
     const bindings = createSnapshotStore<readonly KeybindingEntry[]>([])
     const actions = createSnapshotStore<readonly UiActionDefinition[]>([])
+    const context = createSnapshotStore<WhenContext>({})
     const run = vi.fn()
     actions.set([{ id: COMPOSER_SEND_ACTION, label: 'Send', run }])
-    const dispose = createKeybindingDispatcher(bindings, actions)
+    const dispose = createKeybindingDispatcher(bindings, actions, context)
     bindings.set([{ strokes: [{ key: 'Enter', modifiers: [] }], action: COMPOSER_SEND_ACTION }])
     window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter' }))
     expect(run).toHaveBeenCalledOnce()
     dispose()
     window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter' }))
     expect(run).toHaveBeenCalledOnce()
+  })
+
+  it('skips a binding whose when clause does not hold', () => {
+    const bindings = createSnapshotStore<readonly KeybindingEntry[]>([])
+    const actions = createSnapshotStore<readonly UiActionDefinition[]>([])
+    const context = createSnapshotStore<WhenContext>({ composerFocused: false })
+    const run = vi.fn()
+    actions.set([{ id: COMPOSER_SEND_ACTION, label: 'Send', run }])
+    createKeybindingDispatcher(bindings, actions, context)
+    bindings.set([{ strokes: [{ key: 'Enter', modifiers: [] }], action: COMPOSER_SEND_ACTION, when: 'composerFocused' }])
+    window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter' }))
+    expect(run).not.toHaveBeenCalled()
   })
 })
