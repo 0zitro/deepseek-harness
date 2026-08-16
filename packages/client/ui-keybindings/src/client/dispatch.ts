@@ -32,10 +32,9 @@ export function dispatchKeydown(
   if (event.repeat) return
   if (!isRecordableKey(event.key)) return
   const matched = matcher.feed(event)
-  if (matched !== null) {
-    event.preventDefault()
-    runMatched(matched, actions)
-  }
+  if (matched === null && matcher.progress === null) return
+  event.preventDefault()
+  if (matched !== null) runMatched(matched, actions)
 }
 
 /** The effective entries: a persisted override, else the action's default binding. */
