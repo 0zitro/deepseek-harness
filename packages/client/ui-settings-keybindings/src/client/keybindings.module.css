@@ -1,0 +1,78 @@
+/*
+ * Keybindings settings page.
+ *
+ * Color tokens follow the component alias family (`--dsw-alias-*`). Confirm the
+ * exact border/accent names against `Theme.listTokens` before landing; the
+ * fallbacks keep the module legible if a token is renamed.
+ */
+
+.section {
+  display: flex;
+  flex-direction: column;
+}
+
+.row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 12px 0;
+}
+
+.row + .row {
+  border-top: 1px solid var(--dsw-alias-line, color-mix(in srgb, currentColor 12%, transparent));
+}
+
+.rowText {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.title {
+  color: var(--dsw-alias-label-primary);
+  font-size: 14px;
+  line-height: 20px;
+}
+
+.desc {
+  color: var(--dsw-alias-label-secondary);
+  font-size: 12px;
+  line-height: 16px;
+}
+
+.recorder {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 8px;
+  border-radius: 6px;
+  border: 1px solid var(--dsw-alias-line, color-mix(in srgb, currentColor 20%, transparent));
+  background: var(--dsw-alias-bg-base);
+  color: var(--dsw-alias-label-primary);
+  cursor: pointer;
+  font: inherit;
+}
+
+.recorder:hover,
+.recorder[data-listening] {
+  border-color: var(--dsw-alias-accent, currentColor);
+}
+
+.chip {
+  font-family: inherit;
+  font-size: 12px;
+  line-height: 16px;
+  padding: 1px 6px;
+  border-radius: 4px;
+  border: 1px solid var(--dsw-alias-line, color-mix(in srgb, currentColor 20%, transparent));
+  background: var(--dsw-alias-bg-base);
+  color: var(--dsw-alias-label-primary);
+  white-space: nowrap;
+}
+
+.chipPlaceholder {
+  color: var(--dsw-alias-label-caption);
+  border-style: dashed;
+}
