@@ -5,6 +5,8 @@ import type { ReactNode } from 'react'
 export interface FocusScopeProps {
   /** Stable region name; the when-context derives `<name>Focused`/`<name>Active`. */
   name: string
+  /** Extra layout class merged onto the region element. */
+  className?: string
   children?: ReactNode
 }
 
@@ -15,6 +17,6 @@ export interface FocusScopeProps {
  * gates any binding on either. Nesting composes: an overlay inside the
  * composer keeps `composerFocused` true while the overlay is the active region.
  */
-export function FocusScope({ name, children }: FocusScopeProps) {
-  return <div data-focus-scope={name}>{children}</div>
+export function FocusScope({ name, className, children }: FocusScopeProps) {
+  return <div data-focus-scope={name} className={className}>{children}</div>
 }
