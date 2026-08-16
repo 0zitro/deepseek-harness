@@ -33,7 +33,8 @@
     "client": {
       "inject": [
         "@deepseek-ai/dsh-client-ui-keybindings",
-        "@deepseek-ai/dsh-client-locale"
+        "@deepseek-ai/dsh-client-locale",
+        "@deepseek-ai/dsh-client-ui-conversation"
       ],
       "platform": "web"
     }
@@ -46,6 +47,7 @@
   "peerDependencies": {
     "@deepseek-ai/cordis": "workspace:^",
     "@deepseek-ai/dsh-client-locale": "workspace:^",
+    "@deepseek-ai/dsh-client-ui-conversation": "workspace:^",
     "@deepseek-ai/dsh-client-ui-keybindings": "workspace:^",
     "@deepseek-ai/dsh-invariants": "workspace:^"
   },
@@ -53,6 +55,7 @@
     "@deepseek-ai/cordis": "workspace:^",
     "@deepseek-ai/dsh-client-locale": "workspace:^",
     "@deepseek-ai/dsh-client-test-runtime": "workspace:^",
+    "@deepseek-ai/dsh-client-ui-conversation": "workspace:^",
     "@deepseek-ai/dsh-client-ui-keybindings": "workspace:^",
     "@deepseek-ai/dsh-invariants": "workspace:^"
   },

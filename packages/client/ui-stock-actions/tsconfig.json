@@ -15,6 +15,9 @@
       "path": "../ui-keybindings"
     },
     {
+      "path": "../ui-conversation"
+    },
+    {
       "path": "../locale"
     },
     {
