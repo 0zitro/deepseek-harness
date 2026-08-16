@@ -8,9 +8,17 @@ import type { SessionInputShell } from '../src/client/input/facade.ts'
 import type { InputHub } from '../src/client/input/hub.ts'
 import type { ComposerSubmissionPolicy } from '../src/client/input/submission-policy.ts'
 
-function mount(summary: { running: boolean; origin?: 'subagent' } | undefined) {
+function mount(
+  summary: { running: boolean; origin?: 'subagent' } | undefined,
+  over: { draft?: string; queue?: readonly { placement: 'queued' | 'steering' }[] } = {},
+) {
   const submit = vi.fn()
-  const shell = { submit } as unknown as SessionInputShell
+  const steerQueue = vi.fn()
+  const shell = {
+    submit,
+    steerQueue,
+    state: { getSnapshot: () => ({ draft: over.draft ?? 'hello', queue: over.queue ?? [] }) },
+  } as unknown as SessionInputShell
   const inputHub = { shell: vi.fn(() => shell) } as unknown as InputHub
   const resolve = vi.fn((_running: boolean, _gesture: string, _steering: boolean): InputSubmitMode => 'queue')
   const policy = { resolve } as unknown as ComposerSubmissionPolicy
@@ -23,7 +31,7 @@ function mount(summary: { running: boolean; origin?: 'subagent' } | undefined) {
     },
   } as unknown as ISessions
   const service = new ComposerSubmission(new Context(), { inputHub, policy, sessions })
-  return { submit, resolve, service }
+  return { submit, steerQueue, resolve, service }
 }
 
 describe('ComposerSubmission', () => {
@@ -49,10 +57,28 @@ describe('ComposerSubmission', () => {
     expect(resolve).not.toHaveBeenCalled()
   })
 
+  it('steers the whole queue on an empty draft', () => {
+    const { submit, steerQueue, service } = mount({ running: true }, { draft: '', queue: [{ placement: 'queued' }] })
+    service.steer()
+    expect(steerQueue).toHaveBeenCalledOnce()
+    expect(submit).not.toHaveBeenCalled()
+  })
+
+  it('steer submits the draft for a subagent session', () => {
+    const { submit, steerQueue, service } = mount(
+      { running: true, origin: 'subagent' },
+      { draft: '', queue: [{ placement: 'queued' }] },
+    )
+    service.steer()
+    expect(steerQueue).not.toHaveBeenCalled()
+    expect(submit).toHaveBeenCalledWith('steer')
+  })
+
   it('no-ops without a current session', () => {
     const { submit, service } = mount(undefined)
     service.send()
     service.queue()
+    service.steer()
     expect(submit).not.toHaveBeenCalled()
   })
 })
