@@ -8,7 +8,7 @@ import { usePinnedBrowserLanguages } from '@deepseek-ai/dsh-client-test-runtime'
 import { apply, inject } from '@deepseek-ai/dsh-client-ui-settings-keybindings/client'
 import { KeybindingsSection } from '../src/client/KeybindingsSection.tsx'
 import type { KeybindingsSectionInjected } from '../src/client/KeybindingsSection.tsx'
-import { DEFAULT_SEND_KEYBINDING } from '../src/keybinding.ts'
+import type { Keybinding } from '../src/keybinding.ts'
 import { DEFAULT_KEYBINDING_ENTRIES, type KeybindingsSettings } from '../src/keybinding-settings.ts'
 import { COMPOSER_SEND_ACTION, type UiActionId } from '../src/ui-action.ts'
 
@@ -16,6 +16,9 @@ usePinnedBrowserLanguages('zh-CN')
 
 /** A second action id, used to prove other entries survive a send edit. */
 const PREVIEW_ACTION = 'composer.preview' as UiActionId
+
+/** The composer's Enter default, mirroring the stock-actions registration. */
+const ENTER: Keybinding = { strokes: [{ key: 'Enter', modifiers: [] }] }
 
 async function bench() {
   const ctx = new Context()
@@ -69,16 +72,6 @@ describe('ui-settings-keybindings apply', () => {
     expect(resolveSlotLabel(entry.options.label)).toBe('快捷键')
   })
 
-  it('self-registers the composer send action transitionally', async () => {
-    const { face } = await mount()
-    expect(face.hooks.actions.getSnapshot()).toEqual([{
-      id: COMPOSER_SEND_ACTION,
-      label: '发送消息',
-      description: '提交输入框的按键组合。',
-      defaultKeybinding: DEFAULT_SEND_KEYBINDING,
-    }])
-  })
-
   it('persists a binding through setBinding', async () => {
     const { face, set } = await mount()
     face.setBinding(COMPOSER_SEND_ACTION, { strokes: [{ key: 'k', modifiers: ['ctrl'] }], when: 'agentBusy' })
@@ -99,8 +92,8 @@ describe('ui-settings-keybindings apply', () => {
 
   it('does not persist an unchanged binding', async () => {
     const { face, set, publish } = await mount()
-    publish({ bindings: [{ strokes: DEFAULT_SEND_KEYBINDING.strokes, action: COMPOSER_SEND_ACTION }] })
-    face.setBinding(COMPOSER_SEND_ACTION, DEFAULT_SEND_KEYBINDING)
+    publish({ bindings: [{ strokes: ENTER.strokes, action: COMPOSER_SEND_ACTION }] })
+    face.setBinding(COMPOSER_SEND_ACTION, ENTER)
     expect(set).not.toHaveBeenCalled()
   })
 

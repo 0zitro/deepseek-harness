@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import {
-  DEFAULT_SEND_KEYBINDING, KEYBINDING_MODIFIER_LABELS, KEYBINDING_MODIFIERS,
+  KEYBINDING_MODIFIER_LABELS, KEYBINDING_MODIFIERS,
   KeybindingEntrySchema, KeyStrokeSchema, isRecordableKey, keybindingKeyLabel,
   keybindingLabels, keybindingOfEntry, modifiersOf, normalizeEventKey,
   strokeFromEvent, strokeLabels, strokeMatches,
@@ -111,10 +111,6 @@ describe('constants and schema', () => {
   it('has four canonical modifiers with labels', () => {
     expect(KEYBINDING_MODIFIERS).toEqual(['ctrl', 'meta', 'alt', 'shift'])
     expect(KEYBINDING_MODIFIER_LABELS).toEqual({ ctrl: 'Ctrl', meta: 'Meta', alt: 'Alt', shift: 'Shift' })
-  })
-
-  it('defaults the send binding to a single Enter stroke', () => {
-    expect(DEFAULT_SEND_KEYBINDING).toEqual({ strokes: [{ key: 'Enter', modifiers: [] }] })
   })
 
   it('parses a stroke and an entry', () => {
