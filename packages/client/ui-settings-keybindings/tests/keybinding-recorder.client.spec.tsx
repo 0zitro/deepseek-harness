@@ -2,57 +2,166 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { KeybindingRecorder } from '../src/client/KeybindingRecorder.tsx'
-import { DEFAULT_SEND_KEYBINDING } from '../src/keybinding.ts'
+import type { KeyStroke } from '../src/keybinding.ts'
 
 afterEach(cleanup)
 
+const ENTER: KeyStroke = { key: 'Enter', modifiers: [] }
+
 function mount(onChange = vi.fn()) {
-  render(<KeybindingRecorder binding={DEFAULT_SEND_KEYBINDING} onChange={onChange} label="Send message" />)
-  return { onChange, button: screen.getByRole('button') }
+  render(<KeybindingRecorder strokes={[ENTER]} onStrokesChange={onChange} label="Send message" doneLabel="Done" />)
+  return {
+    onChange,
+    recorder: screen.getByRole('button', { name: /Send message/ }),
+    done: () => {
+      const button = screen.getByRole('button', { name: 'Done' })
+      fireEvent.pointerDown(button)
+      fireEvent.click(button)
+    },
+  }
 }
 
 describe('KeybindingRecorder', () => {
-  it('renders the current binding as kbd chips', () => {
+  it('renders the committed strokes as chips', () => {
     render(
-      <KeybindingRecorder binding={{ key: 'Enter', modifiers: ['ctrl'] }} onChange={vi.fn()} label="Send message" />,
+      <KeybindingRecorder strokes={[{ key: 'Enter', modifiers: ['ctrl'] }]} onStrokesChange={vi.fn()} label="Send message" doneLabel="Done" />,
     )
     expect(screen.getByText('Ctrl')).toBeDefined()
     expect(screen.getByText('Enter')).toBeDefined()
   })
 
-  it('records a key with its modifiers once', () => {
-    const { onChange, button } = mount()
-    fireEvent.click(button)
-    fireEvent.keyDown(button, { key: 'k', ctrlKey: true, shiftKey: true, metaKey: false, altKey: false })
-    expect(onChange).toHaveBeenCalledWith({ key: 'k', modifiers: ['ctrl', 'shift'] })
+  it('shows a held modifier as pressed and clears it on release', () => {
+    const { recorder } = mount()
+    fireEvent.click(recorder)
+    fireEvent.keyDown(recorder, { key: 'Control', ctrlKey: true, metaKey: false, altKey: false, shiftKey: false })
+    expect(screen.getByText('Ctrl')).toBeDefined()
+    fireEvent.keyUp(recorder, { key: 'Control', ctrlKey: false, metaKey: false, altKey: false, shiftKey: false })
+    expect(screen.queryByText('Ctrl')).toBeNull()
   })
 
-  it('does not record while disarmed', () => {
-    const { onChange, button } = mount()
-    fireEvent.keyDown(button, { key: 'Enter', ctrlKey: false, metaKey: false, altKey: false, shiftKey: false })
-    expect(onChange).not.toHaveBeenCalled()
+  it('clears a held modifier when a lock key stands in for its release', () => {
+    const { recorder } = mount()
+    fireEvent.click(recorder)
+    fireEvent.keyDown(recorder, { key: 'Shift', ctrlKey: false, metaKey: false, altKey: false, shiftKey: true })
+    expect(screen.getByText('Shift')).toBeDefined()
+    fireEvent.keyUp(recorder, { key: 'CapsLock', ctrlKey: false, metaKey: false, altKey: false, shiftKey: false })
+    expect(screen.queryByText('Shift')).toBeNull()
+  })
+
+  it('shows the Done button while recording', () => {
+    const { recorder } = mount()
+    fireEvent.click(recorder)
+    expect(screen.getByRole('button', { name: 'Done' })).toBeDefined()
+  })
+
+  it('records a stroke and commits on Done', () => {
+    const { onChange, recorder, done } = mount()
+    fireEvent.click(recorder)
+    fireEvent.keyDown(recorder, { key: 'k', ctrlKey: true, metaKey: false, altKey: false, shiftKey: false })
+    done()
+    expect(onChange).toHaveBeenCalledWith([{ key: 'k', modifiers: ['ctrl'] }])
+  })
+
+  it('ignores auto-repeat keydowns', () => {
+    const { onChange, recorder, done } = mount()
+    fireEvent.click(recorder)
+    fireEvent.keyDown(recorder, { key: 'k', ctrlKey: true, metaKey: false, altKey: false, shiftKey: false })
+    fireEvent.keyDown(recorder, { key: 'k', ctrlKey: true, metaKey: false, altKey: false, shiftKey: false, repeat: true })
+    done()
+    expect(onChange).toHaveBeenCalledWith([{ key: 'k', modifiers: ['ctrl'] }])
+  })
+
+  it('records a two-stroke chord and a bare Enter stroke', () => {
+    const { onChange, recorder, done } = mount()
+    fireEvent.click(recorder)
+    fireEvent.keyDown(recorder, { key: 'k', ctrlKey: true, metaKey: false, altKey: false, shiftKey: false })
+    fireEvent.keyDown(recorder, { key: 's', ctrlKey: true, metaKey: false, altKey: false, shiftKey: false })
+    fireEvent.keyDown(recorder, { key: 'Enter', ctrlKey: false, metaKey: false, altKey: false, shiftKey: false })
+    done()
+    expect(onChange).toHaveBeenCalledWith([
+      { key: 'k', modifiers: ['ctrl'] },
+      { key: 's', modifiers: ['ctrl'] },
+      { key: 'Enter', modifiers: [] },
+    ])
   })
 
   it('Escape cancels without persisting', () => {
-    const { onChange, button } = mount()
-    fireEvent.click(button)
-    fireEvent.keyDown(button, { key: 'Escape' })
+    const { onChange, recorder } = mount()
+    fireEvent.click(recorder)
+    fireEvent.keyDown(recorder, { key: 'k', ctrlKey: true, metaKey: false, altKey: false, shiftKey: false })
+    fireEvent.keyDown(recorder, { key: 'Escape' })
     expect(onChange).not.toHaveBeenCalled()
   })
 
-  it('a lone modifier only updates the preview', () => {
-    const { onChange, button } = mount()
-    fireEvent.click(button)
-    fireEvent.keyDown(button, { key: 'Control', ctrlKey: true, metaKey: false, altKey: false, shiftKey: false })
-    expect(onChange).not.toHaveBeenCalled()
-    expect(screen.getByText('Ctrl')).toBeDefined()
+  it('plain Backspace removes the last stroke', () => {
+    const { onChange, recorder, done } = mount()
+    fireEvent.click(recorder)
+    fireEvent.keyDown(recorder, { key: 'k', ctrlKey: true, metaKey: false, altKey: false, shiftKey: false })
+    fireEvent.keyDown(recorder, { key: 's', ctrlKey: true, metaKey: false, altKey: false, shiftKey: false })
+    fireEvent.keyDown(recorder, { key: 'Backspace', ctrlKey: false, metaKey: false, altKey: false, shiftKey: false })
+    done()
+    expect(onChange).toHaveBeenCalledWith([{ key: 'k', modifiers: ['ctrl'] }])
   })
 
-  it('blur disarms without persisting', () => {
-    const { onChange, button } = mount()
-    fireEvent.click(button)
-    fireEvent.blur(button)
-    fireEvent.keyDown(button, { key: 'Enter', ctrlKey: false, metaKey: false, altKey: false, shiftKey: false })
+  it('blur cancels without persisting', () => {
+    const { onChange, recorder } = mount()
+    fireEvent.click(recorder)
+    fireEvent.keyDown(recorder, { key: 'k', ctrlKey: true, metaKey: false, altKey: false, shiftKey: false })
+    fireEvent.blur(recorder)
+    fireEvent.keyDown(recorder, { key: 'Enter', ctrlKey: false, metaKey: false, altKey: false, shiftKey: false })
+    expect(onChange).not.toHaveBeenCalled()
+  })
+
+  it('does not record while disarmed', () => {
+    const { onChange, recorder } = mount()
+    fireEvent.keyDown(recorder, { key: 'Enter', ctrlKey: false, metaKey: false, altKey: false, shiftKey: false })
+    expect(onChange).not.toHaveBeenCalled()
+  })
+
+  it('Done with an empty draft commits nothing', () => {
+    const { onChange, recorder, done } = mount()
+    fireEvent.click(recorder)
+    done()
+    expect(onChange).not.toHaveBeenCalled()
+  })
+
+  it('clicking the recorder while recording keeps the draft', () => {
+    const { onChange, recorder, done } = mount()
+    fireEvent.click(recorder)
+    fireEvent.keyDown(recorder, { key: 'k', ctrlKey: true, metaKey: false, altKey: false, shiftKey: false })
+    fireEvent.click(recorder)
+    done()
+    expect(onChange).toHaveBeenCalledWith([{ key: 'k', modifiers: ['ctrl'] }])
+  })
+
+  it('ignores keyup while disarmed', () => {
+    const { recorder } = mount()
+    fireEvent.keyUp(recorder, { key: 'Control', ctrlKey: false, metaKey: false, altKey: false, shiftKey: false })
+    expect(screen.queryByText('Ctrl')).toBeNull()
+  })
+
+  it('renders the placeholder for empty strokes', () => {
+    render(<KeybindingRecorder strokes={[]} onStrokesChange={vi.fn()} label="Send message" doneLabel="Done" />)
+    expect(screen.getByText('Press keys')).toBeDefined()
+  })
+
+  it('records a chord without leaving a lone modifier after release', () => {
+    const { recorder } = mount()
+    fireEvent.click(recorder)
+    fireEvent.keyDown(recorder, { key: 'Control', ctrlKey: true, metaKey: false, altKey: false, shiftKey: false })
+    fireEvent.keyDown(recorder, { key: 'Enter', ctrlKey: true, metaKey: false, altKey: false, shiftKey: false })
+    fireEvent.keyUp(recorder, { key: 'Enter', ctrlKey: true, metaKey: false, altKey: false, shiftKey: false })
+    fireEvent.keyUp(recorder, { key: 'Control', ctrlKey: false, metaKey: false, altKey: false, shiftKey: false })
+    expect(recorder.getAttribute('aria-label')).toBe('Send message: Ctrl + Enter')
+  })
+
+  it('ignores a repeated modifier and a lock key', () => {
+    const { onChange, recorder, done } = mount()
+    fireEvent.click(recorder)
+    fireEvent.keyDown(recorder, { key: 'Control', ctrlKey: true, metaKey: false, altKey: false, shiftKey: false })
+    fireEvent.keyDown(recorder, { key: 'Control', ctrlKey: true, metaKey: false, altKey: false, shiftKey: false })
+    fireEvent.keyDown(recorder, { key: 'CapsLock', ctrlKey: false, metaKey: false, altKey: false, shiftKey: false })
+    done()
     expect(onChange).not.toHaveBeenCalled()
   })
 })

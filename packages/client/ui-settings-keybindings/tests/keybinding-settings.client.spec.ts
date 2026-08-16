@@ -6,8 +6,17 @@ describe('keybinding settings', () => {
     expect(KEYBINDINGS_SETTINGS_NAMESPACE).toBe('ui-keybindings')
   })
 
-  it('accepts a custom binding', () => {
-    expect(KeybindingsSettingsSchema({ sendMessage: { key: 'k', modifiers: ['ctrl', 'shift'] } }))
-      .toEqual({ sendMessage: { key: 'k', modifiers: ['ctrl', 'shift'] } })
+  it('accepts a chord with a when clause', () => {
+    expect(KeybindingsSettingsSchema({
+      sendMessage: {
+        strokes: [{ key: 'k', modifiers: ['ctrl'] }, { key: 's', modifiers: ['ctrl'] }],
+        when: 'agentBusy',
+      },
+    })).toEqual({
+      sendMessage: {
+        strokes: [{ key: 'k', modifiers: ['ctrl'] }, { key: 's', modifiers: ['ctrl'] }],
+        when: 'agentBusy',
+      },
+    })
   })
 })

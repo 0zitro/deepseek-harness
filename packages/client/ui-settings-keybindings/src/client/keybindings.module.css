@@ -1,9 +1,8 @@
 /*
  * Keybindings settings page.
  *
- * Color tokens follow the component alias family (`--dsw-alias-*`). Confirm the
- * exact border/accent names against `Theme.listTokens` before landing; the
- * fallbacks keep the module legible if a token is renamed.
+ * Colors use the semantic alias tokens (`--dsw-alias-*`) so light and dark
+ * themes both resolve.
  */
 
 .section {
@@ -19,8 +18,13 @@
   padding: 12px 0;
 }
 
-.row + .row {
-  border-top: 1px solid var(--dsw-alias-line, color-mix(in srgb, currentColor 12%, transparent));
+.whenRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 12px 0;
+  border-top: 1px solid var(--dsw-alias-border-l1);
 }
 
 .rowText {
@@ -42,13 +46,21 @@
   line-height: 16px;
 }
 
+.recorderRow {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  max-width: 60%;
+}
+
 .recorder {
   display: inline-flex;
   align-items: center;
+  flex-wrap: wrap;
   gap: 4px;
   padding: 4px 8px;
   border-radius: 6px;
-  border: 1px solid var(--dsw-alias-line, color-mix(in srgb, currentColor 20%, transparent));
+  border: 1px solid var(--dsw-alias-border-l1);
   background: var(--dsw-alias-bg-base);
   color: var(--dsw-alias-label-primary);
   cursor: pointer;
@@ -56,8 +68,32 @@
 }
 
 .recorder:hover,
-.recorder[data-listening] {
-  border-color: var(--dsw-alias-accent, currentColor);
+.recorder[data-recording] {
+  border-color: var(--dsw-alias-brand-primary);
+}
+
+.done {
+  padding: 4px 10px;
+  border-radius: 6px;
+  border: 1px solid var(--dsw-alias-brand-primary);
+  background: var(--dsw-alias-bg-base);
+  color: var(--dsw-alias-brand-primary);
+  cursor: pointer;
+  font: inherit;
+  font-size: 13px;
+  line-height: 18px;
+}
+
+.strokeGroup {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.strokeGroup + .strokeGroup {
+  border-left: 1px solid var(--dsw-alias-border-l1);
+  padding-left: 8px;
+  margin-left: 4px;
 }
 
 .chip {
@@ -66,13 +102,39 @@
   line-height: 16px;
   padding: 1px 6px;
   border-radius: 4px;
-  border: 1px solid var(--dsw-alias-line, color-mix(in srgb, currentColor 20%, transparent));
+  border: 1px solid var(--dsw-alias-border-l1);
   background: var(--dsw-alias-bg-base);
   color: var(--dsw-alias-label-primary);
   white-space: nowrap;
 }
 
 .chipPlaceholder {
-  color: var(--dsw-alias-label-caption);
+  color: var(--dsw-alias-label-secondary);
   border-style: dashed;
+}
+
+.chipPressed {
+  border-color: var(--dsw-alias-brand-primary);
+  background: color-mix(in srgb, var(--dsw-alias-brand-primary) 15%, var(--dsw-alias-bg-base));
+  color: var(--dsw-alias-brand-primary);
+}
+
+.whenInput {
+  width: 50%;
+  padding: 4px 8px;
+  border-radius: 6px;
+  border: 1px solid var(--dsw-alias-border-l1);
+  background: var(--dsw-alias-bg-base);
+  color: var(--dsw-alias-label-primary);
+  font: inherit;
+  font-size: 13px;
+  line-height: 18px;
+}
+
+.whenInput:focus {
+  border-color: var(--dsw-alias-brand-primary);
+}
+
+.whenInvalid {
+  border-color: var(--dsw-alias-state-error-primary);
 }
