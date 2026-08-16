@@ -91,6 +91,19 @@ describe('dispatchKeydown', () => {
     dispatchKeydown(matcher, actions, keydown('s', { ctrlKey: true }))
     expect(run).toHaveBeenCalledOnce()
   })
+
+  it('prevents the native default on a chord opening stroke', () => {
+    const run = vi.fn()
+    const matcher = new ChordMatcher<KeybindingEntry>([
+      entry([{ key: 'k', modifiers: ['ctrl'] }, { key: 's', modifiers: ['ctrl'] }]),
+    ], () => true)
+    const actions: UiActionDefinition[] = [{ id: COMPOSER_SEND_ACTION, label: 'Send', run }]
+    const event = keydown('k', { ctrlKey: true })
+    const preventDefault = vi.spyOn(event, 'preventDefault')
+    dispatchKeydown(matcher, actions, event)
+    expect(run).not.toHaveBeenCalled()
+    expect(preventDefault).toHaveBeenCalledOnce()
+  })
 })
 
 describe('effectiveEntries', () => {
