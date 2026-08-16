@@ -35,23 +35,44 @@ export function dispatchKeydown(
   if (matched !== null) runMatched(matched, actions)
 }
 
-/** Listen for window keydowns and dispatch them against the persisted bindings. */
+/** The effective entries: a persisted override, else the action's default binding. */
+export function effectiveEntries(
+  actions: readonly UiActionDefinition[],
+  bindings: readonly KeybindingEntry[],
+): readonly KeybindingEntry[] {
+  const entries: KeybindingEntry[] = []
+  for (const action of actions) {
+    const override = bindings.find(entry => entry.action === action.id)
+    if (override !== undefined) {
+      entries.push(override)
+    } else if (action.defaultKeybinding !== undefined) {
+      entries.push({ ...action.defaultKeybinding, action: action.id })
+    }
+  }
+  return entries
+}
+
+/** Listen for window keydowns and dispatch them against the effective bindings. */
 export function createKeybindingDispatcher(
   bindings: SnapshotStore<readonly KeybindingEntry[]>,
   actions: SnapshotStore<readonly UiActionDefinition[]>,
   context: ReadonlySnapshot<WhenContext>,
 ): () => void {
   const active = (entry: KeybindingEntry) => resolveWhen(entry.when, context.getSnapshot())
-  let matcher = new ChordMatcher<KeybindingEntry>(bindings.getSnapshot(), active)
-  const disposeBindings = bindings.subscribe(() => {
-    matcher = new ChordMatcher<KeybindingEntry>(bindings.getSnapshot(), active)
-  })
+  const entries = () => effectiveEntries(actions.getSnapshot(), bindings.getSnapshot())
+  let matcher = new ChordMatcher<KeybindingEntry>(entries(), active)
+  const rebuild = () => {
+    matcher = new ChordMatcher<KeybindingEntry>(entries(), active)
+  }
+  const disposeBindings = bindings.subscribe(rebuild)
+  const disposeActions = actions.subscribe(rebuild)
   const onKeydown = (event: KeyboardEvent) => {
     dispatchKeydown(matcher, actions.getSnapshot(), event)
   }
   window.addEventListener('keydown', onKeydown, { capture: true })
   return () => {
     disposeBindings()
+    disposeActions()
     window.removeEventListener('keydown', onKeydown, { capture: true })
   }
 }

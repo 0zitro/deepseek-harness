@@ -6,12 +6,13 @@ import { UiWhenContext } from '../src/client/when-context.ts'
 
 afterEach(() => { document.body.innerHTML = '' })
 
-async function mount(): Promise<UiWhenContext> {
+async function mount(): Promise<{ context: UiWhenContext; dispose: () => Promise<void> }> {
   const ctx = new Context()
   let whenContext: UiWhenContext | undefined
-  await ctx.plugin({ apply: (pluginCtx: Context) => { whenContext = new UiWhenContext(pluginCtx) } }).await()
+  const fiber = ctx.plugin({ apply: (pluginCtx: Context) => { whenContext = new UiWhenContext(pluginCtx) } })
+  await fiber.await()
   if (whenContext === undefined) throw new Error('not mounted')
-  return whenContext
+  return { context: whenContext, dispose: () => fiber.dispose() }
 }
 
 function scope(name: string, child: HTMLElement): HTMLElement {
@@ -23,12 +24,12 @@ function scope(name: string, child: HTMLElement): HTMLElement {
 
 describe('UiWhenContext', () => {
   it('starts empty', async () => {
-    const context = await mount()
+    const { context } = await mount()
     expect(context.context.getSnapshot()).toEqual({})
   })
 
   it('derives Focused and Active from the focus scope', async () => {
-    const context = await mount()
+    const { context } = await mount()
     const input = document.createElement('input')
     document.body.appendChild(scope('composer', input))
     fireEvent.focusIn(input)
@@ -36,7 +37,7 @@ describe('UiWhenContext', () => {
   })
 
   it('nests scopes with the innermost active', async () => {
-    const context = await mount()
+    const { context } = await mount()
     const input = document.createElement('input')
     document.body.appendChild(scope('composer', scope('overlay', input)))
     fireEvent.focusIn(input)
@@ -46,7 +47,7 @@ describe('UiWhenContext', () => {
   })
 
   it('clears scopes when the window loses focus', async () => {
-    const context = await mount()
+    const { context } = await mount()
     const input = document.createElement('input')
     document.body.appendChild(scope('composer', input))
     fireEvent.focusIn(input)
@@ -55,7 +56,7 @@ describe('UiWhenContext', () => {
   })
 
   it('sets and clears a state key over the focus map', async () => {
-    const context = await mount()
+    const { context } = await mount()
     const input = document.createElement('input')
     document.body.appendChild(scope('composer', input))
     fireEvent.focusIn(input)
@@ -63,5 +64,14 @@ describe('UiWhenContext', () => {
     expect(context.context.getSnapshot()).toEqual({ composerFocused: true, composerActive: true, agentBusy: true })
     dispose()
     expect(context.context.getSnapshot()).toEqual({ composerFocused: true, composerActive: true })
+  })
+
+  it('removes its listeners on disposal', async () => {
+    const { context, dispose } = await mount()
+    const input = document.createElement('input')
+    document.body.appendChild(scope('composer', input))
+    await dispose()
+    fireEvent.focusIn(input)
+    expect(context.context.getSnapshot()).toEqual({})
   })
 })

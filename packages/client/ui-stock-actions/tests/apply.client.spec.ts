@@ -30,7 +30,7 @@ describe('ui-stock-actions apply', () => {
       id: 'composer.send',
       label: '发送消息',
       description: '提交输入框的按键组合。',
-      defaultKeybinding: { strokes: [{ key: 'Enter', modifiers: [] }] },
+      defaultKeybinding: { strokes: [{ key: 'Enter', modifiers: [] }], when: 'composerActive' },
     }))
   })
 
