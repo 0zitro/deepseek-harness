@@ -148,6 +148,3 @@ export const KeybindingEntrySchema: z<KeybindingEntry> = z.object({
   action: UiActionIdSchema,
   when: z.string(),
 })
-
-/** The composer's default send binding. */
-export const DEFAULT_SEND_KEYBINDING: Keybinding = { strokes: [{ key: 'Enter', modifiers: [] }] }

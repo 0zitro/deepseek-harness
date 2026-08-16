@@ -7,13 +7,11 @@ import {
 import type {} from '@deepseek-ai/dsh-client-ui-settings/client'
 // Type-only: pulls the locale plugin's Context merge (ctx.locale).
 import type {} from '@deepseek-ai/dsh-client-locale/client'
-import {
-  DEFAULT_SEND_KEYBINDING, keybindingOfEntry, type Keybinding, type KeybindingEntry,
-} from '../keybinding.ts'
+import { keybindingOfEntry, type Keybinding, type KeybindingEntry } from '../keybinding.ts'
 import {
   DEFAULT_KEYBINDING_ENTRIES, KEYBINDINGS_SETTINGS_NAMESPACE, type KeybindingsSettings,
 } from '../keybinding-settings.ts'
-import { COMPOSER_SEND_ACTION, type UiActionId } from '../ui-action.ts'
+import type { UiActionId } from '../ui-action.ts'
 import { UiActionRegistry } from './action-registry.ts'
 import { KeybindingsSection, type KeybindingsSectionInjected } from './KeybindingsSection.tsx'
 import { en, NS, zh } from './locales.ts'
@@ -71,15 +69,6 @@ export function apply(ctx: Context): void {
   ctx.effect(() => ctx.locale.register(NS, { zh, en }), 'ui-keybindings: dictionaries')
 
   new UiActionRegistry(ctx)
-
-  // Transitional: the composer send action belongs to the stock-actions
-  // package, which registers it once that package exists.
-  ctx.effect(() => ctx.uiActions.register({
-    id: COMPOSER_SEND_ACTION,
-    label: t('sendMessage.label'),
-    description: t('sendMessage.description'),
-    defaultKeybinding: DEFAULT_SEND_KEYBINDING,
-  }), 'ui-keybindings: composer send action')
 
   const host = ctx.settingsScope.bind<KeybindingsSettings>({ namespace: KEYBINDINGS_SETTINGS_NAMESPACE })
   const bindings = bindBindings(host)

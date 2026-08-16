@@ -8,12 +8,15 @@ import { KeybindingsSection } from '../src/client/KeybindingsSection.tsx'
 import type { KeybindingsSectionProps } from '../src/client/KeybindingsSection.tsx'
 import type { UiActionDefinition } from '../src/client/action-registry.ts'
 import { en } from '../src/client/locales.ts'
-import { DEFAULT_SEND_KEYBINDING, type Keybinding, type KeybindingEntry } from '../src/keybinding.ts'
+import type { Keybinding, KeybindingEntry } from '../src/keybinding.ts'
 import { COMPOSER_SEND_ACTION, type UiActionId } from '../src/ui-action.ts'
 
 afterEach(cleanup)
 
 const PREVIEW_ACTION = 'composer.preview' as UiActionId
+
+/** The composer's Enter default, mirroring the stock-actions registration. */
+const ENTER: Keybinding = { strokes: [{ key: 'Enter', modifiers: [] }] }
 
 function emptySessions() {
   return bindSnapshotSelector(createSnapshotStore<SessionListState>({
@@ -29,7 +32,7 @@ function emptyWorkspaces() {
 }
 
 function mount(actions: readonly UiActionDefinition[] = [
-  { id: COMPOSER_SEND_ACTION, label: 'Send message', defaultKeybinding: DEFAULT_SEND_KEYBINDING },
+  { id: COMPOSER_SEND_ACTION, label: 'Send message', defaultKeybinding: ENTER },
 ]) {
   const actionsStore = createSnapshotStore<readonly UiActionDefinition[]>(actions)
   const bindingsStore = createSnapshotStore<readonly KeybindingEntry[]>([])
@@ -68,7 +71,7 @@ describe('KeybindingsSection', () => {
   it('persists a when clause through the setter', () => {
     const { setBinding } = mount()
     fireEvent.change(screen.getByPlaceholderText('e.g. composerFocused && !agentBusy'), { target: { value: 'agentBusy' } })
-    expect(setBinding).toHaveBeenCalledWith(COMPOSER_SEND_ACTION, { strokes: DEFAULT_SEND_KEYBINDING.strokes, when: 'agentBusy' })
+    expect(setBinding).toHaveBeenCalledWith(COMPOSER_SEND_ACTION, { strokes: ENTER.strokes, when: 'agentBusy' })
   })
 
   it('shows the description and an empty chord when an action has no default', () => {
@@ -100,7 +103,7 @@ describe('KeybindingsSection', () => {
     const input = screen.getByPlaceholderText('e.g. composerFocused && !agentBusy')
     fireEvent.change(input, { target: { value: 'agentBusy' } })
     fireEvent.change(input, { target: { value: '' } })
-    expect(setBinding).toHaveBeenLastCalledWith(COMPOSER_SEND_ACTION, { strokes: DEFAULT_SEND_KEYBINDING.strokes })
+    expect(setBinding).toHaveBeenLastCalledWith(COMPOSER_SEND_ACTION, { strokes: ENTER.strokes })
   })
 
   it('leaves the error state clear on an empty when clause', () => {
