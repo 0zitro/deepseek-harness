@@ -3,6 +3,7 @@ import type { SnapshotStore } from '@deepseek-ai/dsh-client-runtime/client'
 import { ChordMatcher } from '../chord.ts'
 import { isRecordableKey, type KeybindingEntry, type KeybindingSource } from '../keybinding.ts'
 import { evaluateWhen, parseWhenClause, type WhenContext } from '../when-clause.ts'
+import type { UiActionId } from '../ui-action.ts'
 import type { UiActionDefinition } from './action-registry.ts'
 import type { ReadonlySnapshot } from './when-context.ts'
 
@@ -72,6 +73,27 @@ export function assignOrder(entries: readonly KeybindingEntry[]): readonly Keybi
     .map((entry, index) => ({ entry, rank: sourceRank(entry.source), prio: entry.prio ?? index }))
     .sort((a, b) => a.rank - b.rank || a.prio - b.prio)
     .map(({ entry, prio }) => ({ ...entry, prio }))
+}
+
+/** Stable (stroke, source) key for the prio-uniqueness scope. */
+function strokeSourceKey(entry: KeybindingEntry): string {
+  return `${JSON.stringify(entry.strokes)}\u0000${entry.source}`
+}
+
+/**
+ * The effective entry clashing with `candidate` on the same (stroke, source)
+ * and prio, excluding `action`'s own entries, or undefined. Operates over the
+ * assignOrder output so a seeded prio is compared against a user-chosen one.
+ */
+export function findPrioClash(
+  entries: readonly KeybindingEntry[],
+  action: UiActionId,
+  candidate: KeybindingEntry,
+): KeybindingEntry | undefined {
+  if (candidate.prio === undefined) return undefined
+  const key = strokeSourceKey(candidate)
+  return entries.find(entry =>
+    entry.action !== action && strokeSourceKey(entry) === key && entry.prio === candidate.prio)
 }
 
 /** Listen for window keydowns and dispatch them against the effective bindings. */
