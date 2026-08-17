@@ -49,7 +49,7 @@ describe('dispatchKeydown', () => {
     const run = vi.fn()
     const matcher = new ChordMatcher<KeybindingEntry>([entry([{ key: 'Enter', modifiers: [] }])], () => true)
     const actions: UiActionDefinition[] = [{ id: COMPOSER_SEND_ACTION, label: 'Send', run }]
-    dispatchKeydown(matcher, actions, keydown('Enter'))
+    dispatchKeydown(matcher, actions, keydown('Enter'), false)
     expect(run).toHaveBeenCalledOnce()
   })
 
@@ -59,7 +59,7 @@ describe('dispatchKeydown', () => {
     const actions: UiActionDefinition[] = [{ id: COMPOSER_SEND_ACTION, label: 'Send', run }]
     const event = keydown('Enter')
     const preventDefault = vi.spyOn(event, 'preventDefault')
-    dispatchKeydown(matcher, actions, event)
+    dispatchKeydown(matcher, actions, event, false)
     expect(run).toHaveBeenCalledOnce()
     expect(preventDefault).toHaveBeenCalledOnce()
   })
@@ -68,7 +68,7 @@ describe('dispatchKeydown', () => {
     const run = vi.fn()
     const matcher = new ChordMatcher<KeybindingEntry>([entry([{ key: 'Enter', modifiers: [] }])], () => true)
     const actions: UiActionDefinition[] = [{ id: COMPOSER_SEND_ACTION, label: 'Send', run }]
-    dispatchKeydown(matcher, actions, keydown('Control'))
+    dispatchKeydown(matcher, actions, keydown('Control'), false)
     expect(run).not.toHaveBeenCalled()
   })
 
@@ -76,7 +76,18 @@ describe('dispatchKeydown', () => {
     const run = vi.fn()
     const matcher = new ChordMatcher<KeybindingEntry>([entry([{ key: 'Enter', modifiers: [] }])], () => true)
     const actions: UiActionDefinition[] = [{ id: COMPOSER_SEND_ACTION, label: 'Send', run }]
-    dispatchKeydown(matcher, actions, keydown('Enter', { repeat: true }))
+    dispatchKeydown(matcher, actions, keydown('Enter', { repeat: true }), false)
+    expect(run).not.toHaveBeenCalled()
+  })
+
+  it('ignores keydowns during IME composition', () => {
+    const run = vi.fn()
+    const matcher = new ChordMatcher<KeybindingEntry>([entry([{ key: 'Enter', modifiers: [] }])], () => true)
+    const actions: UiActionDefinition[] = [{ id: COMPOSER_SEND_ACTION, label: 'Send', run }]
+    dispatchKeydown(matcher, actions, keydown('Enter'), true)
+    const legacy = keydown('Enter')
+    Object.defineProperty(legacy, 'keyCode', { value: 229 })
+    dispatchKeydown(matcher, actions, legacy, false)
     expect(run).not.toHaveBeenCalled()
   })
 
@@ -86,9 +97,9 @@ describe('dispatchKeydown', () => {
       entry([{ key: 'k', modifiers: ['ctrl'] }, { key: 's', modifiers: ['ctrl'] }]),
     ], () => true)
     const actions: UiActionDefinition[] = [{ id: COMPOSER_SEND_ACTION, label: 'Send', run }]
-    dispatchKeydown(matcher, actions, keydown('k', { ctrlKey: true }))
+    dispatchKeydown(matcher, actions, keydown('k', { ctrlKey: true }), false)
     expect(run).not.toHaveBeenCalled()
-    dispatchKeydown(matcher, actions, keydown('s', { ctrlKey: true }))
+    dispatchKeydown(matcher, actions, keydown('s', { ctrlKey: true }), false)
     expect(run).toHaveBeenCalledOnce()
   })
 
@@ -100,7 +111,7 @@ describe('dispatchKeydown', () => {
     const actions: UiActionDefinition[] = [{ id: COMPOSER_SEND_ACTION, label: 'Send', run }]
     const event = keydown('k', { ctrlKey: true })
     const preventDefault = vi.spyOn(event, 'preventDefault')
-    dispatchKeydown(matcher, actions, event)
+    dispatchKeydown(matcher, actions, event, false)
     expect(run).not.toHaveBeenCalled()
     expect(preventDefault).toHaveBeenCalledOnce()
   })
@@ -174,5 +185,56 @@ describe('createKeybindingDispatcher', () => {
     createKeybindingDispatcher(bindings, actions, context)
     window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter' }))
     expect(run).toHaveBeenCalledOnce()
+  })
+
+  it('suppresses dispatch during composition and recovers after compositionend', () => {
+    vi.useFakeTimers()
+    try {
+      const bindings = createSnapshotStore<readonly KeybindingEntry[]>([])
+      const actions = createSnapshotStore<readonly UiActionDefinition[]>([])
+      const context = createSnapshotStore<WhenContext>({})
+      const run = vi.fn()
+      actions.set([{
+        id: COMPOSER_SEND_ACTION, label: 'Send', run,
+        defaultKeybinding: { strokes: [{ key: 'Enter', modifiers: [] }] },
+      }])
+      createKeybindingDispatcher(bindings, actions, context)
+      window.dispatchEvent(new Event('compositionstart'))
+      window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter' }))
+      expect(run).not.toHaveBeenCalled()
+      window.dispatchEvent(new Event('compositionend'))
+      window.dispatchEvent(new Event('compositionstart'))
+      window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter' }))
+      expect(run).not.toHaveBeenCalled()
+      window.dispatchEvent(new Event('compositionend'))
+      vi.advanceTimersByTime(10)
+      window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter' }))
+      expect(run).toHaveBeenCalledOnce()
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('clears a pending composition timer on disposal', () => {
+    vi.useFakeTimers()
+    try {
+      const bindings = createSnapshotStore<readonly KeybindingEntry[]>([])
+      const actions = createSnapshotStore<readonly UiActionDefinition[]>([])
+      const context = createSnapshotStore<WhenContext>({})
+      const run = vi.fn()
+      actions.set([{
+        id: COMPOSER_SEND_ACTION, label: 'Send', run,
+        defaultKeybinding: { strokes: [{ key: 'Enter', modifiers: [] }] },
+      }])
+      const dispose = createKeybindingDispatcher(bindings, actions, context)
+      window.dispatchEvent(new Event('compositionstart'))
+      window.dispatchEvent(new Event('compositionend'))
+      dispose()
+      vi.advanceTimersByTime(10)
+      window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter' }))
+      expect(run).not.toHaveBeenCalled()
+    } finally {
+      vi.useRealTimers()
+    }
   })
 })

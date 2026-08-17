@@ -60,6 +60,24 @@ export class ComposerSubmission extends Service {
     this.currentShell()?.redo()
   }
 
+  /** Dismiss the composer popup and close any open menu. */
+  dismissPopup(): void {
+    const shell = this.currentShell()
+    if (shell === undefined) return
+    shell.dismissPopup()
+    shell.arbitrate('escape', false)
+  }
+
+  /** Feed a menu-arbitration key to the shell's popup controller. */
+  arbitrate(key: 'up' | 'down' | 'enter' | 'escape'): void {
+    this.currentShell()?.arbitrate(key, false)
+  }
+
+  /** Space adjudication over the leading token. */
+  space(): void {
+    this.currentShell()?.space()
+  }
+
   private submitResolved(gesture: ComposerSubmitGesture): void {
     const shell = this.currentShell()
     if (shell === undefined) return

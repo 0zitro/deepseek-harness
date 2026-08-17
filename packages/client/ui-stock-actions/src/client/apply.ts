@@ -16,6 +16,11 @@ const COMPOSER_QUEUE_ACTION = 'composer.queue' as UiActionId
 const COMPOSER_STEER_ACTION = 'composer.steer' as UiActionId
 const COMPOSER_UNDO_ACTION = 'composer.undo' as UiActionId
 const COMPOSER_REDO_ACTION = 'composer.redo' as UiActionId
+const COMPOSER_DISMISS_POPUP_ACTION = 'composer.dismissPopup' as UiActionId
+const COMPOSER_CLAIM_TOKEN_ACTION = 'composer.claimToken' as UiActionId
+const COMMAND_PALETTE_FOCUS_NEXT_ACTION = 'commandPalette.focusNext' as UiActionId
+const COMMAND_PALETTE_FOCUS_PREVIOUS_ACTION = 'commandPalette.focusPrevious' as UiActionId
+const COMMAND_PALETTE_SELECT_ACTION = 'commandPalette.select' as UiActionId
 const OVERLAY_CLOSE_ACTION = 'overlay.close' as UiActionId
 
 /** Services required by the stock-actions plugin. */
@@ -71,6 +76,46 @@ export function apply(ctx: Context): void {
     defaultKeybinding: { strokes: [{ key: 'z', modifiers: ['ctrl', 'shift'] }], when: 'composerActive' },
     run: () => { ctx.composer.redo() },
   }), 'ui-stock-actions: composer redo action')
+
+  ctx.effect(() => ctx.uiActions.register({
+    id: COMPOSER_DISMISS_POPUP_ACTION,
+    label: t('composerDismissPopup.label'),
+    description: t('composerDismissPopup.description'),
+    defaultKeybinding: { strokes: [{ key: 'Escape', modifiers: [] }], when: 'composerActive' },
+    run: () => { ctx.composer.dismissPopup() },
+  }), 'ui-stock-actions: composer dismiss popup action')
+
+  ctx.effect(() => ctx.uiActions.register({
+    id: COMPOSER_CLAIM_TOKEN_ACTION,
+    label: t('composerClaimToken.label'),
+    description: t('composerClaimToken.description'),
+    defaultKeybinding: { strokes: [{ key: ' ', modifiers: [] }], when: 'composerActive' },
+    run: () => { ctx.composer.space() },
+  }), 'ui-stock-actions: composer claim token action')
+
+  ctx.effect(() => ctx.uiActions.register({
+    id: COMMAND_PALETTE_FOCUS_NEXT_ACTION,
+    label: t('commandPaletteFocusNext.label'),
+    description: t('commandPaletteFocusNext.description'),
+    defaultKeybinding: { strokes: [{ key: 'ArrowDown', modifiers: [] }], when: 'commandMenuOpen' },
+    run: () => { ctx.composer.arbitrate('down') },
+  }), 'ui-stock-actions: command palette focus next action')
+
+  ctx.effect(() => ctx.uiActions.register({
+    id: COMMAND_PALETTE_FOCUS_PREVIOUS_ACTION,
+    label: t('commandPaletteFocusPrevious.label'),
+    description: t('commandPaletteFocusPrevious.description'),
+    defaultKeybinding: { strokes: [{ key: 'ArrowUp', modifiers: [] }], when: 'commandMenuOpen' },
+    run: () => { ctx.composer.arbitrate('up') },
+  }), 'ui-stock-actions: command palette focus previous action')
+
+  ctx.effect(() => ctx.uiActions.register({
+    id: COMMAND_PALETTE_SELECT_ACTION,
+    label: t('commandPaletteSelect.label'),
+    description: t('commandPaletteSelect.description'),
+    defaultKeybinding: { strokes: [{ key: 'Enter', modifiers: [] }], when: 'commandMenuOpen' },
+    run: () => { ctx.composer.arbitrate('enter') },
+  }), 'ui-stock-actions: command palette select action')
 
   ctx.effect(() => ctx.uiActions.register({
     id: OVERLAY_CLOSE_ACTION,

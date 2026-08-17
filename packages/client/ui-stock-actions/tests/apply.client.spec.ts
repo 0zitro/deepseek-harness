@@ -13,7 +13,10 @@ async function mount() {
   ctx.provide('locale', locale)
   const register = vi.fn((_definition: UiActionDefinition) => () => {})
   ctx.provide('uiActions', { register })
-  const composer = { send: vi.fn(), queue: vi.fn(), steer: vi.fn(), undo: vi.fn(), redo: vi.fn() }
+  const composer = {
+    send: vi.fn(), queue: vi.fn(), steer: vi.fn(), undo: vi.fn(), redo: vi.fn(),
+    dismissPopup: vi.fn(), space: vi.fn(), arbitrate: vi.fn(),
+  }
   ctx.provide('composer', composer)
   const overlays = { closeTop: vi.fn() }
   ctx.provide('overlays', overlays)
@@ -74,12 +77,22 @@ describe('ui-stock-actions apply', () => {
     runOf('composer.steer')?.()
     runOf('composer.undo')?.()
     runOf('composer.redo')?.()
+    runOf('composer.dismissPopup')?.()
+    runOf('composer.claimToken')?.()
+    runOf('commandPalette.focusNext')?.()
+    runOf('commandPalette.focusPrevious')?.()
+    runOf('commandPalette.select')?.()
     runOf('overlay.close')?.()
     expect(composer.send).toHaveBeenCalledOnce()
     expect(composer.queue).toHaveBeenCalledOnce()
     expect(composer.steer).toHaveBeenCalledOnce()
     expect(composer.undo).toHaveBeenCalledOnce()
     expect(composer.redo).toHaveBeenCalledOnce()
+    expect(composer.dismissPopup).toHaveBeenCalledOnce()
+    expect(composer.space).toHaveBeenCalledOnce()
+    expect(composer.arbitrate).toHaveBeenNthCalledWith(1, 'down')
+    expect(composer.arbitrate).toHaveBeenNthCalledWith(2, 'up')
+    expect(composer.arbitrate).toHaveBeenNthCalledWith(3, 'enter')
     expect(overlays.closeTop).toHaveBeenCalledOnce()
   })
 })
