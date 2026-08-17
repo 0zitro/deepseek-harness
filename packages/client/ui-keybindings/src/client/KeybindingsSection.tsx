@@ -2,7 +2,11 @@
 import { useMemo, useState } from 'react'
 import type { InjectFace, PropsLocale, PropsRuntime } from '@deepseek-ai/dsh-client-ui-slots'
 import type { SnapshotStore } from '@deepseek-ai/dsh-client-runtime/client'
-import { keybindingKey, keybindingOfEntry, type Keybinding, type KeybindingKey, type KeybindingOverride, type KeyStroke } from '../keybinding.ts'
+import {
+  keybindingKey, keybindingOfEntry,
+  type Keybinding, type KeybindingEdit, type KeybindingKey, type KeybindingOverride,
+  type KeybindingOverrideRef, type KeyStroke,
+} from '../keybinding.ts'
 import { parseWhenClause } from '../when-clause.ts'
 import type { UiActionDefinition } from './action-registry.ts'
 import { defaultEntry, mergeOverride, topOverride } from './dispatch.ts'
@@ -17,8 +21,8 @@ export interface KeybindingsSectionInjected {
     /** Persisted partial overrides bound as useBindings. */
     bindings: SnapshotStore<readonly KeybindingOverride[]>
   }
-  /** Persist one partial override. */
-  setBinding: (override: KeybindingOverride) => void
+  /** Persist one field the user changed, against the default it overrides. */
+  setBinding: (ref: KeybindingOverrideRef, base: Keybinding, edit: KeybindingEdit) => void
 }
 
 /** Full Settings-page props. */
@@ -103,16 +107,15 @@ function WhenInput({ value, onChange, t }: { value: string; onChange: (when: str
 
 /** One effective binding's recorder and when clause, persisting through the injected setter. */
 function ActionRow(
-  { action, setBinding, t }: { action: ResolvedAction; setBinding: (override: KeybindingOverride) => void; t: SectionT },
+  { action, setBinding, t }: { action: ResolvedAction; setBinding: KeybindingsSectionInjected['setBinding']; t: SectionT },
 ) {
   const { definition, key, base, binding } = action
+  const ref = { action: definition.id, source: 'user', key } as const
 
-  const setStrokes = (strokes: KeyStroke[]) => {
-    setBinding({ action: definition.id, source: 'user', key, base, strokes, ...(binding.when === undefined ? {} : { when: binding.when }) })
-  }
-  const setWhen = (when: string) => {
-    setBinding({ action: definition.id, source: 'user', key, base, strokes: binding.strokes, ...(when === '' ? {} : { when }) })
-  }
+  // Each control writes its own field only: a field the user did not touch
+  // stays absent from the override and keeps following the default.
+  const setStrokes = (strokes: KeyStroke[]) => { setBinding(ref, base, { strokes }) }
+  const setWhen = (when: string) => { setBinding(ref, base, { when }) }
 
   return (
     <>
