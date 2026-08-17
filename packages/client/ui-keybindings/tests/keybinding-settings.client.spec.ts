@@ -17,7 +17,6 @@ describe('keybinding settings', () => {
   it('accepts a list of overrides with a when clause', () => {
     const entry: KeybindingOverride = {
       action: COMPOSER_SEND_ACTION,
-      source: 'user',
       key: keybindingKey('send'),
       base: { strokes: [{ key: 'k', modifiers: ['ctrl'] }, { key: 's', modifiers: ['ctrl'] }] },
       strokes: [{ key: 'k', modifiers: ['ctrl'] }, { key: 's', modifiers: ['ctrl'] }],

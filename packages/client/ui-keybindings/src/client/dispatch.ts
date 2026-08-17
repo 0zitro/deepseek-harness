@@ -4,7 +4,7 @@ import { ChordMatcher } from '../chord.ts'
 import {
   isRecordableKey, keybindingOfDefault, sameKeybinding, strokesKey,
   type KeybindingDefault, type KeybindingEntry, type KeybindingKey, type KeybindingOverride,
-  type KeybindingSource,
+  type KeybindingSource, type SourcedOverride,
 } from '../keybinding.ts'
 import { evaluateWhen, parseWhenClause, type WhenContext } from '../when-clause.ts'
 import type { UiActionId } from '../ui-action.ts'
@@ -49,13 +49,17 @@ export function dispatchKeydown(
   if (matched !== null) runMatched(matched, actions)
 }
 
-/** The top-ranked override for (action, key): user > plugin > system, then registration. */
+/**
+ * The top-ranked override for (action, key): user > plugin > system, then the
+ * order its provider contributed it in. Only this one merges with the default
+ * — overrides from different providers never roll together.
+ */
 export function topOverride(
-  overrides: readonly KeybindingOverride[],
+  overrides: readonly SourcedOverride[],
   action: UiActionId,
   key: KeybindingKey,
-): KeybindingOverride | undefined {
-  let best: KeybindingOverride | undefined
+): SourcedOverride | undefined {
+  let best: SourcedOverride | undefined
   for (const override of overrides) {
     if (override.action !== action || override.key !== key) continue
     if (best === undefined || sourceRank(override.source) < sourceRank(best.source)) best = override
@@ -77,7 +81,7 @@ export function defaultEntry(def: KeybindingDefault, action: UiActionId): Keybin
 export function mergeOverride(
   def: KeybindingDefault | undefined,
   action: UiActionId,
-  override: KeybindingOverride,
+  override: SourcedOverride,
 ): KeybindingEntry {
   // Reconcile with the world: the current default, else the retained base snapshot.
   const base = def ?? override.base
@@ -131,10 +135,10 @@ export function reconcileBases(
   return reconciled.every((next, index) => next === overrides[index]) ? overrides : reconciled
 }
 
-/** The effective entries: each default merged with its top override, plus orphans resolved against their retained base. */
+/** The effective entries: each default merged with its override, plus orphans resolved against their retained base. */
 export function effectiveEntries(
   actions: readonly UiActionDefinition[],
-  overrides: readonly KeybindingOverride[],
+  overrides: readonly SourcedOverride[],
 ): readonly KeybindingEntry[] {
   const entries: KeybindingEntry[] = []
   for (const action of actions) {
@@ -233,7 +237,7 @@ export function findPrioClash(
 
 /** Listen for window keydowns and dispatch them against the effective bindings. */
 export function createKeybindingDispatcher(
-  bindings: SnapshotStore<readonly KeybindingOverride[]>,
+  bindings: SnapshotStore<readonly SourcedOverride[]>,
   actions: SnapshotStore<readonly UiActionDefinition[]>,
   context: ReadonlySnapshot<WhenContext>,
 ): () => void {

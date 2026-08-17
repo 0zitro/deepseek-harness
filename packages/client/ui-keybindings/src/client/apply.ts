@@ -10,6 +10,7 @@ import type {} from '@deepseek-ai/dsh-client-locale/client'
 import {
   sameStrokes,
   type Keybinding, type KeybindingEdit, type KeybindingOverride, type KeybindingOverrideRef,
+  type KeybindingSource, type SourcedOverride,
 } from '../keybinding.ts'
 import {
   DEFAULT_KEYBINDING_ENTRIES, KEYBINDINGS_SETTINGS_NAMESPACE, type KeybindingsSettings,
@@ -23,9 +24,12 @@ import { en, NS, zh } from './locales.ts'
 /** Services required by the keybindings plugin. */
 export const inject = ['slots', 'settingsScope', 'locale']
 
+/** The source the settings document gives every override it holds. */
+const USER_SOURCE: KeybindingSource = 'user'
+
 /** The durable keybindings list bound to the settings scope, plus its write-backs. */
 interface BindingsScope {
-  value: SnapshotStore<readonly KeybindingOverride[]>
+  value: SnapshotStore<readonly SourcedOverride[]>
   set: (ref: KeybindingOverrideRef, base: Keybinding, edit: KeybindingEdit) => void
   reconcile: (actions: readonly UiActionDefinition[]) => void
 }
@@ -49,12 +53,16 @@ function alreadyStored(override: KeybindingOverride, edit: KeybindingEdit): bool
  * never saw.
  */
 function bindBindings(host: SettingsScope<KeybindingsSettings>, ctx: Context): BindingsScope {
-  const value = createSnapshotStore<readonly KeybindingOverride[]>(DEFAULT_KEYBINDING_ENTRIES)
+  const value = createSnapshotStore<readonly SourcedOverride[]>([])
+  // The document is what changes; the published view is it, stamped. Comparing
+  // the documents keeps a fresh stamping from reading as a change every time.
+  let document: readonly KeybindingOverride[] = DEFAULT_KEYBINDING_ENTRIES
 
   const adopt = () => {
     const next = host.getSnapshot().value?.bindings ?? DEFAULT_KEYBINDING_ENTRIES
-    if (shallowEqual(value.getSnapshot(), next)) return
-    value.set(next)
+    if (shallowEqual(document, next)) return
+    document = next
+    value.set(next.map(override => ({ ...override, source: USER_SOURCE })))
   }
   ctx.effect(() => host.subscribe(adopt), 'ui-keybindings: adopt the stored list')
   adopt()
@@ -66,8 +74,7 @@ function bindBindings(host: SettingsScope<KeybindingsSettings>, ctx: Context): B
       return
     }
 
-    const at = previous.findIndex(current =>
-      current.action === ref.action && current.key === ref.key && current.source === ref.source)
+    const at = previous.findIndex(current => current.action === ref.action && current.key === ref.key)
     const stored = previous[at]
     if (stored !== undefined && alreadyStored(stored, edit)) return
 

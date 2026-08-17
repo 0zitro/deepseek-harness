@@ -117,13 +117,13 @@ describe('constants and schema', () => {
     expect(KeyStrokeSchema({ key: 'a', modifiers: ['ctrl'] })).toEqual({ key: 'a', modifiers: ['ctrl'] })
     expect(KeybindingOverrideSchema({
       strokes: [{ key: 'a', modifiers: ['ctrl'] }],
-      action: COMPOSER_SEND_ACTION, source: 'user',
+      action: COMPOSER_SEND_ACTION,
       key: keybindingKey('send'),
       base: { strokes: [{ key: 'Enter', modifiers: [] }] },
       when: 'agentBusy',
     })).toEqual({
       strokes: [{ key: 'a', modifiers: ['ctrl'] }],
-      action: COMPOSER_SEND_ACTION, source: 'user',
+      action: COMPOSER_SEND_ACTION,
       key: keybindingKey('send'),
       base: { strokes: [{ key: 'Enter', modifiers: [] }] },
       when: 'agentBusy',

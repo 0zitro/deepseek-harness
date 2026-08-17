@@ -4,7 +4,8 @@ import { createSnapshotStore } from '@deepseek-ai/dsh-client-runtime/client'
 import { ChordMatcher } from '../src/chord.ts'
 import {
   keybindingKey, pluginId,
-  type Keybinding, type KeybindingEntry, type KeybindingOverride, type KeybindingSource, type KeyStroke,
+  type Keybinding, type KeybindingEntry, type KeybindingOverride, type KeybindingSource,
+  type KeyStroke, type SourcedOverride,
 } from '../src/keybinding.ts'
 import { COMPOSER_SEND_ACTION, type UiActionId } from '../src/ui-action.ts'
 import type { WhenContext } from '../src/when-clause.ts'
@@ -18,8 +19,9 @@ function entry(strokes: KeyStroke[], action: UiActionId = COMPOSER_SEND_ACTION):
   return { strokes, action, source: 'user' }
 }
 
-function over(strokes: KeyStroke[], when?: string): KeybindingOverride {
-  return { action: COMPOSER_SEND_ACTION, source: 'user', key: keybindingKey('send'), base: { strokes: [{ key: 'Enter', modifiers: [] }] }, strokes, ...(when === undefined ? {} : { when }) }
+/** An override as the pipeline sees it: the user's document stamps every one it holds. */
+function over(strokes: KeyStroke[], when?: string, source: KeybindingSource = 'user'): SourcedOverride {
+  return { action: COMPOSER_SEND_ACTION, key: keybindingKey('send'), source, base: { strokes: [{ key: 'Enter', modifiers: [] }] }, strokes, ...(when === undefined ? {} : { when }) }
 }
 
 function keydown(key: string, modifiers: KeyboardEventInit = {}): KeyboardEvent {
@@ -142,8 +144,8 @@ describe('effectiveEntries', () => {
   })
 
   it('merges a partial override into the default', () => {
-    const overrides: KeybindingOverride[] = [
-      { action: COMPOSER_SEND_ACTION, source: 'user', key: KEY, base, strokes: [{ key: 'k', modifiers: ['ctrl'] }] },
+    const overrides: SourcedOverride[] = [
+      { action: COMPOSER_SEND_ACTION, key: KEY, source: 'user', base, strokes: [{ key: 'k', modifiers: ['ctrl'] }] },
     ]
     expect(effectiveEntries([action()], overrides)).toEqual([
       { strokes: [{ key: 'k', modifiers: ['ctrl'] }], action: COMPOSER_SEND_ACTION, source: 'user' },
@@ -151,9 +153,9 @@ describe('effectiveEntries', () => {
   })
 
   it('keeps the first of two same-source overrides for one key', () => {
-    const overrides: KeybindingOverride[] = [
-      { action: COMPOSER_SEND_ACTION, source: 'user', key: KEY, base, strokes: [{ key: 'a', modifiers: [] }] },
-      { action: COMPOSER_SEND_ACTION, source: 'user', key: KEY, base, strokes: [{ key: 'b', modifiers: [] }] },
+    const overrides: SourcedOverride[] = [
+      { action: COMPOSER_SEND_ACTION, key: KEY, source: 'user', base, strokes: [{ key: 'a', modifiers: [] }] },
+      { action: COMPOSER_SEND_ACTION, key: KEY, source: 'user', base, strokes: [{ key: 'b', modifiers: [] }] },
     ]
     expect(effectiveEntries([action()], overrides)).toEqual([
       { strokes: [{ key: 'a', modifiers: [] }], action: COMPOSER_SEND_ACTION, source: 'user' },
@@ -161,8 +163,8 @@ describe('effectiveEntries', () => {
   })
 
   it('merges an orphaned override into its retained base', () => {
-    const overrides: KeybindingOverride[] = [
-      { action: COMPOSER_SEND_ACTION, source: 'user', key: keybindingKey('gone'), base, prio: 3 },
+    const overrides: SourcedOverride[] = [
+      { action: COMPOSER_SEND_ACTION, key: keybindingKey('gone'), source: 'user', base, prio: 3 },
     ]
     const withOtherKey: UiActionDefinition = {
       id: COMPOSER_SEND_ACTION, label: 'Send', run: () => {},
@@ -189,8 +191,8 @@ describe('effectiveEntries', () => {
       id: 'other.action' as UiActionId, label: 'Other', run: () => {},
       defaultKeybindings: [{ key: KEY, strokes: [{ key: 'k', modifiers: ['ctrl'] }] }],
     }
-    const overrides: KeybindingOverride[] = [
-      { action: COMPOSER_SEND_ACTION, source: 'user', key: KEY, base, strokes: [{ key: 'x', modifiers: [] }] },
+    const overrides: SourcedOverride[] = [
+      { action: COMPOSER_SEND_ACTION, key: KEY, source: 'user', base, strokes: [{ key: 'x', modifiers: [] }] },
     ]
     expect(effectiveEntries([{ id: COMPOSER_SEND_ACTION, label: 'Send', run: () => {} }, other], overrides)).toEqual([
       { strokes: [{ key: 'k', modifiers: ['ctrl'] }], action: 'other.action', source: 'system' },
@@ -207,7 +209,7 @@ describe('reconcileBases', () => {
   const KEY = keybindingKey('send')
   const SNAPSHOT: Keybinding = { strokes: [{ key: 'Enter', modifiers: [] }] }
   const stored = (base: Keybinding): KeybindingOverride =>
-    ({ action: COMPOSER_SEND_ACTION, source: 'user', key: KEY, base, strokes: [{ key: 'k', modifiers: ['ctrl'] }] })
+    ({ action: COMPOSER_SEND_ACTION, key: KEY, base, strokes: [{ key: 'k', modifiers: ['ctrl'] }] })
   const shipping = (def: Keybinding): UiActionDefinition =>
     ({ id: COMPOSER_SEND_ACTION, label: 'Send', run: () => {}, defaultKeybindings: [{ key: KEY, ...def }] })
 
@@ -320,7 +322,7 @@ describe('findPrioClash', () => {
 
 describe('createKeybindingDispatcher', () => {
   it('dispatches a persisted binding to its action and disposes cleanly', () => {
-    const bindings = createSnapshotStore<readonly KeybindingOverride[]>([])
+    const bindings = createSnapshotStore<readonly SourcedOverride[]>([])
     const actions = createSnapshotStore<readonly UiActionDefinition[]>([])
     const context = createSnapshotStore<WhenContext>({})
     const run = vi.fn()
@@ -335,7 +337,7 @@ describe('createKeybindingDispatcher', () => {
   })
 
   it('skips a binding whose when clause does not hold', () => {
-    const bindings = createSnapshotStore<readonly KeybindingOverride[]>([])
+    const bindings = createSnapshotStore<readonly SourcedOverride[]>([])
     const actions = createSnapshotStore<readonly UiActionDefinition[]>([])
     const context = createSnapshotStore<WhenContext>({ composerFocused: false })
     const run = vi.fn()
@@ -347,7 +349,7 @@ describe('createKeybindingDispatcher', () => {
   })
 
   it('dispatches a default binding when no override exists', () => {
-    const bindings = createSnapshotStore<readonly KeybindingOverride[]>([])
+    const bindings = createSnapshotStore<readonly SourcedOverride[]>([])
     const actions = createSnapshotStore<readonly UiActionDefinition[]>([])
     const context = createSnapshotStore<WhenContext>({})
     const run = vi.fn()
@@ -363,7 +365,7 @@ describe('createKeybindingDispatcher', () => {
   it('suppresses dispatch during composition and recovers after compositionend', () => {
     vi.useFakeTimers()
     try {
-      const bindings = createSnapshotStore<readonly KeybindingOverride[]>([])
+      const bindings = createSnapshotStore<readonly SourcedOverride[]>([])
       const actions = createSnapshotStore<readonly UiActionDefinition[]>([])
       const context = createSnapshotStore<WhenContext>({})
       const run = vi.fn()
@@ -391,7 +393,7 @@ describe('createKeybindingDispatcher', () => {
   it('clears a pending composition timer on disposal', () => {
     vi.useFakeTimers()
     try {
-      const bindings = createSnapshotStore<readonly KeybindingOverride[]>([])
+      const bindings = createSnapshotStore<readonly SourcedOverride[]>([])
       const actions = createSnapshotStore<readonly UiActionDefinition[]>([])
       const context = createSnapshotStore<WhenContext>({})
       const run = vi.fn()

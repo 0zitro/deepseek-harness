@@ -3,8 +3,8 @@ import { Fragment, useMemo, useState } from 'react'
 import type { InjectFace, PropsLocale, PropsRuntime } from '@deepseek-ai/dsh-client-ui-slots'
 import type { SnapshotStore } from '@deepseek-ai/dsh-client-runtime/client'
 import {
-  type Keybinding, type KeybindingEdit, type KeybindingOverride, type KeybindingOverrideRef,
-  type KeybindingSource, type KeyStroke,
+  type Keybinding, type KeybindingEdit, type KeybindingOverrideRef, type KeybindingSource,
+  type KeyStroke, type SourcedOverride,
 } from '../keybinding.ts'
 import { parseWhenClause } from '../when-clause.ts'
 import type { UiActionDefinition } from './action-registry.ts'
@@ -18,8 +18,8 @@ export interface KeybindingsSectionInjected {
   hooks: {
     /** Registered actions bound as useActions. */
     actions: SnapshotStore<readonly UiActionDefinition[]>
-    /** Persisted partial overrides bound as useBindings. */
-    bindings: SnapshotStore<readonly KeybindingOverride[]>
+    /** The overrides in force, each stamped by its provider, bound as useBindings. */
+    bindings: SnapshotStore<readonly SourcedOverride[]>
   }
   /** Persist one field the user changed, against the default it overrides. */
   setBinding: (ref: KeybindingOverrideRef, base: Keybinding, edit: KeybindingEdit) => void
@@ -66,8 +66,14 @@ function fieldClass(overridden: boolean): string | undefined {
   return overridden ? css.overridden : css.inherited
 }
 
-/** Where a binding comes from: the shipped default, the user, or a named plugin. */
-function sourceLabel(source: KeybindingSource, t: SectionT): string {
+/**
+ * Where a binding comes from: the shipped default, the user, or the plugin
+ * that contributed it, which a plugin-contributed default will carry.
+ * @param source - the merged entry's source.
+ * @param t - the section's translate face.
+ * @returns the text the source column shows.
+ */
+export function sourceLabel(source: KeybindingSource, t: SectionT): string {
   if (source === 'system') return t('source.system')
   if (source === 'user') return t('source.user')
   return source
@@ -127,7 +133,7 @@ function CellInput(
 function BindingCells(
   { row, setBinding, t }: { row: KeybindingRow; setBinding: KeybindingsSectionInjected['setBinding']; t: SectionT },
 ) {
-  const ref = { action: row.action, source: 'user', key: row.key } as const
+  const ref = { action: row.action, key: row.key } as const
 
   // Each control writes its own field only: a field the user did not touch
   // stays absent from the override and keeps following the default.

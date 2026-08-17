@@ -9,7 +9,10 @@ import { usePinnedBrowserLanguages } from '@deepseek-ai/dsh-client-test-runtime'
 import { apply, inject } from '@deepseek-ai/dsh-client-ui-keybindings/client'
 import { KeybindingsSection } from '../src/client/KeybindingsSection.tsx'
 import type { KeybindingsSectionInjected } from '../src/client/KeybindingsSection.tsx'
-import { keybindingKey, type Keybinding, type KeybindingOverride, type KeyStroke } from '../src/keybinding.ts'
+import {
+  keybindingKey,
+  type Keybinding, type KeybindingOverride, type KeyStroke, type SourcedOverride,
+} from '../src/keybinding.ts'
 import { DEFAULT_KEYBINDING_ENTRIES, type KeybindingsSettings } from '../src/keybinding-settings.ts'
 import { COMPOSER_SEND_ACTION, type UiActionId } from '../src/ui-action.ts'
 
@@ -24,10 +27,13 @@ const ENTER: Keybinding = { strokes: [{ key: 'Enter', modifiers: [] }] }
 const KEY = keybindingKey('send')
 const BASE: Keybinding = { strokes: [{ key: 'Enter', modifiers: [] }] }
 const ovr = (strokes: KeyStroke[], when?: string, action: UiActionId = COMPOSER_SEND_ACTION): KeybindingOverride =>
-  ({ action, source: 'user', key: KEY, base: BASE, strokes, ...(when === undefined ? {} : { when }) })
+  ({ action, key: KEY, base: BASE, strokes, ...(when === undefined ? {} : { when }) })
+
+/** The same override as the store publishes it: stamped by the document it came from. */
+const sourced = (...args: Parameters<typeof ovr>): SourcedOverride => ({ ...ovr(...args), source: 'user' })
 
 /** The override the section's controls address. */
-const REF = { action: COMPOSER_SEND_ACTION, source: 'user', key: KEY } as const
+const REF = { action: COMPOSER_SEND_ACTION, key: KEY } as const
 
 /** A default carrying a clause, as the composer's send default does. */
 const WITH_WHEN: Keybinding = { strokes: [{ key: 'Enter', modifiers: [] }], when: 'composerActive' }
@@ -100,7 +106,7 @@ describe('ui-keybindings apply', () => {
     expect(face.hooks.bindings.getSnapshot()).toEqual(DEFAULT_KEYBINDING_ENTRIES)
 
     publish({ bindings: [edited] })
-    expect(face.hooks.bindings.getSnapshot()).toEqual([edited])
+    expect(face.hooks.bindings.getSnapshot()).toEqual([{ ...edited, source: 'user' }])
   })
 
   it('stores only the field the user changed', async () => {
@@ -112,7 +118,6 @@ describe('ui-keybindings apply', () => {
     // later change to that clause would never reach the merged binding.
     expect(set).toHaveBeenCalledWith('bindings', [{
       action: COMPOSER_SEND_ACTION,
-      source: 'user',
       key: KEY,
       base: WITH_WHEN,
       strokes: [{ key: 'Enter', modifiers: ['ctrl'] }],
@@ -127,7 +132,6 @@ describe('ui-keybindings apply', () => {
 
     expect(set).toHaveBeenCalledWith('bindings', [{
       action: COMPOSER_SEND_ACTION,
-      source: 'user',
       key: KEY,
       base: WITH_WHEN,
       strokes: [{ key: 'Enter', modifiers: ['ctrl'] }],
@@ -138,7 +142,7 @@ describe('ui-keybindings apply', () => {
   it('adopts a durable binding change pushed from the settings scope', async () => {
     const { face, publish } = await mount()
     publish({ bindings: [ovr([{ key: 'j', modifiers: ['meta'] }], 'agentBusy')] })
-    expect(face.hooks.bindings.getSnapshot()).toEqual([ovr([{ key: 'j', modifiers: ['meta'] }], 'agentBusy')])
+    expect(face.hooks.bindings.getSnapshot()).toEqual([sourced([{ key: 'j', modifiers: ['meta'] }], 'agentBusy')])
   })
 
   it('does not persist an unchanged binding', async () => {

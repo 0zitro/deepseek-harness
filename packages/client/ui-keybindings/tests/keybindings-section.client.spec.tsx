@@ -4,13 +4,13 @@ import { act, cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { bindSnapshotSelector } from '@deepseek-ai/dsh-client-web-react'
 import { createSnapshotStore, type SessionListState, type WorkspaceListState } from '@deepseek-ai/dsh-client-runtime/client'
 import { makeTranslate } from '@deepseek-ai/dsh-client-test-runtime'
-import { KeybindingsSection } from '../src/client/KeybindingsSection.tsx'
+import { KeybindingsSection, sourceLabel } from '../src/client/KeybindingsSection.tsx'
 import type { KeybindingsSectionProps } from '../src/client/KeybindingsSection.tsx'
 import type { UiActionDefinition } from '../src/client/action-registry.ts'
 import { en } from '../src/client/locales.ts'
 import {
   keybindingKey, pluginId,
-  type Keybinding, type KeybindingEdit, type KeybindingOverride, type KeybindingOverrideRef,
+  type Keybinding, type KeybindingEdit, type KeybindingOverrideRef, type SourcedOverride,
 } from '../src/keybinding.ts'
 import { COMPOSER_SEND_ACTION, type UiActionId } from '../src/ui-action.ts'
 
@@ -22,7 +22,7 @@ const PREVIEW_ACTION = 'composer.preview' as UiActionId
 const ENTER: Keybinding = { strokes: [{ key: 'Enter', modifiers: [] }] }
 const KEY = keybindingKey('send')
 const BASE: Keybinding = { strokes: [{ key: 'Enter', modifiers: [] }] }
-const REF = { action: COMPOSER_SEND_ACTION, source: 'user', key: KEY } as const
+const REF = { action: COMPOSER_SEND_ACTION, key: KEY } as const
 
 function emptySessions() {
   return bindSnapshotSelector(createSnapshotStore<SessionListState>({
@@ -41,13 +41,13 @@ function mount(actions: readonly UiActionDefinition[] = [
   { id: COMPOSER_SEND_ACTION, label: 'Send message', defaultKeybindings: [{ key: KEY, ...ENTER }], run: () => {} },
 ]) {
   const actionsStore = createSnapshotStore<readonly UiActionDefinition[]>(actions)
-  const bindingsStore = createSnapshotStore<readonly KeybindingOverride[]>([])
+  const bindingsStore = createSnapshotStore<readonly SourcedOverride[]>([])
   // Mirrors the bound scope: an edit merges into the stored override.
   const setBinding = vi.fn((ref: KeybindingOverrideRef, base: Keybinding, edit: KeybindingEdit) => {
-    const addresses = (existing: KeybindingOverride) =>
-      existing.action === ref.action && existing.key === ref.key && existing.source === ref.source
+    const addresses = (existing: SourcedOverride) =>
+      existing.action === ref.action && existing.key === ref.key
     const stored = bindingsStore.getSnapshot().find(addresses)
-    const override: KeybindingOverride = { ...(stored ?? { ...ref, base }), ...edit }
+    const override: SourcedOverride = { ...(stored ?? { ...ref, base, source: 'user' }), ...edit }
     bindingsStore.set([...bindingsStore.getSnapshot().filter(existing => !addresses(existing)), override])
   })
   const props: KeybindingsSectionProps = {
@@ -136,7 +136,7 @@ describe('KeybindingsSection', () => {
     fireEvent.change(input, { target: { value: 'half-typed' } })
 
     // Another client stored a clause while this field was being edited.
-    act(() => { bindingsStore.set([{ ...REF, base: BASE, when: 'agentBusy' }]) })
+    act(() => { bindingsStore.set([{ ...REF, source: 'user', base: BASE, when: 'agentBusy' }]) })
 
     expect(screen.getByDisplayValue('agentBusy')).toBeDefined()
   })
@@ -184,7 +184,7 @@ describe('KeybindingsSection', () => {
     const clause = screen.getByPlaceholderText('e.g. composerFocused && !agentBusy')
     const inherited = clause.className
 
-    act(() => { bindingsStore.set([{ ...REF, base: BASE, when: 'agentBusy' }]) })
+    act(() => { bindingsStore.set([{ ...REF, source: 'user', base: BASE, when: 'agentBusy' }]) })
 
     expect(screen.getByDisplayValue('agentBusy').className).not.toBe(inherited)
   })
@@ -207,12 +207,13 @@ describe('KeybindingsSection', () => {
     const { bindingsStore } = mount()
     expect(screen.getByText('System')).toBeDefined()
 
-    act(() => { bindingsStore.set([{ ...REF, base: BASE, strokes: [{ key: 'k', modifiers: ['ctrl'] }] }]) })
+    act(() => { bindingsStore.set([{ ...REF, source: 'user', base: BASE, strokes: [{ key: 'k', modifiers: ['ctrl'] }] }]) })
     expect(screen.getByText('User')).toBeDefined()
+  })
 
-    act(() => {
-      bindingsStore.set([{ ...REF, source: pluginId('dsh-demo'), base: BASE, strokes: [{ key: 'k', modifiers: ['ctrl'] }] }])
-    })
-    expect(screen.getByText('dsh-demo')).toBeDefined()
+  it('names a plugin-contributed binding by the plugin', () => {
+    // No stored override can claim a plugin: the document holds only the
+    // user's. A plugin-contributed default is what will carry this source.
+    expect(sourceLabel(pluginId('dsh-demo'), makeTranslate(en))).toBe('dsh-demo')
   })
 })
