@@ -55,6 +55,21 @@
   display: flex;
   align-items: center;
   justify-content: center;
+  --dsh-settings-width-base: 800px;
+  /* figma's own panel width (501:29947), which the base shrinks from. */
+  --dsh-settings-width-wide: 1080px;
+  --dsh-settings-gutter: 24px;
+}
+
+/* The nav rail must sit in the same place whichever section is open, so the
+   panel is anchored rather than centered: this box is what the viewport
+   centers, always at the base width, and the panel starts at its left edge and
+   grows rightward. Centering the panel itself would move its left edge — and
+   the rail with it — by half of every width change. */
+.anchor {
+  flex: none;
+  display: flex;
+  width: min(var(--dsh-settings-width-base), calc(100vw - 2 * var(--dsh-settings-gutter)));
 }
 
 .mask {
@@ -73,10 +88,16 @@
 .panel {
   position: relative;
   z-index: 1;
+  flex: none;
   display: flex;
-  width: 800px;
+  width: 100%;
   height: min(800px, calc(100vh - 48px));
-  max-width: calc(100vw - 48px);
+  /* From the anchor's left edge to the far gutter: the anchor is centered, so
+     that is half the viewport plus half the base width, less one gutter. */
+  max-width: min(
+    calc(100vw - 2 * var(--dsh-settings-gutter)),
+    calc(50vw + var(--dsh-settings-width-base) / 2 - var(--dsh-settings-gutter))
+  );
   border-radius: 24px;
   overflow: hidden;
   background: var(--dsw-alias-bg-layer-2);
@@ -88,6 +109,12 @@
      styles/scrollbar.css for the rebinding contract). */
   --dsh-scrollbar-thumb: var(--dsw-alias-scrollbar-bg-l2);
   --dsh-scrollbar-thumb-hover: var(--dsw-alias-scrollbar-hover-l2);
+}
+
+/* A section whose content does not fit the base content column — the
+   keybindings table — takes the wide panel. Only the right edge moves. */
+.panel.wide {
+  width: var(--dsh-settings-width-wide);
 }
 
 /* Nav rail (figma .Setting-nav 501:29958): 188 wide, pad (12,22,12,0),

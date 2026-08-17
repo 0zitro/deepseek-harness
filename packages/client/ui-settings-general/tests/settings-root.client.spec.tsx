@@ -137,8 +137,23 @@ describe('SettingsPanel close paths', () => {
     mount()
     openPanel()
     const dialog = screen.getByRole('dialog')
-    fireEvent.click(dialog.parentElement!.firstElementChild!)
+    fireEvent.click(dialog.closest('[role="presentation"]')!.firstElementChild!)
     expect(screen.queryByRole('dialog')).toBeNull()
+  })
+
+  it('widens the panel for a wide section, leaving the anchor alone', () => {
+    mount({ rows: [{ id: 'general', order: 0, label: 'General' }, { id: 'keybindings', order: 25, label: 'Keybindings' }] })
+    openPanel()
+    const dialog = screen.getByRole('dialog')
+    const anchor = dialog.parentElement!
+    const narrow = dialog.className
+
+    fireEvent.click(screen.getByRole('button', { name: 'Keybindings' }))
+
+    // The nav rail sits at the anchor's left edge, so only the panel's own
+    // class changes: the box the viewport centers is the same element.
+    expect(screen.getByRole('dialog').className).not.toBe(narrow)
+    expect(screen.getByRole('dialog').parentElement).toBe(anchor)
   })
 
   it('lands focus on the close button when the dialog opens', () => {

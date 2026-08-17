@@ -27,6 +27,13 @@ function navIcon(id: string) {
   return <IconSettingsOutline16 className={css.navIcon} size={16} />
 }
 
+/**
+ * Sections whose content needs more than the base content column. The width
+ * is the shell's to decide, like the nav glyph: a registration carries the
+ * nav identity only, and the panel's geometry is chrome the shell owns.
+ */
+const WIDE_SECTIONS: ReadonlySet<string> = new Set(['keybindings'])
+
 type PanelProps = {
   rows: readonly SettingsSectionRow[]
   renderSlot: SettingsRootComponentProps['renderSlot']
@@ -53,37 +60,46 @@ function SettingsPanel({ rows, renderSlot, activeId, onSelect, onClose }: PanelP
   return (
     <div className={css.overlay} role="presentation">
       <div className={css.mask} aria-hidden="true" onClick={onClose} />
-      <OverlayScope name="settings" onClose={onClose} className={css.panel} role="dialog" aria-modal="true" aria-labelledby={titleId}>
-        <nav className={css.nav}>
-          <div className={css.navTitle} id={titleId}>{renderSlot('settings.header', {})}</div>
-          <div className={css.navList}>
-            {rows.map(row => (
-              <button
-                key={row.id}
-                type="button"
-                className={clsx(css.navCell, row.id === active && css.active)}
-                aria-current={row.id === active ? 'true' : undefined}
-                onClick={() => { onSelect(row.id) }}
-              >
-                {navIcon(row.id)}
-                <span className={css.navLabel}>{row.label}</span>
+      <div className={css.anchor}>
+        <OverlayScope
+          name="settings"
+          onClose={onClose}
+          className={clsx(css.panel, active !== undefined && WIDE_SECTIONS.has(active) && css.wide)}
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby={titleId}
+        >
+          <nav className={css.nav}>
+            <div className={css.navTitle} id={titleId}>{renderSlot('settings.header', {})}</div>
+            <div className={css.navList}>
+              {rows.map(row => (
+                <button
+                  key={row.id}
+                  type="button"
+                  className={clsx(css.navCell, row.id === active && css.active)}
+                  aria-current={row.id === active ? 'true' : undefined}
+                  onClick={() => { onSelect(row.id) }}
+                >
+                  {navIcon(row.id)}
+                  <span className={css.navLabel}>{row.label}</span>
+                </button>
+              ))}
+            </div>
+          </nav>
+          <div className={css.content}>
+            <div className={css.header}>
+              <div className={css.actions}>{renderSlot('settings.action', {})}</div>
+              <button ref={closeButton} type="button" className={css.close} onClick={onClose}>
+                <IconCloseOutline16 size={14} />
+                <span className={css.hiddenLabel}>{renderSlot('settings.close', {})}</span>
               </button>
-            ))}
+            </div>
+            <div className={css.options}>
+              {active !== undefined && renderSlot('settings.section', { close: onClose }, { only: active })}
+            </div>
           </div>
-        </nav>
-        <div className={css.content}>
-          <div className={css.header}>
-            <div className={css.actions}>{renderSlot('settings.action', {})}</div>
-            <button ref={closeButton} type="button" className={css.close} onClick={onClose}>
-              <IconCloseOutline16 size={14} />
-              <span className={css.hiddenLabel}>{renderSlot('settings.close', {})}</span>
-            </button>
-          </div>
-          <div className={css.options}>
-            {active !== undefined && renderSlot('settings.section', { close: onClose }, { only: active })}
-          </div>
-        </div>
-      </OverlayScope>
+        </OverlayScope>
+      </div>
     </div>
   )
 }
