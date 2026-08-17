@@ -27,11 +27,15 @@ interface BindingsScope {
 }
 
 /**
- * Bind the persisted list to the settings scope. External edits are adopted
- * back without being written out again; `set` replaces one override, leaving
- * every other override untouched.
+ * Bind the persisted list to the settings scope. The store projects the
+ * durable list and nothing else, so an edit becomes visible only once it is
+ * stored: `set` derives the next list from the durable one, replaces the
+ * addressed override, and leaves every other override untouched. Absent a
+ * stored list — unread, unserved, or undecodable — there is nothing to derive
+ * from, and the write is refused rather than allowed to replace overrides it
+ * never saw.
  */
-function bindBindings(host: SettingsScope<KeybindingsSettings>): BindingsScope {
+function bindBindings(host: SettingsScope<KeybindingsSettings>, ctx: Context): BindingsScope {
   const value = createSnapshotStore<readonly KeybindingOverride[]>(DEFAULT_KEYBINDING_ENTRIES)
 
   const adopt = () => {
@@ -43,14 +47,19 @@ function bindBindings(host: SettingsScope<KeybindingsSettings>): BindingsScope {
   adopt()
 
   const set = (override: KeybindingOverride) => {
-    const previous = host.getSnapshot().value?.bindings ?? DEFAULT_KEYBINDING_ENTRIES
+    const previous = host.getSnapshot().value?.bindings
+    if (previous === undefined) {
+      ctx.logger.error('ui-keybindings: the stored keybindings are unavailable; the change was not saved')
+      return
+    }
+
     const existing = previous.findIndex(current =>
       current.action === override.action && current.key === override.key && current.source === override.source)
     if (existing !== -1 && shallowEqual(previous[existing], override)) return
+
     const bindings = existing === -1
       ? [...previous, override]
       : previous.map((current, index) => index === existing ? override : current)
-    value.set(bindings)
     void host.set('bindings', bindings)
   }
   return { value, set }
@@ -69,7 +78,7 @@ export function apply(ctx: Context): void {
   new UiWhenContext(ctx)
 
   const host = ctx.settingsScope.bind<KeybindingsSettings>({ namespace: KEYBINDINGS_SETTINGS_NAMESPACE })
-  const bindings = bindBindings(host)
+  const bindings = bindBindings(host, ctx)
 
   // Dispatch keystrokes to the persisted bindings, gated by the when context.
   ctx.effect(
