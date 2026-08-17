@@ -6,6 +6,8 @@ The settings domain's base layer, with two roles and no presentation of its own.
 
 The plugin injects nothing and waits for nothing: `ctx.settingsScope.bind(spec)` resolves the wire face through the CALLER's context at call time, so the bound scope's disposer belongs to the calling fiber, and the caller injects `connection` for the transport and `remote` for the invalidation. Listeners exist before the first background read starts, so a row's activation never blocks on the settings transport. A bound scope reloads on the forwarded `settings/document-updated` event for its own namespace and on `connection/reset`. Writes carry one field path and the last known namespace revision as `expectedRevision`; a rejected or failed write re-reads unless a newer write already superseded it, and a stale read never publishes over a newer one. Without a `decode` in the spec, a section that is not a plain object, fails its rehydrated schema, or carries a schema envelope this client cannot rehydrate publishes no value at all, so a row renders its own absent state instead of a half-decoded one.
 
+Registering a namespace on the Host is necessary but not sufficient: the gateway serves an explicit set, and a namespace outside it is absent from every description and refused on every write. A bound scope reports that once, as an error naming the namespace, the first time a description answers without it — otherwise the composition error shows only as preferences that never survive a reload. A remote browser binds in memory mode by design and never reports.
+
 ## Model Experience
 
 None, as the settings domain base serves browser preference storage and slot declarations; nothing here reaches a model request.

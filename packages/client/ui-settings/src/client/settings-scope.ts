@@ -211,6 +211,30 @@ export class SettingsScopeController<T> implements SettingsScope<T> {
   }
 }
 
+/**
+ * Report a namespace the Host does not serve, once, as soon as a describe
+ * answers without it. A registered namespace still needs the gateway to expose
+ * it, and a write to an unexposed one is refused rather than persisted, so
+ * without this the composition error is visible only as preferences that never
+ * survive a reload. Memory mode is a remote browser's designed state, not a
+ * misconfiguration, and never reports.
+ * @param scope - the bound namespace scope to observe.
+ * @param namespace - the namespace the caller asked for.
+ * @param ctx - the calling plugin's context, which owns the diagnostic.
+ * @returns the disposer removing the observer.
+ */
+function reportUnserved(scope: SettingsScope<unknown>, namespace: string, ctx: Context): () => void {
+  let reported = false
+
+  return scope.subscribe(() => {
+    const { status, mode } = scope.getSnapshot()
+    if (reported || mode !== 'host' || status !== 'unavailable') return
+
+    reported = true
+    ctx.logger.error(`ui-settings: the Host serves no "${namespace}" settings namespace; changes to it cannot persist`)
+  })
+}
+
 declare module '@deepseek-ai/cordis' {
   interface Context {
     settingsScope: SettingsScopeBinder
@@ -256,6 +280,7 @@ export class SettingsScopeBinder extends Service {
         void controller.load()
       }
       const disposers = [
+        reportUnserved(controller, spec.namespace, ctx),
         (ctx.get('remote') as Context['remote']).$on('settings/document-updated', refresh),
         ctx.on('connection/reset', () => { refresh() }),
       ]
