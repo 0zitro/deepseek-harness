@@ -295,21 +295,14 @@ export function InputBar({
       if (keyboard.arbitrate('escape', composing) === 'consumed') e.preventDefault()
       return
     }
-    if ((e.metaKey || e.ctrlKey) && (e.key === 'z' || e.key === 'Z' || e.key === 'y')) {
-      // The machine owns the undo/redo log (chip transactions have semantics
-      // the browser stack cannot represent); never let the native stack run.
-      e.preventDefault()
-      if (machineBusy || locked) return
-      const redo = e.key === 'y' || e.shiftKey
-      if (redo) keyboard.redo()
-      else keyboard.undo()
-      return
-    }
     if (e.key === ' ') {
       if (composing) return
       if (keyboard.space()) e.preventDefault() // claim token already carries the trailing separator
       return
     }
+    // Undo/redo and Enter submit through the keybindings dispatcher
+    // (composer.undo/redo/send), gated on composerActive — the machine owns the
+    // undo log, so the native stack must never run those chords.
     // Enter submits through the keybindings dispatcher (composer.send), which
     // gates on composerActive && !commandMenuOpen — the menu-open arbitration
     // and the submit both resolve there, not here.

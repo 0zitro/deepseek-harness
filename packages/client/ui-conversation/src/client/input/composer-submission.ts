@@ -50,6 +50,16 @@ export class ComposerSubmission extends Service {
     else shell.submit('steer')
   }
 
+  /** Undo the latest draft transaction. */
+  undo(): void {
+    this.currentShell()?.undo()
+  }
+
+  /** Redo the latest undone transaction. */
+  redo(): void {
+    this.currentShell()?.redo()
+  }
+
   private submitResolved(gesture: ComposerSubmitGesture): void {
     const shell = this.currentShell()
     if (shell === undefined) return
