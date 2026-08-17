@@ -275,37 +275,11 @@ export function InputBar({
       }
       return
     }
-    // Absent machine without a Workspace recovery action stays disabled; the
-    // guard narrows the faces for the paths below.
-    if (keyboard === undefined || inputActions === undefined) return
-    // Shift+Enter is the native newline UNCONDITIONALLY — decided before the
-    // IME guard so a composition-closing Shift+Enter still breaks the line.
+    // Shift+Enter is the native newline UNCONDITIONALLY; every other managed
+    // chord — Enter submit, undo/redo, menu arbitration, popup dismiss, token
+    // claim — dispatches through the keybindings actions gated on composerActive
+    // and commandMenuOpen.
     if (e.key === 'Enter' && e.shiftKey) return
-    // keyCode 229 is the legacy IME-composition signal engines emit without isComposing.
-    // oxlint-disable-next-line typescript/no-deprecated
-    const composing = composingRef.current || e.nativeEvent.isComposing || e.nativeEvent.keyCode === 229
-    if (e.key === 'ArrowUp' || e.key === 'ArrowDown') {
-      if (keyboard.arbitrate(e.key === 'ArrowUp' ? 'up' : 'down', composing) === 'consumed') e.preventDefault()
-      return
-    }
-    if (e.key === 'Escape') {
-      // Escape layering: an open overlay closes; claimed without an overlay
-      // does NOT release (backspacing the token is the only exit gesture).
-      keyboard.dismissPopup()
-      if (keyboard.arbitrate('escape', composing) === 'consumed') e.preventDefault()
-      return
-    }
-    if (e.key === ' ') {
-      if (composing) return
-      if (keyboard.space()) e.preventDefault() // claim token already carries the trailing separator
-      return
-    }
-    // Undo/redo and Enter submit through the keybindings dispatcher
-    // (composer.undo/redo/send), gated on composerActive — the machine owns the
-    // undo log, so the native stack must never run those chords.
-    // Enter submits through the keybindings dispatcher (composer.send), which
-    // gates on composerActive && !commandMenuOpen — the menu-open arbitration
-    // and the submit both resolve there, not here.
   }
 
   const onChange = (e: ChangeEvent<HTMLTextAreaElement>): void => {

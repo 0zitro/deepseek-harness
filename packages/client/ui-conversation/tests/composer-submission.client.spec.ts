@@ -14,9 +14,15 @@ function mount(
 ) {
   const submit = vi.fn()
   const steerQueue = vi.fn()
+  const dismissPopup = vi.fn()
+  const space = vi.fn()
+  const arbitrate = vi.fn()
   const shell = {
     submit,
     steerQueue,
+    dismissPopup,
+    space,
+    arbitrate,
     state: { getSnapshot: () => ({ draft: over.draft ?? 'hello', queue: over.queue ?? [] }) },
   } as unknown as SessionInputShell
   const inputHub = { shell: vi.fn(() => shell) } as unknown as InputHub
@@ -31,7 +37,7 @@ function mount(
     },
   } as unknown as ISessions
   const service = new ComposerSubmission(new Context(), { inputHub, policy, sessions })
-  return { submit, steerQueue, resolve, service }
+  return { submit, steerQueue, dismissPopup, space, arbitrate, resolve, service }
 }
 
 describe('ComposerSubmission', () => {
@@ -72,6 +78,21 @@ describe('ComposerSubmission', () => {
     service.steer()
     expect(steerQueue).not.toHaveBeenCalled()
     expect(submit).toHaveBeenCalledWith('steer')
+  })
+
+  it('dismissPopup closes the popup and the menu', () => {
+    const { dismissPopup, arbitrate, service } = mount({ running: false })
+    service.dismissPopup()
+    expect(dismissPopup).toHaveBeenCalledOnce()
+    expect(arbitrate).toHaveBeenCalledWith('escape', false)
+  })
+
+  it('space and arbitrate reach the shell', () => {
+    const { space, arbitrate, service } = mount({ running: false })
+    service.space()
+    service.arbitrate('down')
+    expect(space).toHaveBeenCalledOnce()
+    expect(arbitrate).toHaveBeenCalledWith('down', false)
   })
 
   it('no-ops without a current session', () => {

@@ -26,9 +26,12 @@ export function dispatchKeydown(
   matcher: ChordMatcher<KeybindingEntry>,
   actions: readonly UiActionDefinition[],
   event: KeyboardEvent,
+  composing: boolean,
 ): void {
   /* v8 ignore next -- jsdom cannot synthesize isComposing on a native KeyboardEvent */
-  if (event.isComposing) return
+  if (event.isComposing || composing) return
+  // oxlint-disable-next-line typescript/no-deprecated
+  if (event.keyCode === 229) return
   if (event.repeat) return
   if (!isRecordableKey(event.key)) return
   const matched = matcher.feed(event)
@@ -68,13 +71,30 @@ export function createKeybindingDispatcher(
   }
   const disposeBindings = bindings.subscribe(rebuild)
   const disposeActions = actions.subscribe(rebuild)
+  // IME composition tracking: Safari delivers the closing keydown after
+  // compositionend, so the clear is deferred one tick before the window sees
+  // the keydown that commits the candidate.
+  let composing = false
+  let composingTimer: ReturnType<typeof setTimeout> | undefined
+  const onCompositionStart = (): void => {
+    composing = true
+    if (composingTimer !== undefined) clearTimeout(composingTimer)
+  }
+  const onCompositionEnd = (): void => {
+    composingTimer = setTimeout(() => { composing = false }, 10)
+  }
   const onKeydown = (event: KeyboardEvent) => {
-    dispatchKeydown(matcher, actions.getSnapshot(), event)
+    dispatchKeydown(matcher, actions.getSnapshot(), event, composing)
   }
   window.addEventListener('keydown', onKeydown, { capture: true })
+  window.addEventListener('compositionstart', onCompositionStart, { capture: true })
+  window.addEventListener('compositionend', onCompositionEnd, { capture: true })
   return () => {
     disposeBindings()
     disposeActions()
+    if (composingTimer !== undefined) clearTimeout(composingTimer)
     window.removeEventListener('keydown', onKeydown, { capture: true })
+    window.removeEventListener('compositionstart', onCompositionStart, { capture: true })
+    window.removeEventListener('compositionend', onCompositionEnd, { capture: true })
   }
 }

@@ -253,7 +253,7 @@ describe('scenario H: backspace breaks the token', () => {
     b.type('/goal')
     await vi.waitFor(() => { expect(b.controller.menu.getSnapshot().open).toBe(true) })
     // Space adjudication claims (space column, leadingInput).
-    fireEvent.keyDown(b.textarea, { key: ' ' })
+    act(() => { b.shell.space() })
     expect(b.shell.snapshot.phase).toBe('claimed')
     // Backspace into the token: watch break → plain, visuals gone.
     b.type('/goa ')
