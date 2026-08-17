@@ -193,7 +193,8 @@ describe('KeybindingsSection', () => {
     const { setBinding } = mount()
     const prio = screen.getByLabelText(/Priority/)
 
-    fireEvent.change(prio, { target: { value: '-1' } })
+    // A number field holds this; a place in an order cannot.
+    fireEvent.change(prio, { target: { value: '1.5' } })
     fireEvent.blur(prio)
     expect(setBinding).not.toHaveBeenCalled()
     expect(prio.getAttribute('aria-invalid')).toBe('true')
@@ -201,6 +202,21 @@ describe('KeybindingsSection', () => {
     fireEvent.change(prio, { target: { value: '3' } })
     fireEvent.blur(prio)
     expect(setBinding).toHaveBeenCalledWith(REF, BASE, { prio: 3 })
+  })
+
+  it('lets a prio stand empty while edited and restores it on blur', () => {
+    const { setBinding } = mount()
+    const prio = screen.getByLabelText(/Priority/)
+
+    fireEvent.change(prio, { target: { value: '' } })
+    expect((prio as HTMLInputElement).value).toBe('')
+
+    fireEvent.blur(prio)
+
+    // Stating nothing is an abandoned edit, not a mistake.
+    expect(setBinding).not.toHaveBeenCalled()
+    expect(prio.getAttribute('aria-invalid')).toBeNull()
+    expect((prio as HTMLInputElement).value).toBe('0')
   })
 
   it('names the source, resolving a plugin to its own id', () => {

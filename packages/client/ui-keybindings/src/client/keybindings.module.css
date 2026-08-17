@@ -88,16 +88,26 @@
   text-align: center;
 }
 
+/* A clause is code: it reads by its punctuation, so it takes the code face. */
+.clauseInput {
+  font-family: var(--ds-font-family-code);
+}
+
 .source {
+  justify-content: center;
+  text-align: center;
   overflow-wrap: anywhere;
   color: var(--dsw-alias-label-secondary);
   font-size: 13px;
   line-height: 18px;
 }
 
+/* Chips and the empty-state placeholder are the same children, so centering
+   holds the gesture in the middle of its cell in every state. */
 .recorder {
   display: inline-flex;
   align-items: center;
+  justify-content: center;
   flex-wrap: wrap;
   gap: 4px;
   width: 100%;
