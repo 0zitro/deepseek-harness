@@ -68,6 +68,15 @@ describe('ui-stock-actions apply', () => {
     }))
   })
 
+  it('registers claim token with Space gated on composerActive and tokenLeading', async () => {
+    const { register } = await mount()
+    expect(register).toHaveBeenCalledWith(expect.objectContaining({
+      id: 'composer.claimToken',
+      label: '确认词元',
+      defaultKeybinding: { strokes: [{ key: ' ', modifiers: [] }], when: 'composerActive && tokenLeading' },
+    }))
+  })
+
   it('routes each action to its composer method', async () => {
     const { register, composer, overlays } = await mount()
     const definitions = register.mock.calls.map(call => call[0])
