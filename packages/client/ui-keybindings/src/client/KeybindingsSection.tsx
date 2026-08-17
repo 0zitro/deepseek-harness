@@ -103,7 +103,9 @@ function CellInput(
     commit: (draft: string) => void
     className?: string | undefined
     placeholder?: string
-    inputMode?: 'numeric'
+    type?: 'number'
+    min?: number
+    step?: number
     'aria-label': string
   },
 ) {
@@ -112,6 +114,14 @@ function CellInput(
 
   const onBlur = () => {
     const fit = storable(draft)
+    // A blank draft in a field where blank states nothing is an abandoned
+    // edit, not a mistake: it returns to the stored value without complaint.
+    if (!fit && draft.trim() === '') {
+      setDraft(value)
+      setInvalid(false)
+      return
+    }
+
     setInvalid(!fit)
     if (fit && draft !== value) commit(draft)
   }
@@ -154,7 +164,7 @@ function BindingCells(
           value={row.entry.when ?? ''}
           storable={storableClause}
           commit={(when) => { setBinding(ref, row.base, { when }) }}
-          className={fieldClass(row.overridden.when)}
+          className={classes(css.clauseInput, fieldClass(row.overridden.when))}
           placeholder={t('when.placeholder')}
           aria-label={`${t('column.when')}: ${row.label}`}
         />
@@ -165,7 +175,9 @@ function BindingCells(
           storable={storablePrio}
           commit={(prio) => { setBinding(ref, row.base, { prio: Number(prio) }) }}
           className={classes(css.prioInput, fieldClass(row.overridden.prio))}
-          inputMode="numeric"
+          type="number"
+          min={0}
+          step={1}
           aria-label={`${t('column.prio')}: ${row.label}`}
         />
       </div>
