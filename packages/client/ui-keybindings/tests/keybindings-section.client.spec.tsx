@@ -32,7 +32,7 @@ function emptyWorkspaces() {
 }
 
 function mount(actions: readonly UiActionDefinition[] = [
-  { id: COMPOSER_SEND_ACTION, label: 'Send message', defaultKeybinding: ENTER, run: () => {} },
+  { id: COMPOSER_SEND_ACTION, label: 'Send message', defaultKeybindings: [ENTER], run: () => {} },
 ]) {
   const actionsStore = createSnapshotStore<readonly UiActionDefinition[]>(actions)
   const bindingsStore = createSnapshotStore<readonly KeybindingEntry[]>([])

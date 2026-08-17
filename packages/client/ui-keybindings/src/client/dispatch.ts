@@ -40,18 +40,20 @@ export function dispatchKeydown(
   if (matched !== null) runMatched(matched, actions)
 }
 
-/** The effective entries: a persisted override, else the action's default binding. */
+/** The effective entries: every persisted override, else every default binding. */
 export function effectiveEntries(
   actions: readonly UiActionDefinition[],
   bindings: readonly KeybindingEntry[],
 ): readonly KeybindingEntry[] {
   const entries: KeybindingEntry[] = []
   for (const action of actions) {
-    const override = bindings.find(entry => entry.action === action.id)
-    if (override !== undefined) {
-      entries.push(override)
-    } else if (action.defaultKeybinding !== undefined) {
-      entries.push({ ...action.defaultKeybinding, action: action.id })
+    const overrides = bindings.filter(entry => entry.action === action.id)
+    if (overrides.length > 0) {
+      entries.push(...overrides)
+    } else {
+      for (const keybinding of action.defaultKeybindings ?? []) {
+        entries.push({ ...keybinding, action: action.id })
+      }
     }
   }
   return entries

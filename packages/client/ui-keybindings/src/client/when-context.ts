@@ -19,24 +19,29 @@ export interface ReadonlySnapshot<T> {
 /** DOM attribute a focus scope renders; the when-context reads it on `focusin`. */
 const FOCUS_SCOPE_ATTR = 'data-focus-scope'
 
+/** DOM attribute a control renders; `controlActive` holds while it is focused. */
+const CONTROL_ACTIVATE_ATTR = 'data-activate'
+
 /**
  * Registry of UI context keys. The map is a pure merge over the current focus
  * scope stack (regions carrying `data-focus-scope`) plus explicit state keys:
  * every active region contributes `<name>Focused`, the innermost also
- * `<name>Active`, and state keys merge last so they win on conflict.
+ * `<name>Active`, `controlActive` holds while the focused element is a
+ * control, and state keys merge last so they win on conflict.
  */
 export class UiWhenContext extends Service {
   private readonly store = createSnapshotStore<WhenContext>({})
   private readonly state = new Map<string, unknown>()
   private scopes: string[] = []
+  private controlActive = false
 
   constructor(ctx: Context) {
     super(ctx, 'uiWhenContext')
     ctx.effect(() => {
       const onFocusin = (event: FocusEvent): void => {
-        this.publish(this.namesOf(event.composedPath()))
+        this.publish(this.namesOf(event.composedPath()), this.isControl(event.composedPath()[0]))
       }
-      const onWindowBlur = (): void => { this.publish([]) }
+      const onWindowBlur = (): void => { this.publish([], false) }
       document.addEventListener('focusin', onFocusin)
       window.addEventListener('blur', onWindowBlur)
       return () => {
@@ -54,10 +59,10 @@ export class UiWhenContext extends Service {
   /** Set one explicit state key; the returned disposer clears it. */
   set(key: string, value: unknown): () => void {
     this.state.set(key, value)
-    this.publish(this.scopes)
+    this.publish(this.scopes, this.controlActive)
     return () => {
       this.state.delete(key)
-      this.publish(this.scopes)
+      this.publish(this.scopes, this.controlActive)
     }
   }
 
@@ -73,13 +78,20 @@ export class UiWhenContext extends Service {
     return names
   }
 
-  private publish(scopes: readonly string[]): void {
+  /** Whether the focused element itself is a control. */
+  private isControl(target: EventTarget | undefined): boolean {
+    return target instanceof Element && target.hasAttribute(CONTROL_ACTIVATE_ATTR)
+  }
+
+  private publish(scopes: readonly string[], controlActive: boolean): void {
     this.scopes = [...scopes]
+    this.controlActive = controlActive
     const merged: WhenContext = {}
     for (const [index, name] of scopes.entries()) {
       merged[`${name}Focused`] = true
       if (index === 0) merged[`${name}Active`] = true
     }
+    if (controlActive) merged.controlActive = true
     for (const [key, value] of this.state) merged[key] = value
     this.store.set(merged)
   }

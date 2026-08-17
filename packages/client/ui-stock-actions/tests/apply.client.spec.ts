@@ -35,7 +35,7 @@ describe('ui-stock-actions apply', () => {
       id: 'composer.send',
       label: '发送消息',
       description: '提交输入框的按键组合。',
-      defaultKeybinding: { strokes: [{ key: 'Enter', modifiers: [] }], when: 'composerActive && !commandMenuOpen' },
+      defaultKeybindings: [{ strokes: [{ key: 'Enter', modifiers: [] }], when: 'composerActive && !commandMenuOpen' }],
     }))
   })
 
@@ -44,12 +44,12 @@ describe('ui-stock-actions apply', () => {
     expect(register).toHaveBeenCalledWith(expect.objectContaining({
       id: 'composer.undo',
       label: '撤销',
-      defaultKeybinding: { strokes: [{ key: 'z', modifiers: ['ctrl'] }], when: 'composerActive' },
+      defaultKeybindings: [{ strokes: [{ key: 'z', modifiers: ['ctrl'] }], when: 'composerActive' }],
     }))
     expect(register).toHaveBeenCalledWith(expect.objectContaining({
       id: 'composer.redo',
       label: '重做',
-      defaultKeybinding: { strokes: [{ key: 'z', modifiers: ['ctrl', 'shift'] }], when: 'composerActive' },
+      defaultKeybindings: [{ strokes: [{ key: 'z', modifiers: ['ctrl', 'shift'] }], when: 'composerActive' }],
     }))
   })
 
@@ -64,7 +64,7 @@ describe('ui-stock-actions apply', () => {
     expect(register).toHaveBeenCalledWith(expect.objectContaining({
       id: 'overlay.close',
       label: '关闭浮层',
-      defaultKeybinding: { strokes: [{ key: 'Escape', modifiers: [] }], when: 'overlayOpen' },
+      defaultKeybindings: [{ strokes: [{ key: 'Escape', modifiers: [] }], when: 'overlayOpen' }],
     }))
   })
 
@@ -73,7 +73,7 @@ describe('ui-stock-actions apply', () => {
     expect(register).toHaveBeenCalledWith(expect.objectContaining({
       id: 'composer.claimToken',
       label: '确认词元',
-      defaultKeybinding: { strokes: [{ key: ' ', modifiers: [] }], when: 'composerActive && tokenLeading' },
+      defaultKeybindings: [{ strokes: [{ key: ' ', modifiers: [] }], when: 'composerActive && tokenLeading' }],
     }))
   })
 

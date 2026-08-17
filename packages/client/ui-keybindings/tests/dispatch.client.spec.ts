@@ -121,7 +121,7 @@ describe('effectiveEntries', () => {
   it('prefers the persisted override over the default', () => {
     const actions: UiActionDefinition[] = [{
       id: COMPOSER_SEND_ACTION, label: 'Send', run: () => {},
-      defaultKeybinding: { strokes: [{ key: 'Enter', modifiers: [] }] },
+      defaultKeybindings: [{ strokes: [{ key: 'Enter', modifiers: [] }] }],
     }]
     const bindings: KeybindingEntry[] = [
       { strokes: [{ key: 'k', modifiers: ['ctrl'] }], action: COMPOSER_SEND_ACTION },
@@ -132,7 +132,7 @@ describe('effectiveEntries', () => {
   it('falls back to the default binding when no override exists', () => {
     const actions: UiActionDefinition[] = [{
       id: COMPOSER_SEND_ACTION, label: 'Send', run: () => {},
-      defaultKeybinding: { strokes: [{ key: 'Enter', modifiers: [] }] },
+      defaultKeybindings: [{ strokes: [{ key: 'Enter', modifiers: [] }] }],
     }]
     expect(effectiveEntries(actions, [])).toEqual([
       { strokes: [{ key: 'Enter', modifiers: [] }], action: COMPOSER_SEND_ACTION },
@@ -142,6 +142,32 @@ describe('effectiveEntries', () => {
   it('skips an action with neither an override nor a default', () => {
     const actions: UiActionDefinition[] = [{ id: COMPOSER_SEND_ACTION, label: 'Send', run: () => {} }]
     expect(effectiveEntries(actions, [])).toEqual([])
+  })
+
+  it('emits every default binding of an action in order', () => {
+    const actions: UiActionDefinition[] = [{
+      id: COMPOSER_SEND_ACTION, label: 'Send', run: () => {},
+      defaultKeybindings: [
+        { strokes: [{ key: 'Enter', modifiers: [] }] },
+        { strokes: [{ key: 'k', modifiers: ['ctrl'] }] },
+      ],
+    }]
+    expect(effectiveEntries(actions, [])).toEqual([
+      { strokes: [{ key: 'Enter', modifiers: [] }], action: COMPOSER_SEND_ACTION },
+      { strokes: [{ key: 'k', modifiers: ['ctrl'] }], action: COMPOSER_SEND_ACTION },
+    ])
+  })
+
+  it('emits every persisted override of an action, dropping the defaults', () => {
+    const actions: UiActionDefinition[] = [{
+      id: COMPOSER_SEND_ACTION, label: 'Send', run: () => {},
+      defaultKeybindings: [{ strokes: [{ key: 'Enter', modifiers: [] }] }],
+    }]
+    const bindings: KeybindingEntry[] = [
+      { strokes: [{ key: 'a', modifiers: [] }], action: COMPOSER_SEND_ACTION },
+      { strokes: [{ key: 'b', modifiers: [] }], action: COMPOSER_SEND_ACTION },
+    ]
+    expect(effectiveEntries(actions, bindings)).toEqual(bindings)
   })
 })
 
@@ -180,7 +206,7 @@ describe('createKeybindingDispatcher', () => {
     const run = vi.fn()
     actions.set([{
       id: COMPOSER_SEND_ACTION, label: 'Send', run,
-      defaultKeybinding: { strokes: [{ key: 'Enter', modifiers: [] }] },
+      defaultKeybindings: [{ strokes: [{ key: 'Enter', modifiers: [] }] }],
     }])
     createKeybindingDispatcher(bindings, actions, context)
     window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter' }))
@@ -196,7 +222,7 @@ describe('createKeybindingDispatcher', () => {
       const run = vi.fn()
       actions.set([{
         id: COMPOSER_SEND_ACTION, label: 'Send', run,
-        defaultKeybinding: { strokes: [{ key: 'Enter', modifiers: [] }] },
+        defaultKeybindings: [{ strokes: [{ key: 'Enter', modifiers: [] }] }],
       }])
       createKeybindingDispatcher(bindings, actions, context)
       window.dispatchEvent(new Event('compositionstart'))
@@ -224,7 +250,7 @@ describe('createKeybindingDispatcher', () => {
       const run = vi.fn()
       actions.set([{
         id: COMPOSER_SEND_ACTION, label: 'Send', run,
-        defaultKeybinding: { strokes: [{ key: 'Enter', modifiers: [] }] },
+        defaultKeybindings: [{ strokes: [{ key: 'Enter', modifiers: [] }] }],
       }])
       const dispose = createKeybindingDispatcher(bindings, actions, context)
       window.dispatchEvent(new Event('compositionstart'))

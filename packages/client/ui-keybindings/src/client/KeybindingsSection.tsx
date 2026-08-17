@@ -46,7 +46,7 @@ function resolveActions(
     return {
       definition,
       binding: entry === undefined
-        ? definition.defaultKeybinding ?? { strokes: [] }
+        ? definition.defaultKeybindings?.[0] ?? { strokes: [] }
         : keybindingOfEntry(entry),
     }
   })
