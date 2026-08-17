@@ -92,7 +92,7 @@ export function mergeOverride(
 }
 
 /** The current default for (action, key), or undefined when it is unavailable. */
-function findDefault(
+export function findDefault(
   actions: readonly UiActionDefinition[],
   action: UiActionId,
   key: KeybindingKey,
@@ -162,9 +162,21 @@ export function sourceRank(source: KeybindingSource): number {
 /** Seed an absent prio by registration order and sort by source-rank → prio → registration. */
 export function assignOrder(entries: readonly KeybindingEntry[]): readonly KeybindingEntry[] {
   return entries
-    .map((entry, index) => ({ entry, rank: sourceRank(entry.source), prio: entry.prio ?? index }))
+    .map((entry, index) => ({ entry, rank: sourceRank(entry.source), prio: seededPrio(entry.prio, index) }))
     .sort((a, b) => a.rank - b.rank || a.prio - b.prio)
     .map(({ entry, prio }) => ({ ...entry, prio }))
+}
+
+/**
+ * The prio an entry orders by: the one it states, else its registration index.
+ * Ordering and the settings page read the same rule, so a seeded value the
+ * user sees is the one dispatch resolves collisions with.
+ * @param prio - the prio the entry states, if any.
+ * @param index - the entry's position in the effective list.
+ * @returns the effective prio.
+ */
+export function seededPrio(prio: number | undefined, index: number): number {
+  return prio ?? index
 }
 
 /** Stable (stroke, source) key for the prio-uniqueness scope. */
