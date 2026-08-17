@@ -174,6 +174,11 @@ export function assignOrder(entries: readonly KeybindingEntry[]): readonly Keybi
  * bindings that never compete and would leave a real collision undetectable,
  * every seeded value being distinct. Ordering and the settings page read this
  * one rule, so the value a row shows is the value a collision is settled with.
+ *
+ * A stated prio is the user's choice and stands; seeding fills the slots it
+ * leaves, lowest first, so an unstated entry never lands on a claimed one.
+ * Within a scope the values are therefore distinct unless two entries state
+ * the same one, which is the single case an override-time check must refuse.
  * @param items - whatever carries the entries, in registration order.
  * @param entryOf - the entry an item carries.
  * @returns each item paired with its effective prio, order preserved.
@@ -182,15 +187,26 @@ export function seedPrios<T>(
   items: readonly T[],
   entryOf: (item: T) => KeybindingEntry,
 ): readonly { item: T; prio: number }[] {
-  const taken = new Map<string, number>()
+  const claimed = new Map<string, Set<number>>()
+  for (const item of items) {
+    const entry = entryOf(item)
+    if (entry.prio === undefined) continue
+    const scope = strokeSourceKey(entry)
+    claimed.set(scope, (claimed.get(scope) ?? new Set()).add(entry.prio))
+  }
+
+  const next = new Map<string, number>()
 
   return items.map((item) => {
     const entry = entryOf(item)
-    const scope = strokeSourceKey(entry)
-    const index = taken.get(scope) ?? 0
-    taken.set(scope, index + 1)
+    if (entry.prio !== undefined) return { item, prio: entry.prio }
 
-    return { item, prio: entry.prio ?? index }
+    const scope = strokeSourceKey(entry)
+    let slot = next.get(scope) ?? 0
+    while (claimed.get(scope)?.has(slot) === true) slot += 1
+    next.set(scope, slot + 1)
+
+    return { item, prio: slot }
   })
 }
 

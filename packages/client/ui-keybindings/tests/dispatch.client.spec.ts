@@ -257,13 +257,22 @@ describe('assignOrder', () => {
     expect(assignOrder([first, second, third]).map(entry => entry.prio)).toEqual([0, 0, 1])
   })
 
-  it('sorts a seeded entry ahead of a higher stated prio in its scope', () => {
+  it('seeds into the lowest slot a stated prio has not claimed', () => {
     const stated = orderEntry([{ key: 'a', modifiers: [] }], 2)
     const seeded = orderEntry([{ key: 'a', modifiers: [] }])
     expect(assignOrder([stated, seeded])).toEqual([
-      { ...seeded, prio: 1 },
+      { ...seeded, prio: 0 },
       { ...stated, prio: 2 },
     ])
+  })
+
+  it('steps over a claimed slot rather than landing on it', () => {
+    const stated = orderEntry([{ key: 'a', modifiers: [] }], 0)
+    const first = orderEntry([{ key: 'a', modifiers: [] }])
+    const second = orderEntry([{ key: 'a', modifiers: [] }])
+    // 0 is spoken for, so the two unstated entries take 1 and 2 and the scope
+    // holds three distinct values.
+    expect(assignOrder([stated, first, second]).map(entry => entry.prio)).toEqual([0, 1, 2])
   })
 
   it('orders user before system across sources regardless of prio', () => {
