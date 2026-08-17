@@ -46,6 +46,8 @@ export interface Keybinding {
 export interface KeybindingEntry extends Keybinding {
   /** The action this binding invokes. */
   action: UiActionId
+  /** Collision-resolution ordering; 0 is highest. Absent = seeded by registration order. */
+  prio?: number
 }
 
 /** The gesture (strokes and when) of an entry, without its action. */
@@ -147,4 +149,5 @@ export const KeybindingEntrySchema: z<KeybindingEntry> = z.object({
   strokes: z.array(KeyStrokeSchema),
   action: UiActionIdSchema,
   when: z.string(),
+  prio: z.number(),
 })
