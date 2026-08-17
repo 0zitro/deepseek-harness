@@ -2,7 +2,7 @@
 import type { SnapshotStore } from '@deepseek-ai/dsh-client-runtime/client'
 import { ChordMatcher } from '../chord.ts'
 import {
-  isRecordableKey, keybindingOfDefault, sameKeybinding,
+  isRecordableKey, keybindingOfDefault, sameKeybinding, strokesKey,
   type KeybindingDefault, type KeybindingEntry, type KeybindingKey, type KeybindingOverride,
   type KeybindingSource,
 } from '../keybinding.ts'
@@ -159,29 +159,44 @@ export function sourceRank(source: KeybindingSource): number {
   return 1
 }
 
-/** Seed an absent prio by registration order and sort by source-rank → prio → registration. */
+/** Seed an absent prio within its collision scope and sort by source-rank → prio → registration. */
 export function assignOrder(entries: readonly KeybindingEntry[]): readonly KeybindingEntry[] {
-  return entries
-    .map((entry, index) => ({ entry, rank: sourceRank(entry.source), prio: seededPrio(entry.prio, index) }))
+  return seedPrios(entries, entry => entry)
+    .map(({ item, prio }) => ({ entry: item, rank: sourceRank(item.source), prio }))
     .sort((a, b) => a.rank - b.rank || a.prio - b.prio)
     .map(({ entry, prio }) => ({ ...entry, prio }))
 }
 
 /**
- * The prio an entry orders by: the one it states, else its registration index.
- * Ordering and the settings page read the same rule, so a seeded value the
- * user sees is the one dispatch resolves collisions with.
- * @param prio - the prio the entry states, if any.
- * @param index - the entry's position in the effective list.
- * @returns the effective prio.
+ * Each entry with the prio it orders by: the one it states, else its position
+ * among the entries it can collide with. Prio only ever separates entries
+ * sharing a (stroke, source), so seeding from the whole list would number
+ * bindings that never compete and would leave a real collision undetectable,
+ * every seeded value being distinct. Ordering and the settings page read this
+ * one rule, so the value a row shows is the value a collision is settled with.
+ * @param items - whatever carries the entries, in registration order.
+ * @param entryOf - the entry an item carries.
+ * @returns each item paired with its effective prio, order preserved.
  */
-export function seededPrio(prio: number | undefined, index: number): number {
-  return prio ?? index
+export function seedPrios<T>(
+  items: readonly T[],
+  entryOf: (item: T) => KeybindingEntry,
+): readonly { item: T; prio: number }[] {
+  const taken = new Map<string, number>()
+
+  return items.map((item) => {
+    const entry = entryOf(item)
+    const scope = strokeSourceKey(entry)
+    const index = taken.get(scope) ?? 0
+    taken.set(scope, index + 1)
+
+    return { item, prio: entry.prio ?? index }
+  })
 }
 
 /** Stable (stroke, source) key for the prio-uniqueness scope. */
 function strokeSourceKey(entry: KeybindingEntry): string {
-  return `${JSON.stringify(entry.strokes)}\u0000${entry.source}`
+  return `${strokesKey(entry.strokes)}\u0000${entry.source}`
 }
 
 /**
