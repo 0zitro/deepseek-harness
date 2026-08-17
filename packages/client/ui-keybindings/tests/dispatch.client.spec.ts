@@ -2,7 +2,7 @@
 import { describe, expect, it, vi } from 'vitest'
 import { createSnapshotStore } from '@deepseek-ai/dsh-client-runtime/client'
 import { ChordMatcher } from '../src/chord.ts'
-import { pluginId, type KeybindingEntry, type KeybindingSource, type KeyStroke } from '../src/keybinding.ts'
+import { keybindingKey, pluginId, type KeybindingEntry, type KeybindingOverride, type KeybindingSource, type KeyStroke } from '../src/keybinding.ts'
 import { COMPOSER_SEND_ACTION, type UiActionId } from '../src/ui-action.ts'
 import type { WhenContext } from '../src/when-clause.ts'
 import type { UiActionDefinition } from '../src/client/action-registry.ts'
@@ -10,6 +10,10 @@ import { assignOrder, createKeybindingDispatcher, dispatchKeydown, effectiveEntr
 
 function entry(strokes: KeyStroke[], action: UiActionId = COMPOSER_SEND_ACTION): KeybindingEntry {
   return { strokes, action, source: 'user' }
+}
+
+function over(strokes: KeyStroke[], when?: string): KeybindingOverride {
+  return { action: COMPOSER_SEND_ACTION, source: 'user', key: keybindingKey('send'), base: { strokes: [{ key: 'Enter', modifiers: [] }] }, strokes, ...(when === undefined ? {} : { when }) }
 }
 
 function keydown(key: string, modifiers: KeyboardEventInit = {}): KeyboardEvent {
@@ -118,56 +122,78 @@ describe('dispatchKeydown', () => {
 })
 
 describe('effectiveEntries', () => {
-  it('prefers the persisted override over the default', () => {
-    const actions: UiActionDefinition[] = [{
-      id: COMPOSER_SEND_ACTION, label: 'Send', run: () => {},
-      defaultKeybindings: [{ strokes: [{ key: 'Enter', modifiers: [] }] }],
-    }]
-    const bindings: KeybindingEntry[] = [
+  const KEY = keybindingKey('send')
+  const base = { strokes: [{ key: 'Enter', modifiers: [] }] }
+  const action = (): UiActionDefinition => ({
+    id: COMPOSER_SEND_ACTION, label: 'Send', run: () => {},
+    defaultKeybindings: [{ key: KEY, ...base }],
+  })
+
+  it('emits the system default when no override exists', () => {
+    expect(effectiveEntries([action()], [])).toEqual([
+      { ...base, action: COMPOSER_SEND_ACTION, source: 'system' },
+    ])
+  })
+
+  it('merges a partial override into the default', () => {
+    const overrides: KeybindingOverride[] = [
+      { action: COMPOSER_SEND_ACTION, source: 'user', key: KEY, base, strokes: [{ key: 'k', modifiers: ['ctrl'] }] },
+    ]
+    expect(effectiveEntries([action()], overrides)).toEqual([
       { strokes: [{ key: 'k', modifiers: ['ctrl'] }], action: COMPOSER_SEND_ACTION, source: 'user' },
+    ])
+  })
+
+  it('keeps the first of two same-source overrides for one key', () => {
+    const overrides: KeybindingOverride[] = [
+      { action: COMPOSER_SEND_ACTION, source: 'user', key: KEY, base, strokes: [{ key: 'a', modifiers: [] }] },
+      { action: COMPOSER_SEND_ACTION, source: 'user', key: KEY, base, strokes: [{ key: 'b', modifiers: [] }] },
     ]
-    expect(effectiveEntries(actions, bindings)).toEqual(bindings)
-  })
-
-  it('falls back to the default binding when no override exists', () => {
-    const actions: UiActionDefinition[] = [{
-      id: COMPOSER_SEND_ACTION, label: 'Send', run: () => {},
-      defaultKeybindings: [{ strokes: [{ key: 'Enter', modifiers: [] }] }],
-    }]
-    expect(effectiveEntries(actions, [])).toEqual([
-      { strokes: [{ key: 'Enter', modifiers: [] }], action: COMPOSER_SEND_ACTION, source: 'system' },
-    ])
-  })
-
-  it('skips an action with neither an override nor a default', () => {
-    const actions: UiActionDefinition[] = [{ id: COMPOSER_SEND_ACTION, label: 'Send', run: () => {} }]
-    expect(effectiveEntries(actions, [])).toEqual([])
-  })
-
-  it('emits every default binding of an action in order', () => {
-    const actions: UiActionDefinition[] = [{
-      id: COMPOSER_SEND_ACTION, label: 'Send', run: () => {},
-      defaultKeybindings: [
-        { strokes: [{ key: 'Enter', modifiers: [] }] },
-        { strokes: [{ key: 'k', modifiers: ['ctrl'] }] },
-      ],
-    }]
-    expect(effectiveEntries(actions, [])).toEqual([
-      { strokes: [{ key: 'Enter', modifiers: [] }], action: COMPOSER_SEND_ACTION, source: 'system' },
-      { strokes: [{ key: 'k', modifiers: ['ctrl'] }], action: COMPOSER_SEND_ACTION, source: 'system' },
-    ])
-  })
-
-  it('emits every persisted override of an action, dropping the defaults', () => {
-    const actions: UiActionDefinition[] = [{
-      id: COMPOSER_SEND_ACTION, label: 'Send', run: () => {},
-      defaultKeybindings: [{ strokes: [{ key: 'Enter', modifiers: [] }] }],
-    }]
-    const bindings: KeybindingEntry[] = [
+    expect(effectiveEntries([action()], overrides)).toEqual([
       { strokes: [{ key: 'a', modifiers: [] }], action: COMPOSER_SEND_ACTION, source: 'user' },
-      { strokes: [{ key: 'b', modifiers: [] }], action: COMPOSER_SEND_ACTION, source: 'user' },
+    ])
+  })
+
+  it('merges an orphaned override into its retained base', () => {
+    const overrides: KeybindingOverride[] = [
+      { action: COMPOSER_SEND_ACTION, source: 'user', key: keybindingKey('gone'), base, prio: 3 },
     ]
-    expect(effectiveEntries(actions, bindings)).toEqual(bindings)
+    const withOtherKey: UiActionDefinition = {
+      id: COMPOSER_SEND_ACTION, label: 'Send', run: () => {},
+      defaultKeybindings: [{ key: keybindingKey('other'), strokes: [{ key: 'k', modifiers: ['ctrl'] }] }],
+    }
+    expect(effectiveEntries([withOtherKey], overrides)).toEqual([
+      { strokes: [{ key: 'k', modifiers: ['ctrl'] }], action: COMPOSER_SEND_ACTION, source: 'system' },
+      { ...base, action: COMPOSER_SEND_ACTION, source: 'user', prio: 3 },
+    ])
+  })
+
+  it('emits the system default with its when clause', () => {
+    const withWhen: UiActionDefinition = {
+      id: COMPOSER_SEND_ACTION, label: 'Send', run: () => {},
+      defaultKeybindings: [{ key: KEY, strokes: base.strokes, when: 'composerActive' }],
+    }
+    expect(effectiveEntries([withWhen], [])).toEqual([
+      { strokes: base.strokes, action: COMPOSER_SEND_ACTION, source: 'system', when: 'composerActive' },
+    ])
+  })
+
+  it('reconciles an override whose key matches a different action as an orphan', () => {
+    const other: UiActionDefinition = {
+      id: 'other.action' as UiActionId, label: 'Other', run: () => {},
+      defaultKeybindings: [{ key: KEY, strokes: [{ key: 'k', modifiers: ['ctrl'] }] }],
+    }
+    const overrides: KeybindingOverride[] = [
+      { action: COMPOSER_SEND_ACTION, source: 'user', key: KEY, base, strokes: [{ key: 'x', modifiers: [] }] },
+    ]
+    expect(effectiveEntries([{ id: COMPOSER_SEND_ACTION, label: 'Send', run: () => {} }, other], overrides)).toEqual([
+      { strokes: [{ key: 'k', modifiers: ['ctrl'] }], action: 'other.action', source: 'system' },
+      { strokes: [{ key: 'x', modifiers: [] }], action: COMPOSER_SEND_ACTION, source: 'user' },
+    ])
+  })
+
+  it('skips an action with neither a default nor an override', () => {
+    expect(effectiveEntries([{ id: COMPOSER_SEND_ACTION, label: 'Send', run: () => {} }], [])).toEqual([])
   })
 })
 
@@ -238,13 +264,13 @@ describe('findPrioClash', () => {
 
 describe('createKeybindingDispatcher', () => {
   it('dispatches a persisted binding to its action and disposes cleanly', () => {
-    const bindings = createSnapshotStore<readonly KeybindingEntry[]>([])
+    const bindings = createSnapshotStore<readonly KeybindingOverride[]>([])
     const actions = createSnapshotStore<readonly UiActionDefinition[]>([])
     const context = createSnapshotStore<WhenContext>({})
     const run = vi.fn()
     actions.set([{ id: COMPOSER_SEND_ACTION, label: 'Send', run }])
     const dispose = createKeybindingDispatcher(bindings, actions, context)
-    bindings.set([{ strokes: [{ key: 'Enter', modifiers: [] }], action: COMPOSER_SEND_ACTION, source: 'user' }])
+    bindings.set([over([{ key: 'Enter', modifiers: [] }])])
     window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter' }))
     expect(run).toHaveBeenCalledOnce()
     dispose()
@@ -253,25 +279,25 @@ describe('createKeybindingDispatcher', () => {
   })
 
   it('skips a binding whose when clause does not hold', () => {
-    const bindings = createSnapshotStore<readonly KeybindingEntry[]>([])
+    const bindings = createSnapshotStore<readonly KeybindingOverride[]>([])
     const actions = createSnapshotStore<readonly UiActionDefinition[]>([])
     const context = createSnapshotStore<WhenContext>({ composerFocused: false })
     const run = vi.fn()
     actions.set([{ id: COMPOSER_SEND_ACTION, label: 'Send', run }])
     createKeybindingDispatcher(bindings, actions, context)
-    bindings.set([{ strokes: [{ key: 'Enter', modifiers: [] }], action: COMPOSER_SEND_ACTION, source: 'user', when: 'composerFocused' }])
+    bindings.set([over([{ key: 'Enter', modifiers: [] }], 'composerFocused')])
     window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter' }))
     expect(run).not.toHaveBeenCalled()
   })
 
   it('dispatches a default binding when no override exists', () => {
-    const bindings = createSnapshotStore<readonly KeybindingEntry[]>([])
+    const bindings = createSnapshotStore<readonly KeybindingOverride[]>([])
     const actions = createSnapshotStore<readonly UiActionDefinition[]>([])
     const context = createSnapshotStore<WhenContext>({})
     const run = vi.fn()
     actions.set([{
       id: COMPOSER_SEND_ACTION, label: 'Send', run,
-      defaultKeybindings: [{ strokes: [{ key: 'Enter', modifiers: [] }] }],
+      defaultKeybindings: [{ key: keybindingKey('send'), strokes: [{ key: 'Enter', modifiers: [] }] }],
     }])
     createKeybindingDispatcher(bindings, actions, context)
     window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter' }))
@@ -281,13 +307,13 @@ describe('createKeybindingDispatcher', () => {
   it('suppresses dispatch during composition and recovers after compositionend', () => {
     vi.useFakeTimers()
     try {
-      const bindings = createSnapshotStore<readonly KeybindingEntry[]>([])
+      const bindings = createSnapshotStore<readonly KeybindingOverride[]>([])
       const actions = createSnapshotStore<readonly UiActionDefinition[]>([])
       const context = createSnapshotStore<WhenContext>({})
       const run = vi.fn()
       actions.set([{
         id: COMPOSER_SEND_ACTION, label: 'Send', run,
-        defaultKeybindings: [{ strokes: [{ key: 'Enter', modifiers: [] }] }],
+        defaultKeybindings: [{ key: keybindingKey('send'), strokes: [{ key: 'Enter', modifiers: [] }] }],
       }])
       createKeybindingDispatcher(bindings, actions, context)
       window.dispatchEvent(new Event('compositionstart'))
@@ -309,13 +335,13 @@ describe('createKeybindingDispatcher', () => {
   it('clears a pending composition timer on disposal', () => {
     vi.useFakeTimers()
     try {
-      const bindings = createSnapshotStore<readonly KeybindingEntry[]>([])
+      const bindings = createSnapshotStore<readonly KeybindingOverride[]>([])
       const actions = createSnapshotStore<readonly UiActionDefinition[]>([])
       const context = createSnapshotStore<WhenContext>({})
       const run = vi.fn()
       actions.set([{
         id: COMPOSER_SEND_ACTION, label: 'Send', run,
-        defaultKeybindings: [{ strokes: [{ key: 'Enter', modifiers: [] }] }],
+        defaultKeybindings: [{ key: keybindingKey('send'), strokes: [{ key: 'Enter', modifiers: [] }] }],
       }])
       const dispose = createKeybindingDispatcher(bindings, actions, context)
       window.dispatchEvent(new Event('compositionstart'))

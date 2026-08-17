@@ -64,6 +64,34 @@ export interface KeybindingEntry extends Keybinding {
   source: KeybindingSource
 }
 
+/** A default binding's stable identity, independent of its mutable gesture. */
+export type KeybindingKey = Branded<'KeybindingKey'>
+
+/** Cast a stable identifier to the branded KeybindingKey. */
+export function keybindingKey(id: string): KeybindingKey {
+  return id as KeybindingKey
+}
+
+/** A shipped default binding: the gesture plus the stable key an override merges into. */
+export type KeybindingDefault = Keybinding & { readonly key: KeybindingKey }
+
+/**
+ * A partial override of one default binding. `action`, `source`, and `key`
+ * identify the default it merges into; `base` snapshots that default's gesture
+ * so the override still resolves when the origin is unavailable; `strokes`,
+ * `when`, and `prio` are the overridden fields — absent ones fall back to the
+ * base at merge time.
+ */
+export interface KeybindingOverride {
+  action: UiActionId
+  source: KeybindingSource
+  key: KeybindingKey
+  base: Keybinding
+  strokes?: KeyStroke[]
+  when?: string
+  prio?: number
+}
+
 /** The gesture (strokes and when) of an entry, without its action. */
 export function keybindingOfEntry(entry: KeybindingEntry): Keybinding {
   return { strokes: entry.strokes, ...(entry.when === undefined ? {} : { when: entry.when }) }
@@ -158,11 +186,16 @@ export const KeyStrokeSchema: z<KeyStroke> = z.object({
   modifiers: z.array(z.union([...KEYBINDING_MODIFIERS])),
 })
 
-/** Schemastery schema for one keybinding entry. */
-export const KeybindingEntrySchema: z<KeybindingEntry> = z.object({
-  strokes: z.array(KeyStrokeSchema),
+/** Schemastery schema for one persisted override: identity, base snapshot, plus the partial fields. */
+export const KeybindingOverrideSchema: z<KeybindingOverride> = z.object({
   action: UiActionIdSchema,
+  source: z.transform(z.string(), value => value as KeybindingSource),
+  key: z.transform(z.string(), value => value as KeybindingKey),
+  base: z.object({
+    strokes: z.array(KeyStrokeSchema),
+    when: z.string(),
+  }),
+  strokes: z.array(KeyStrokeSchema),
   when: z.string(),
   prio: z.number(),
-  source: z.transform(z.string(), value => value as KeybindingSource),
 })

@@ -1,11 +1,11 @@
-/** The Keybindings settings page: one recorder row plus its when clause per registered action. */
+/** The Keybindings settings page: one recorder row plus its when clause per effective binding. */
 import { useMemo, useState } from 'react'
 import type { InjectFace, PropsLocale, PropsRuntime } from '@deepseek-ai/dsh-client-ui-slots'
 import type { SnapshotStore } from '@deepseek-ai/dsh-client-runtime/client'
-import { keybindingOfEntry, type Keybinding, type KeybindingEntry, type KeyStroke } from '../keybinding.ts'
-import type { UiActionId } from '../ui-action.ts'
+import { keybindingKey, keybindingOfEntry, type Keybinding, type KeybindingKey, type KeybindingOverride, type KeyStroke } from '../keybinding.ts'
 import { parseWhenClause } from '../when-clause.ts'
 import type { UiActionDefinition } from './action-registry.ts'
+import { defaultEntry, mergeOverride, topOverride } from './dispatch.ts'
 import { KeybindingRecorder } from './KeybindingRecorder.tsx'
 import css from './keybindings.module.css'
 
@@ -14,11 +14,11 @@ export interface KeybindingsSectionInjected {
   hooks: {
     /** Registered actions bound as useActions. */
     actions: SnapshotStore<readonly UiActionDefinition[]>
-    /** Persisted entries bound as useBindings. */
-    bindings: SnapshotStore<readonly KeybindingEntry[]>
+    /** Persisted partial overrides bound as useBindings. */
+    bindings: SnapshotStore<readonly KeybindingOverride[]>
   }
-  /** Persist one action's binding. */
-  setBinding: (action: UiActionId, next: Keybinding) => void
+  /** Persist one partial override. */
+  setBinding: (override: KeybindingOverride) => void
 }
 
 /** Full Settings-page props. */
@@ -30,26 +30,39 @@ export type KeybindingsSectionProps =
 /** The section's localized translate face. */
 type SectionT = PropsLocale<'keybindings'>['t']
 
-/** One action resolved to its current gesture. */
+/** One effective binding resolved to its merged gesture and the default it merges into. */
 interface ResolvedAction {
   definition: UiActionDefinition
+  key: KeybindingKey
+  base: Keybinding
   binding: Keybinding
 }
 
-/** Resolve each action's current gesture, falling back to its default or an empty chord. */
+/** Resolve each default merged with its top override, keyed for the setter. */
 function resolveActions(
   actions: readonly UiActionDefinition[],
-  bindings: readonly KeybindingEntry[],
+  overrides: readonly KeybindingOverride[],
 ): readonly ResolvedAction[] {
-  return actions.map((definition) => {
-    const entry = bindings.find(existing => existing.action === definition.id)
-    return {
-      definition,
-      binding: entry === undefined
-        ? definition.defaultKeybindings?.[0] ?? { strokes: [] }
-        : keybindingOfEntry(entry),
+  const result: ResolvedAction[] = []
+  for (const definition of actions) {
+    const defaults = definition.defaultKeybindings ?? []
+    if (defaults.length === 0) {
+      // An unbound action still gets a row so the user can record a binding.
+      result.push({ definition, key: keybindingKey(definition.id), base: { strokes: [] }, binding: { strokes: [] } })
+      continue
     }
-  })
+    for (const def of defaults) {
+      const override = topOverride(overrides, definition.id, def.key)
+      const entry = override === undefined ? defaultEntry(def, definition.id) : mergeOverride(def, definition.id, override)
+      result.push({
+        definition,
+        key: def.key,
+        base: { strokes: def.strokes, ...(def.when === undefined ? {} : { when: def.when }) },
+        binding: keybindingOfEntry(entry),
+      })
+    }
+  }
+  return result
 }
 
 /** The when-clause text input, validating the expression on blur. */
@@ -88,17 +101,17 @@ function WhenInput({ value, onChange, t }: { value: string; onChange: (when: str
   )
 }
 
-/** One action's recorder and when clause, persisting through the injected setter. */
+/** One effective binding's recorder and when clause, persisting through the injected setter. */
 function ActionRow(
-  { action, setBinding, t }: { action: ResolvedAction; setBinding: (action: UiActionId, next: Keybinding) => void; t: SectionT },
+  { action, setBinding, t }: { action: ResolvedAction; setBinding: (override: KeybindingOverride) => void; t: SectionT },
 ) {
-  const { definition, binding } = action
+  const { definition, key, base, binding } = action
 
   const setStrokes = (strokes: KeyStroke[]) => {
-    setBinding(definition.id, { strokes, ...(binding.when === undefined ? {} : { when: binding.when }) })
+    setBinding({ action: definition.id, source: 'user', key, base, strokes, ...(binding.when === undefined ? {} : { when: binding.when }) })
   }
   const setWhen = (when: string) => {
-    setBinding(definition.id, { strokes: binding.strokes, ...(when === '' ? {} : { when }) })
+    setBinding({ action: definition.id, source: 'user', key, base, strokes: binding.strokes, ...(when === '' ? {} : { when }) })
   }
 
   return (
@@ -116,7 +129,7 @@ function ActionRow(
 }
 
 /**
- * The Keybindings page. One row per registered action; the recorder owns the
+ * The Keybindings page. One row per effective binding; the recorder owns the
  * strokes and the input owns the when clause, both persisting through the
  * injected setter.
  */
@@ -127,7 +140,7 @@ export function KeybindingsSection({ useActions, useBindings, setBinding, t }: K
 
   return (
     <div className={css.section}>
-      {rows.map(action => <ActionRow key={action.definition.id} action={action} setBinding={setBinding} t={t} />)}
+      {rows.map(action => <ActionRow key={`${action.definition.id}:${action.key}`} action={action} setBinding={setBinding} t={t} />)}
     </div>
   )
 }

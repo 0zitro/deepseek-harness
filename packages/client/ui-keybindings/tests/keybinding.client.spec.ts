@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
   KEYBINDING_MODIFIER_LABELS, KEYBINDING_MODIFIERS,
-  KeybindingEntrySchema, KeyStrokeSchema, isRecordableKey, keybindingKeyLabel,
+  KeybindingOverrideSchema, KeyStrokeSchema, isRecordableKey, keybindingKeyLabel, keybindingKey,
   keybindingLabels, keybindingOfEntry, modifiersOf, normalizeEventKey,
   strokeFromEvent, strokeLabels, strokeMatches,
 } from '../src/keybinding.ts'
@@ -113,15 +113,19 @@ describe('constants and schema', () => {
     expect(KEYBINDING_MODIFIER_LABELS).toEqual({ ctrl: 'Ctrl', meta: 'Meta', alt: 'Alt', shift: 'Shift' })
   })
 
-  it('parses a stroke and an entry', () => {
+  it('parses a stroke and an override', () => {
     expect(KeyStrokeSchema({ key: 'a', modifiers: ['ctrl'] })).toEqual({ key: 'a', modifiers: ['ctrl'] })
-    expect(KeybindingEntrySchema({
+    expect(KeybindingOverrideSchema({
       strokes: [{ key: 'a', modifiers: ['ctrl'] }],
       action: COMPOSER_SEND_ACTION, source: 'user',
+      key: keybindingKey('send'),
+      base: { strokes: [{ key: 'Enter', modifiers: [] }] },
       when: 'agentBusy',
     })).toEqual({
       strokes: [{ key: 'a', modifiers: ['ctrl'] }],
       action: COMPOSER_SEND_ACTION, source: 'user',
+      key: keybindingKey('send'),
+      base: { strokes: [{ key: 'Enter', modifiers: [] }] },
       when: 'agentBusy',
     })
   })

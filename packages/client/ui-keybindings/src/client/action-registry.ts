@@ -6,7 +6,7 @@
 import { Service } from '@deepseek-ai/cordis'
 import type { Context } from '@deepseek-ai/cordis'
 import { createSnapshotStore, type SnapshotStore } from '@deepseek-ai/dsh-client-runtime/client'
-import type { Keybinding } from '../keybinding.ts'
+import type { KeybindingDefault } from '../keybinding.ts'
 import type { UiActionId } from '../ui-action.ts'
 
 /** A UI action contributed by a feature plugin. */
@@ -18,7 +18,7 @@ export interface UiActionDefinition {
   /** Optional row description. */
   description?: string
   /** Default gestures used when the persisted list has no entry for this action. */
-  defaultKeybindings?: readonly Keybinding[]
+  defaultKeybindings?: readonly KeybindingDefault[]
   /** Handler invoked when a keybinding for this action completes. */
   run: () => void
 }

@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import {
   DEFAULT_KEYBINDING_ENTRIES, KEYBINDINGS_SETTINGS_NAMESPACE, KeybindingsSettingsSchema,
 } from '../src/keybinding-settings.ts'
+import { keybindingKey, type KeybindingOverride } from '../src/keybinding.ts'
 import { COMPOSER_SEND_ACTION } from '../src/ui-action.ts'
 
 describe('keybinding settings', () => {
@@ -13,19 +14,15 @@ describe('keybinding settings', () => {
     expect(DEFAULT_KEYBINDING_ENTRIES).toEqual([])
   })
 
-  it('accepts a list of entries with a when clause', () => {
-    expect(KeybindingsSettingsSchema({
-      bindings: [{
-        strokes: [{ key: 'k', modifiers: ['ctrl'] }, { key: 's', modifiers: ['ctrl'] }],
-        action: COMPOSER_SEND_ACTION, source: 'user',
-        when: 'agentBusy',
-      }],
-    })).toEqual({
-      bindings: [{
-        strokes: [{ key: 'k', modifiers: ['ctrl'] }, { key: 's', modifiers: ['ctrl'] }],
-        action: COMPOSER_SEND_ACTION, source: 'user',
-        when: 'agentBusy',
-      }],
-    })
+  it('accepts a list of overrides with a when clause', () => {
+    const entry: KeybindingOverride = {
+      action: COMPOSER_SEND_ACTION,
+      source: 'user',
+      key: keybindingKey('send'),
+      base: { strokes: [{ key: 'k', modifiers: ['ctrl'] }, { key: 's', modifiers: ['ctrl'] }] },
+      strokes: [{ key: 'k', modifiers: ['ctrl'] }, { key: 's', modifiers: ['ctrl'] }],
+      when: 'agentBusy',
+    }
+    expect(KeybindingsSettingsSchema({ bindings: [entry] })).toEqual({ bindings: [entry] })
   })
 })
