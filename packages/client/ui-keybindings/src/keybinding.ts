@@ -9,6 +9,7 @@
  * against UI state.
  */
 import z from '@deepseek-ai/schemastery'
+import type { Branded } from '@deepseek-ai/dsh-brand'
 import { UiActionIdSchema, type UiActionId } from './ui-action.ts'
 
 /** Modifier keys a stroke may hold, in canonical (sorted) order. */
@@ -42,12 +43,25 @@ export interface Keybinding {
   when?: string
 }
 
+/** A plugin's stable identifier. */
+export type PluginId = Branded<'PluginId'>
+
+/** Cast a plugin's stable identifier to the branded PluginId. */
+export function pluginId(id: string): PluginId {
+  return id as PluginId
+}
+
+/** Where a keybinding came from: the shipped default, the user, or a plugin id. */
+export type KeybindingSource = 'system' | 'user' | PluginId
+
 /** A persisted keybinding entry: one binding gesture bound to one UI action. */
 export interface KeybindingEntry extends Keybinding {
   /** The action this binding invokes. */
   action: UiActionId
-  /** Collision-resolution ordering; 0 is highest. Absent = seeded by registration order. */
+  /** Collision-ordering; 0 is highest. Absent = seeded by registration order within its (stroke, source). */
   prio?: number
+  /** Where this binding came from. */
+  source: KeybindingSource
 }
 
 /** The gesture (strokes and when) of an entry, without its action. */
@@ -150,4 +164,5 @@ export const KeybindingEntrySchema: z<KeybindingEntry> = z.object({
   action: UiActionIdSchema,
   when: z.string(),
   prio: z.number(),
+  source: z.transform(z.string(), value => value as KeybindingSource),
 })

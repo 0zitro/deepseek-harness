@@ -78,22 +78,22 @@ describe('ui-keybindings apply', () => {
     face.setBinding(COMPOSER_SEND_ACTION, { strokes: [{ key: 'k', modifiers: ['ctrl'] }], when: 'agentBusy' })
     expect(set).toHaveBeenCalledWith('bindings', [{
       strokes: [{ key: 'k', modifiers: ['ctrl'] }],
-      action: COMPOSER_SEND_ACTION,
+      action: COMPOSER_SEND_ACTION, source: 'user',
       when: 'agentBusy',
     }])
   })
 
   it('adopts a durable binding change pushed from the settings scope', async () => {
     const { face, publish } = await mount()
-    publish({ bindings: [{ strokes: [{ key: 'j', modifiers: ['meta'] }], action: COMPOSER_SEND_ACTION, when: 'agentBusy' }] })
+    publish({ bindings: [{ strokes: [{ key: 'j', modifiers: ['meta'] }], action: COMPOSER_SEND_ACTION, source: 'user', when: 'agentBusy' }] })
     expect(face.hooks.bindings.getSnapshot()).toEqual([
-      { strokes: [{ key: 'j', modifiers: ['meta'] }], action: COMPOSER_SEND_ACTION, when: 'agentBusy' },
+      { strokes: [{ key: 'j', modifiers: ['meta'] }], action: COMPOSER_SEND_ACTION, source: 'user', when: 'agentBusy' },
     ])
   })
 
   it('does not persist an unchanged binding', async () => {
     const { face, set, publish } = await mount()
-    publish({ bindings: [{ strokes: ENTER.strokes, action: COMPOSER_SEND_ACTION }] })
+    publish({ bindings: [{ strokes: ENTER.strokes, action: COMPOSER_SEND_ACTION, source: 'user' }] })
     face.setBinding(COMPOSER_SEND_ACTION, ENTER)
     expect(set).not.toHaveBeenCalled()
   })
@@ -104,20 +104,20 @@ describe('ui-keybindings apply', () => {
     face.setBinding(COMPOSER_SEND_ACTION, { strokes: [{ key: 'k', modifiers: ['ctrl'] }] })
     expect(set).toHaveBeenCalledWith('bindings', [{
       strokes: [{ key: 'k', modifiers: ['ctrl'] }],
-      action: COMPOSER_SEND_ACTION,
+      action: COMPOSER_SEND_ACTION, source: 'user',
     }])
   })
 
   it('preserves entries for other actions while editing the send action', async () => {
     const { face, set, publish } = await mount()
     publish({ bindings: [
-      { strokes: [{ key: 'Enter', modifiers: [] }], action: COMPOSER_SEND_ACTION },
-      { strokes: [{ key: 'p', modifiers: ['ctrl'] }], action: PREVIEW_ACTION },
+      { strokes: [{ key: 'Enter', modifiers: [] }], action: COMPOSER_SEND_ACTION, source: 'user' },
+      { strokes: [{ key: 'p', modifiers: ['ctrl'] }], action: PREVIEW_ACTION, source: 'user' },
     ] })
     face.setBinding(COMPOSER_SEND_ACTION, { strokes: [{ key: 'k', modifiers: ['ctrl'] }] })
     expect(set).toHaveBeenCalledWith('bindings', [
-      { strokes: [{ key: 'k', modifiers: ['ctrl'] }], action: COMPOSER_SEND_ACTION },
-      { strokes: [{ key: 'p', modifiers: ['ctrl'] }], action: PREVIEW_ACTION },
+      { strokes: [{ key: 'k', modifiers: ['ctrl'] }], action: COMPOSER_SEND_ACTION, source: 'user' },
+      { strokes: [{ key: 'p', modifiers: ['ctrl'] }], action: PREVIEW_ACTION, source: 'user' },
     ])
   })
 })
