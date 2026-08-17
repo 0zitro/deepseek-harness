@@ -4,7 +4,6 @@ import { LocaleRuntime } from '@deepseek-ai/dsh-client-locale/client'
 import { usePinnedBrowserLanguages } from '@deepseek-ai/dsh-client-test-runtime'
 import type { UiActionDefinition } from '@deepseek-ai/dsh-client-ui-keybindings/client'
 import { apply, inject } from '@deepseek-ai/dsh-client-ui-stock-actions/client'
-import { keybindingKey } from '@deepseek-ai/dsh-client-ui-keybindings/client'
 
 usePinnedBrowserLanguages('zh-CN')
 
@@ -36,7 +35,7 @@ describe('ui-stock-actions apply', () => {
       id: 'composer.send',
       label: '发送消息',
       description: '提交输入框的按键组合。',
-      defaultKeybindings: [{ key: keybindingKey('composer.send'), strokes: [{ key: 'Enter', modifiers: [] }], when: 'composerActive && !commandMenuOpen' }],
+      defaultKeybindings: [{ key: 'composer.send', strokes: [{ key: 'Enter', modifiers: [] }], when: 'composerActive && !commandMenuOpen' }],
     }))
   })
 
@@ -45,12 +44,12 @@ describe('ui-stock-actions apply', () => {
     expect(register).toHaveBeenCalledWith(expect.objectContaining({
       id: 'composer.undo',
       label: '撤销',
-      defaultKeybindings: [{ key: keybindingKey('composer.undo'), strokes: [{ key: 'z', modifiers: ['ctrl'] }], when: 'composerActive' }],
+      defaultKeybindings: [{ key: 'composer.undo', strokes: [{ key: 'z', modifiers: ['ctrl'] }], when: 'composerActive' }],
     }))
     expect(register).toHaveBeenCalledWith(expect.objectContaining({
       id: 'composer.redo',
       label: '重做',
-      defaultKeybindings: [{ key: keybindingKey('composer.redo'), strokes: [{ key: 'z', modifiers: ['ctrl', 'shift'] }], when: 'composerActive' }],
+      defaultKeybindings: [{ key: 'composer.redo', strokes: [{ key: 'z', modifiers: ['ctrl', 'shift'] }], when: 'composerActive' }],
     }))
   })
 
@@ -65,7 +64,7 @@ describe('ui-stock-actions apply', () => {
     expect(register).toHaveBeenCalledWith(expect.objectContaining({
       id: 'overlay.close',
       label: '关闭浮层',
-      defaultKeybindings: [{ key: keybindingKey('overlay.close'), strokes: [{ key: 'Escape', modifiers: [] }], when: 'overlayOpen' }],
+      defaultKeybindings: [{ key: 'overlay.close', strokes: [{ key: 'Escape', modifiers: [] }], when: 'overlayOpen' }],
     }))
   })
 
@@ -74,7 +73,7 @@ describe('ui-stock-actions apply', () => {
     expect(register).toHaveBeenCalledWith(expect.objectContaining({
       id: 'composer.claimToken',
       label: '确认词元',
-      defaultKeybindings: [{ key: keybindingKey('composer.claimToken'), strokes: [{ key: ' ', modifiers: [] }], when: 'composerActive && tokenLeading' }],
+      defaultKeybindings: [{ key: 'composer.claimToken', strokes: [{ key: ' ', modifiers: [] }], when: 'composerActive && tokenLeading' }],
     }))
   })
 

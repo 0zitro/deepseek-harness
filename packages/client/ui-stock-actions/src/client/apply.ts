@@ -1,7 +1,7 @@
 /** Registers the built-in UI actions and their default keybindings. */
 import type { Context } from '@deepseek-ai/cordis'
-// Type-only: pulls the keybindings Context merge (ctx.uiActions) and its id type.
-import { keybindingKey, type UiActionId } from '@deepseek-ai/dsh-client-ui-keybindings/client'
+// Type-only: pulls the keybindings Context merge (ctx.uiActions) and its brands.
+import type { KeybindingKey, UiActionId } from '@deepseek-ai/dsh-client-ui-keybindings/client'
 // Type-only: pulls the composer Context merge (ctx.composer).
 import type {} from '@deepseek-ai/dsh-client-ui-conversation/client'
 // Type-only: pulls the overlay Context merge (ctx.overlays).
@@ -23,6 +23,17 @@ const COMMAND_PALETTE_FOCUS_PREVIOUS_ACTION = 'commandPalette.focusPrevious' as 
 const COMMAND_PALETTE_SELECT_ACTION = 'commandPalette.select' as UiActionId
 const OVERLAY_CLOSE_ACTION = 'overlay.close' as UiActionId
 
+/**
+ * The stable key of an action's sole default binding, which is the action id
+ * it belongs to. The two identities are separate types over one string, so an
+ * action contributing several defaults spells each key literally instead.
+ * @param action - the action the default belongs to.
+ * @returns the default's stable key.
+ */
+function defaultKey(action: UiActionId): KeybindingKey {
+  return action as unknown as KeybindingKey
+}
+
 /** Services required by the stock-actions plugin. */
 export const inject = ['uiActions', 'locale', 'composer', 'overlays']
 
@@ -43,7 +54,7 @@ export function apply(ctx: Context): void {
     id: COMPOSER_SEND_ACTION,
     label: t('composerSend.label'),
     description: t('composerSend.description'),
-    defaultKeybindings: [{ key: keybindingKey(COMPOSER_SEND_ACTION), strokes: [{ key: 'Enter', modifiers: [] }], when: 'composerActive && !commandMenuOpen' }],
+    defaultKeybindings: [{ key: defaultKey(COMPOSER_SEND_ACTION), strokes: [{ key: 'Enter', modifiers: [] }], when: 'composerActive && !commandMenuOpen' }],
     run: () => { ctx.composer.send() },
   }), 'ui-stock-actions: composer send action')
 
@@ -65,7 +76,7 @@ export function apply(ctx: Context): void {
     id: COMPOSER_UNDO_ACTION,
     label: t('composerUndo.label'),
     description: t('composerUndo.description'),
-    defaultKeybindings: [{ key: keybindingKey(COMPOSER_UNDO_ACTION), strokes: [{ key: 'z', modifiers: ['ctrl'] }], when: 'composerActive' }],
+    defaultKeybindings: [{ key: defaultKey(COMPOSER_UNDO_ACTION), strokes: [{ key: 'z', modifiers: ['ctrl'] }], when: 'composerActive' }],
     run: () => { ctx.composer.undo() },
   }), 'ui-stock-actions: composer undo action')
 
@@ -73,7 +84,7 @@ export function apply(ctx: Context): void {
     id: COMPOSER_REDO_ACTION,
     label: t('composerRedo.label'),
     description: t('composerRedo.description'),
-    defaultKeybindings: [{ key: keybindingKey(COMPOSER_REDO_ACTION), strokes: [{ key: 'z', modifiers: ['ctrl', 'shift'] }], when: 'composerActive' }],
+    defaultKeybindings: [{ key: defaultKey(COMPOSER_REDO_ACTION), strokes: [{ key: 'z', modifiers: ['ctrl', 'shift'] }], when: 'composerActive' }],
     run: () => { ctx.composer.redo() },
   }), 'ui-stock-actions: composer redo action')
 
@@ -81,7 +92,7 @@ export function apply(ctx: Context): void {
     id: COMPOSER_DISMISS_POPUP_ACTION,
     label: t('composerDismissPopup.label'),
     description: t('composerDismissPopup.description'),
-    defaultKeybindings: [{ key: keybindingKey(COMPOSER_DISMISS_POPUP_ACTION), strokes: [{ key: 'Escape', modifiers: [] }], when: 'composerActive' }],
+    defaultKeybindings: [{ key: defaultKey(COMPOSER_DISMISS_POPUP_ACTION), strokes: [{ key: 'Escape', modifiers: [] }], when: 'composerActive' }],
     run: () => { ctx.composer.dismissPopup() },
   }), 'ui-stock-actions: composer dismiss popup action')
 
@@ -89,7 +100,7 @@ export function apply(ctx: Context): void {
     id: COMPOSER_CLAIM_TOKEN_ACTION,
     label: t('composerClaimToken.label'),
     description: t('composerClaimToken.description'),
-    defaultKeybindings: [{ key: keybindingKey(COMPOSER_CLAIM_TOKEN_ACTION), strokes: [{ key: ' ', modifiers: [] }], when: 'composerActive && tokenLeading' }],
+    defaultKeybindings: [{ key: defaultKey(COMPOSER_CLAIM_TOKEN_ACTION), strokes: [{ key: ' ', modifiers: [] }], when: 'composerActive && tokenLeading' }],
     run: () => { ctx.composer.space() },
   }), 'ui-stock-actions: composer claim token action')
 
@@ -97,7 +108,7 @@ export function apply(ctx: Context): void {
     id: COMMAND_PALETTE_FOCUS_NEXT_ACTION,
     label: t('commandPaletteFocusNext.label'),
     description: t('commandPaletteFocusNext.description'),
-    defaultKeybindings: [{ key: keybindingKey(COMMAND_PALETTE_FOCUS_NEXT_ACTION), strokes: [{ key: 'ArrowDown', modifiers: [] }], when: 'commandMenuOpen' }],
+    defaultKeybindings: [{ key: defaultKey(COMMAND_PALETTE_FOCUS_NEXT_ACTION), strokes: [{ key: 'ArrowDown', modifiers: [] }], when: 'commandMenuOpen' }],
     run: () => { ctx.composer.arbitrate('down') },
   }), 'ui-stock-actions: command palette focus next action')
 
@@ -105,7 +116,7 @@ export function apply(ctx: Context): void {
     id: COMMAND_PALETTE_FOCUS_PREVIOUS_ACTION,
     label: t('commandPaletteFocusPrevious.label'),
     description: t('commandPaletteFocusPrevious.description'),
-    defaultKeybindings: [{ key: keybindingKey(COMMAND_PALETTE_FOCUS_PREVIOUS_ACTION), strokes: [{ key: 'ArrowUp', modifiers: [] }], when: 'commandMenuOpen' }],
+    defaultKeybindings: [{ key: defaultKey(COMMAND_PALETTE_FOCUS_PREVIOUS_ACTION), strokes: [{ key: 'ArrowUp', modifiers: [] }], when: 'commandMenuOpen' }],
     run: () => { ctx.composer.arbitrate('up') },
   }), 'ui-stock-actions: command palette focus previous action')
 
@@ -113,7 +124,7 @@ export function apply(ctx: Context): void {
     id: COMMAND_PALETTE_SELECT_ACTION,
     label: t('commandPaletteSelect.label'),
     description: t('commandPaletteSelect.description'),
-    defaultKeybindings: [{ key: keybindingKey(COMMAND_PALETTE_SELECT_ACTION), strokes: [{ key: 'Enter', modifiers: [] }], when: 'commandMenuOpen' }],
+    defaultKeybindings: [{ key: defaultKey(COMMAND_PALETTE_SELECT_ACTION), strokes: [{ key: 'Enter', modifiers: [] }], when: 'commandMenuOpen' }],
     run: () => { ctx.composer.arbitrate('enter') },
   }), 'ui-stock-actions: command palette select action')
 
@@ -121,7 +132,7 @@ export function apply(ctx: Context): void {
     id: OVERLAY_CLOSE_ACTION,
     label: t('overlayClose.label'),
     description: t('overlayClose.description'),
-    defaultKeybindings: [{ key: keybindingKey(OVERLAY_CLOSE_ACTION), strokes: [{ key: 'Escape', modifiers: [] }], when: 'overlayOpen' }],
+    defaultKeybindings: [{ key: defaultKey(OVERLAY_CLOSE_ACTION), strokes: [{ key: 'Escape', modifiers: [] }], when: 'overlayOpen' }],
     run: () => { ctx.overlays.closeTop() },
   }), 'ui-stock-actions: overlay close action')
 }

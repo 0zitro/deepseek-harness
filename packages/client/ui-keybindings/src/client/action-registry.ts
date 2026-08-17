@@ -9,7 +9,11 @@ import { createSnapshotStore, type SnapshotStore } from '@deepseek-ai/dsh-client
 import type { KeybindingDefault } from '../keybinding.ts'
 import type { UiActionId } from '../ui-action.ts'
 
-/** A UI action contributed by a feature plugin. */
+/**
+ * A UI action contributed by a feature plugin. A registrar states its own
+ * branded identifiers; the brands travel by type-only import, which the client
+ * bundle allows where a value import across plugins is forbidden.
+ */
 export interface UiActionDefinition {
   /** Opaque id the keybinding entry references. */
   id: UiActionId
