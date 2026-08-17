@@ -236,6 +236,60 @@ describe('ui-keybindings apply', () => {
     expect(set).not.toHaveBeenCalled()
   })
 
+  it('places a stated prio and moves the scope back one', async () => {
+    const { ctx, face, set, publish } = await mount()
+    const other = 'composer.other' as UiActionId
+    for (const id of [COMPOSER_SEND_ACTION, other]) {
+      ctx.uiActions.register({ id, label: id, defaultKeybindings: [{ key: KEY, ...ENTER }], run: () => {} })
+    }
+    publish({ bindings: [
+      { ...REF, base: BASE, prio: 0 },
+      { action: other, key: KEY, base: BASE, prio: 1 },
+    ] })
+
+    face.setBinding(REF, BASE, { prio: 1 })
+
+    // Both bindings hold Enter, so placing one at 1 moves the other to 2.
+    expect(set).toHaveBeenCalledWith('bindings', [
+      { ...REF, base: BASE, prio: 1 },
+      { action: other, key: KEY, base: BASE, prio: 2 },
+    ])
+  })
+
+  it('drops an override left stating nothing after its prio retires', async () => {
+    const { ctx, face, set, publish } = await mount()
+    const gone = 'composer.gone' as UiActionId
+    ctx.uiActions.register({ id: COMPOSER_SEND_ACTION, label: 'Send', defaultKeybindings: [{ key: KEY, ...ENTER }], run: () => {} })
+    publish({ bindings: [
+      { ...REF, base: BASE, prio: 2 },
+      { action: gone, key: KEY, base: BASE, prio: 1 },
+    ] })
+
+    face.setBinding(REF, BASE, { prio: 1 })
+
+    // The unregistered command cannot use a place, and its override said
+    // nothing else, so it leaves rather than holding a priority it cannot use.
+    expect(set).toHaveBeenCalledWith('bindings', [{ ...REF, base: BASE, prio: 1 }])
+  })
+
+  it('keeps an override that still states something after its prio retires', async () => {
+    const { ctx, face, set, publish } = await mount()
+    const gone = 'composer.gone' as UiActionId
+    ctx.uiActions.register({ id: COMPOSER_SEND_ACTION, label: 'Send', defaultKeybindings: [{ key: KEY, ...ENTER }], run: () => {} })
+    publish({ bindings: [
+      { ...REF, base: BASE, prio: 2 },
+      { action: gone, key: KEY, base: BASE, when: 'agentBusy', prio: 1 },
+    ] })
+
+    face.setBinding(REF, BASE, { prio: 1 })
+
+    // Its clause is still the user's; only the place it cannot use goes.
+    expect(set).toHaveBeenCalledWith('bindings', [
+      { ...REF, base: BASE, prio: 1 },
+      { action: gone, key: KEY, base: BASE, when: 'agentBusy' },
+    ])
+  })
+
   it('refuses a write with no stored list to derive from', async () => {
     const { ctx, face, set, publish } = await mount()
     const error = vi.spyOn(ctx.logger, 'error').mockImplementation(() => {})

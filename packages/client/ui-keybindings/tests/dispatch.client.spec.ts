@@ -11,7 +11,7 @@ import { COMPOSER_SEND_ACTION, type UiActionId } from '../src/ui-action.ts'
 import type { WhenContext } from '../src/when-clause.ts'
 import type { UiActionDefinition } from '../src/client/action-registry.ts'
 import {
-  assignOrder, createKeybindingDispatcher, dispatchKeydown, effectiveEntries, findPrioClash,
+  assignOrder, createKeybindingDispatcher, dispatchKeydown, effectiveEntries,
   reconcileBases, resolveWhen, runMatched, sourceRank,
 } from '../src/client/dispatch.ts'
 
@@ -292,31 +292,6 @@ describe('sourceRank', () => {
     expect(sourceRank('user')).toBe(0)
     expect(sourceRank(pluginId('acme'))).toBe(1)
     expect(sourceRank('system')).toBe(2)
-  })
-})
-
-describe('findPrioClash', () => {
-  const OTHER = 'other.action' as UiActionId
-  const candidate = (prio?: number): KeybindingEntry =>
-    ({ strokes: [{ key: 'Enter', modifiers: [] }], action: COMPOSER_SEND_ACTION, source: 'user', ...(prio === undefined ? {} : { prio }) })
-
-  it('returns undefined when the candidate has no explicit prio', () => {
-    expect(findPrioClash([], COMPOSER_SEND_ACTION, candidate())).toBeUndefined()
-  })
-
-  it('returns undefined when no entry shares the stroke, source, and prio', () => {
-    const other: KeybindingEntry = { strokes: [{ key: 'Enter', modifiers: [] }], action: OTHER, source: 'user', prio: 1 }
-    expect(findPrioClash([other], COMPOSER_SEND_ACTION, candidate(0))).toBeUndefined()
-  })
-
-  it('finds an entry sharing the stroke, source, and prio from another action', () => {
-    const other: KeybindingEntry = { strokes: [{ key: 'Enter', modifiers: [] }], action: OTHER, source: 'user', prio: 0 }
-    expect(findPrioClash([other], COMPOSER_SEND_ACTION, candidate(0))).toBe(other)
-  })
-
-  it('ignores the same action when checking for a clash', () => {
-    const own: KeybindingEntry = { strokes: [{ key: 'Enter', modifiers: [] }], action: COMPOSER_SEND_ACTION, source: 'user', prio: 0 }
-    expect(findPrioClash([own], COMPOSER_SEND_ACTION, candidate(0))).toBeUndefined()
   })
 })
 
