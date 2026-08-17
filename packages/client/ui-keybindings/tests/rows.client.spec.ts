@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { keybindingKey, pluginId, type KeybindingOverride, type KeyStroke } from '../src/keybinding.ts'
+import { keybindingKey, type KeyStroke, type SourcedOverride } from '../src/keybinding.ts'
 import { COMPOSER_SEND_ACTION, type UiActionId } from '../src/ui-action.ts'
 import type { UiActionDefinition } from '../src/client/action-registry.ts'
 import { compareActionIds, keybindingRows } from '../src/client/rows.ts'
@@ -16,10 +16,10 @@ const sendAction = (): UiActionDefinition => ({
   run: () => {},
 })
 
-const override = (fields: Partial<KeybindingOverride> = {}): KeybindingOverride => ({
+const override = (fields: Partial<SourcedOverride> = {}): SourcedOverride => ({
   action: COMPOSER_SEND_ACTION,
-  source: 'user',
   key: SEND_KEY,
+  source: 'user',
   base: { strokes: [...ENTER], when: 'composerActive' },
   ...fields,
 })
@@ -89,11 +89,11 @@ describe('keybindingRows', () => {
   })
 
   it('shows an override whose default is gone against its retained base', () => {
-    const rows = keybindingRows([], [override({ source: pluginId('dsh-demo'), strokes: [{ key: 'k', modifiers: ['ctrl'] }] })])
+    const rows = keybindingRows([], [override({ strokes: [{ key: 'k', modifiers: ['ctrl'] }] })])
     expect(rows).toHaveLength(1)
     // No registration supplies a label, so the action id stands in for one.
     expect(rows[0]).toMatchObject({ label: COMPOSER_SEND_ACTION, base: { strokes: [...ENTER], when: 'composerActive' } })
-    expect(rows[0]?.entry.source).toBe('dsh-demo')
+    expect(rows[0]?.entry.source).toBe('user')
   })
 
   it('labels an orphaned override from its action when that is still registered', () => {

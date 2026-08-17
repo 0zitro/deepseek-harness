@@ -76,15 +76,17 @@ export function keybindingKey(id: string): KeybindingKey {
 export type KeybindingDefault = Keybinding & { readonly key: KeybindingKey }
 
 /**
- * A partial override of one default binding. `action`, `source`, and `key`
- * identify the default it merges into; `base` snapshots that default's gesture
- * so the override still resolves when the origin is unavailable; `strokes`,
- * `when`, and `prio` are the overridden fields — absent ones fall back to the
- * base at merge time.
+ * A partial override of one default binding. `action` and `key` identify the
+ * default it merges into; `base` snapshots that default's gesture so the
+ * override still resolves when the origin is unavailable; `strokes`, `when`,
+ * and `prio` are the overridden fields — absent ones fall back to the base at
+ * merge time. A contribution never states where it came from: the settings
+ * document is the user's by definition and a plugin's contributions are that
+ * plugin's, so the source is derived on ingest ({@link SourcedOverride}) and a
+ * declaration cannot claim one it does not have.
  */
 export interface KeybindingOverride {
   action: UiActionId
-  source: KeybindingSource
   key: KeybindingKey
   base: Keybinding
   strokes?: KeyStroke[]
@@ -92,8 +94,19 @@ export interface KeybindingOverride {
   prio?: number
 }
 
+/**
+ * An override as the pipeline sees it: the contribution plus the source its
+ * provider gives it. The user's settings document stamps `user`; a plugin's
+ * contributions carry that plugin's id. Ranking a default's overrides reads
+ * this, so where a contribution came from is decided by the composition
+ * rather than asserted by the contribution.
+ */
+export interface SourcedOverride extends KeybindingOverride {
+  source: KeybindingSource
+}
+
 /** Identifies the override an edit addresses, independently of what it carries. */
-export type KeybindingOverrideRef = Pick<KeybindingOverride, 'action' | 'source' | 'key'>
+export type KeybindingOverrideRef = Pick<KeybindingOverride, 'action' | 'key'>
 
 /**
  * One edit of an override: the fields the user just changed, and nothing else.
@@ -225,7 +238,6 @@ export const KeyStrokeSchema: z<KeyStroke> = z.object({
 /** Schemastery schema for one persisted override: identity, base snapshot, plus the partial fields. */
 export const KeybindingOverrideSchema: z<KeybindingOverride> = z.object({
   action: UiActionIdSchema,
-  source: z.transform(z.string(), value => value as KeybindingSource),
   key: z.transform(z.string(), value => value as KeybindingKey),
   base: z.object({
     strokes: z.array(KeyStrokeSchema),

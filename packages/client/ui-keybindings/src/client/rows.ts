@@ -9,7 +9,7 @@
  */
 import {
   keybindingKey, keybindingOfDefault,
-  type Keybinding, type KeybindingEntry, type KeybindingKey, type KeybindingOverride,
+  type Keybinding, type KeybindingEntry, type KeybindingKey, type SourcedOverride,
 } from '../keybinding.ts'
 import type { UiActionId } from '../ui-action.ts'
 import type { UiActionDefinition } from './action-registry.ts'
@@ -43,7 +43,7 @@ export interface KeybindingRow {
 }
 
 /** Which fields an override states, or none at all when there is no override. */
-function provenanceOf(override: KeybindingOverride | undefined): KeybindingProvenance {
+function provenanceOf(override: SourcedOverride | undefined): KeybindingProvenance {
   return {
     strokes: override?.strokes !== undefined,
     when: override?.when !== undefined,
@@ -72,7 +72,7 @@ export function compareActionIds(left: string, right: string): number {
  */
 export function keybindingRows(
   actions: readonly UiActionDefinition[],
-  overrides: readonly KeybindingOverride[],
+  overrides: readonly SourcedOverride[],
 ): readonly KeybindingRow[] {
   const rows: KeybindingRow[] = []
 
