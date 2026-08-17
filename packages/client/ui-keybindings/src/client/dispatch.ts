@@ -1,7 +1,11 @@
 /** Keystroke dispatch: match keydowns against the persisted entries and run the matched action. */
 import type { SnapshotStore } from '@deepseek-ai/dsh-client-runtime/client'
 import { ChordMatcher } from '../chord.ts'
-import { isRecordableKey, type KeybindingDefault, type KeybindingEntry, type KeybindingKey, type KeybindingOverride, type KeybindingSource } from '../keybinding.ts'
+import {
+  isRecordableKey, keybindingOfDefault, sameKeybinding,
+  type KeybindingDefault, type KeybindingEntry, type KeybindingKey, type KeybindingOverride,
+  type KeybindingSource,
+} from '../keybinding.ts'
 import { evaluateWhen, parseWhenClause, type WhenContext } from '../when-clause.ts'
 import type { UiActionId } from '../ui-action.ts'
 import type { UiActionDefinition } from './action-registry.ts'
@@ -100,6 +104,31 @@ function findDefault(
     }
   }
   return undefined
+}
+
+/**
+ * The overrides with every stored base refreshed to the default it names, so
+ * the snapshot an override merges with stays the one its origin currently
+ * ships. An override whose default is unavailable keeps the base it retained —
+ * failing to reconcile is not failing to merge. Returns the given list itself
+ * when no base has drifted, which is how a caller tells a write is owed.
+ * @param overrides - the stored overrides.
+ * @param actions - the actions registered right now, holding the live defaults.
+ * @returns the reconciled overrides, or `overrides` when none drifted.
+ */
+export function reconcileBases(
+  overrides: readonly KeybindingOverride[],
+  actions: readonly UiActionDefinition[],
+): readonly KeybindingOverride[] {
+  const reconciled = overrides.map((override) => {
+    const def = findDefault(actions, override.action, override.key)
+    if (def === undefined) return override
+
+    const base = keybindingOfDefault(def)
+    return sameKeybinding(base, override.base) ? override : { ...override, base }
+  })
+
+  return reconciled.every((next, index) => next === overrides[index]) ? overrides : reconciled
 }
 
 /** The effective entries: each default merged with its top override, plus orphans resolved against their retained base. */

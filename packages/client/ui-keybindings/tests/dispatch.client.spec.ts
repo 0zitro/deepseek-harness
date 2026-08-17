@@ -2,11 +2,17 @@
 import { describe, expect, it, vi } from 'vitest'
 import { createSnapshotStore } from '@deepseek-ai/dsh-client-runtime/client'
 import { ChordMatcher } from '../src/chord.ts'
-import { keybindingKey, pluginId, type KeybindingEntry, type KeybindingOverride, type KeybindingSource, type KeyStroke } from '../src/keybinding.ts'
+import {
+  keybindingKey, pluginId,
+  type Keybinding, type KeybindingEntry, type KeybindingOverride, type KeybindingSource, type KeyStroke,
+} from '../src/keybinding.ts'
 import { COMPOSER_SEND_ACTION, type UiActionId } from '../src/ui-action.ts'
 import type { WhenContext } from '../src/when-clause.ts'
 import type { UiActionDefinition } from '../src/client/action-registry.ts'
-import { assignOrder, createKeybindingDispatcher, dispatchKeydown, effectiveEntries, findPrioClash, resolveWhen, runMatched, sourceRank } from '../src/client/dispatch.ts'
+import {
+  assignOrder, createKeybindingDispatcher, dispatchKeydown, effectiveEntries, findPrioClash,
+  reconcileBases, resolveWhen, runMatched, sourceRank,
+} from '../src/client/dispatch.ts'
 
 function entry(strokes: KeyStroke[], action: UiActionId = COMPOSER_SEND_ACTION): KeybindingEntry {
   return { strokes, action, source: 'user' }
@@ -194,6 +200,39 @@ describe('effectiveEntries', () => {
 
   it('skips an action with neither a default nor an override', () => {
     expect(effectiveEntries([{ id: COMPOSER_SEND_ACTION, label: 'Send', run: () => {} }], [])).toEqual([])
+  })
+})
+
+describe('reconcileBases', () => {
+  const KEY = keybindingKey('send')
+  const SNAPSHOT: Keybinding = { strokes: [{ key: 'Enter', modifiers: [] }] }
+  const stored = (base: Keybinding): KeybindingOverride =>
+    ({ action: COMPOSER_SEND_ACTION, source: 'user', key: KEY, base, strokes: [{ key: 'k', modifiers: ['ctrl'] }] })
+  const shipping = (def: Keybinding): UiActionDefinition =>
+    ({ id: COMPOSER_SEND_ACTION, label: 'Send', run: () => {}, defaultKeybindings: [{ key: KEY, ...def }] })
+
+  it('returns the same list when every base matches its default', () => {
+    const overrides = [stored({ ...SNAPSHOT })]
+    expect(reconcileBases(overrides, [shipping({ ...SNAPSHOT })])).toBe(overrides)
+  })
+
+  it('reuptakes a default whose gesture or clause moved', () => {
+    const moved: Keybinding = { strokes: [{ key: 'Enter', modifiers: ['shift'] }], when: 'composerActive' }
+    const [reconciled] = reconcileBases([stored({ ...SNAPSHOT })], [shipping(moved)])
+    expect(reconciled?.base).toEqual(moved)
+    // The overridden fields are untouched: only the snapshot they merge with moved.
+    expect(reconciled?.strokes).toEqual([{ key: 'k', modifiers: ['ctrl'] }])
+  })
+
+  it('settles: a reconciled list reconciles to itself', () => {
+    const moved: Keybinding = { strokes: [{ key: 'Enter', modifiers: ['shift'] }] }
+    const once = reconcileBases([stored({ ...SNAPSHOT })], [shipping(moved)])
+    expect(reconcileBases(once, [shipping({ ...moved })])).toBe(once)
+  })
+
+  it('retains the base of an override whose default is unavailable', () => {
+    const overrides = [stored({ ...SNAPSHOT })]
+    expect(reconcileBases(overrides, [])).toBe(overrides)
   })
 })
 

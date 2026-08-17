@@ -115,6 +115,16 @@ export function sameStrokes(left: readonly KeyStroke[], right: readonly KeyStrok
   })
 }
 
+/** Whether two bindings state the same gesture under the same predicate. */
+export function sameKeybinding(left: Keybinding, right: Keybinding): boolean {
+  return left.when === right.when && sameStrokes(left.strokes, right.strokes)
+}
+
+/** The gesture of a shipped default, without the identity an override merges into. */
+export function keybindingOfDefault(def: KeybindingDefault): Keybinding {
+  return { strokes: def.strokes, ...(def.when === undefined ? {} : { when: def.when }) }
+}
+
 /** The gesture (strokes and when) of an entry, without its action. */
 export function keybindingOfEntry(entry: KeybindingEntry): Keybinding {
   return { strokes: entry.strokes, ...(entry.when === undefined ? {} : { when: entry.when }) }

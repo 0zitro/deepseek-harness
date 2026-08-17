@@ -3,7 +3,7 @@ import { useMemo, useState } from 'react'
 import type { InjectFace, PropsLocale, PropsRuntime } from '@deepseek-ai/dsh-client-ui-slots'
 import type { SnapshotStore } from '@deepseek-ai/dsh-client-runtime/client'
 import {
-  keybindingKey, keybindingOfEntry,
+  keybindingKey, keybindingOfDefault, keybindingOfEntry,
   type Keybinding, type KeybindingEdit, type KeybindingKey, type KeybindingOverride,
   type KeybindingOverrideRef, type KeyStroke,
 } from '../keybinding.ts'
@@ -62,7 +62,7 @@ function resolveActions(
       result.push({
         definition,
         key: def.key,
-        base: { strokes: def.strokes, ...(def.when === undefined ? {} : { when: def.when }) },
+        base: keybindingOfDefault(def),
         binding: keybindingOfEntry(entry),
       })
     }

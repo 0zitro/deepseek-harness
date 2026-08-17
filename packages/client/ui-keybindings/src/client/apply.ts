@@ -14,8 +14,8 @@ import {
 import {
   DEFAULT_KEYBINDING_ENTRIES, KEYBINDINGS_SETTINGS_NAMESPACE, type KeybindingsSettings,
 } from '../keybinding-settings.ts'
-import { UiActionRegistry } from './action-registry.ts'
-import { createKeybindingDispatcher } from './dispatch.ts'
+import { UiActionRegistry, type UiActionDefinition } from './action-registry.ts'
+import { createKeybindingDispatcher, reconcileBases } from './dispatch.ts'
 import { KeybindingsSection, type KeybindingsSectionInjected } from './KeybindingsSection.tsx'
 import { UiWhenContext } from './when-context.ts'
 import { en, NS, zh } from './locales.ts'
@@ -23,10 +23,11 @@ import { en, NS, zh } from './locales.ts'
 /** Services required by the keybindings plugin. */
 export const inject = ['slots', 'settingsScope', 'locale']
 
-/** The durable keybindings list bound to the settings scope, plus a write-back. */
+/** The durable keybindings list bound to the settings scope, plus its write-backs. */
 interface BindingsScope {
   value: SnapshotStore<readonly KeybindingOverride[]>
   set: (ref: KeybindingOverrideRef, base: Keybinding, edit: KeybindingEdit) => void
+  reconcile: (actions: readonly UiActionDefinition[]) => void
 }
 
 /** Whether an edit would leave the override's own fields as they already stand. */
@@ -55,7 +56,7 @@ function bindBindings(host: SettingsScope<KeybindingsSettings>, ctx: Context): B
     if (shallowEqual(value.getSnapshot(), next)) return
     value.set(next)
   }
-  host.subscribe(adopt)
+  ctx.effect(() => host.subscribe(adopt), 'ui-keybindings: adopt the stored list')
   adopt()
 
   const set = (ref: KeybindingOverrideRef, base: Keybinding, edit: KeybindingEdit) => {
@@ -76,7 +77,22 @@ function bindBindings(host: SettingsScope<KeybindingsSettings>, ctx: Context): B
       : previous.map((current, index) => index === at ? override : current)
     void host.set('bindings', bindings)
   }
-  return { value, set }
+
+  // Reuptake: a default whose gesture moved replaces the base its overrides
+  // still snapshot, so the stored base stays the one the origin ships. The
+  // comparison is structural, so a pass over an already-reconciled list writes
+  // nothing and the observer driving this settles after one write.
+  const reconcile = (actions: readonly UiActionDefinition[]) => {
+    const previous = host.getSnapshot().value?.bindings
+    if (previous === undefined) return
+
+    const bindings = reconcileBases(previous, actions)
+    if (bindings === previous) return
+
+    void host.set('bindings', bindings)
+  }
+
+  return { value, set, reconcile }
 }
 
 /** Mounts the keybindings plugin.
@@ -99,6 +115,18 @@ export function apply(ctx: Context): void {
     () => createKeybindingDispatcher(bindings.value, ctx.uiActions.actions, ctx.uiWhenContext.context),
     'ui-keybindings: dispatch',
   )
+
+  // Reconcile whenever either side moves: a registration brings a new default,
+  // a durable change brings overrides that may still snapshot the old one.
+  ctx.effect(() => {
+    const actions = ctx.uiActions.actions
+    const reconcile = () => { bindings.reconcile(actions.getSnapshot()) }
+
+    const disposers = [actions.subscribe(reconcile), bindings.value.subscribe(reconcile)]
+    reconcile()
+
+    return () => { for (const dispose of disposers) dispose() }
+  }, 'ui-keybindings: base reconcile')
 
   // `slots.inject` awaits the `settings.section` declaration (owned by
   // ui-settings-general), whose activation order is not constrained.
