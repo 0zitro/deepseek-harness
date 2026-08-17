@@ -9,7 +9,7 @@ import { usePinnedBrowserLanguages } from '@deepseek-ai/dsh-client-test-runtime'
 import { apply, inject } from '@deepseek-ai/dsh-client-ui-keybindings/client'
 import { KeybindingsSection } from '../src/client/KeybindingsSection.tsx'
 import type { KeybindingsSectionInjected } from '../src/client/KeybindingsSection.tsx'
-import type { Keybinding } from '../src/keybinding.ts'
+import { keybindingKey, type Keybinding, type KeybindingOverride, type KeyStroke } from '../src/keybinding.ts'
 import { DEFAULT_KEYBINDING_ENTRIES, type KeybindingsSettings } from '../src/keybinding-settings.ts'
 import { COMPOSER_SEND_ACTION, type UiActionId } from '../src/ui-action.ts'
 
@@ -20,6 +20,11 @@ const PREVIEW_ACTION = 'composer.preview' as UiActionId
 
 /** The composer's Enter default, mirroring the stock-actions registration. */
 const ENTER: Keybinding = { strokes: [{ key: 'Enter', modifiers: [] }] }
+
+const KEY = keybindingKey('send')
+const BASE: Keybinding = { strokes: [{ key: 'Enter', modifiers: [] }] }
+const ovr = (strokes: KeyStroke[], when?: string, action: UiActionId = COMPOSER_SEND_ACTION): KeybindingOverride =>
+  ({ action, source: 'user', key: KEY, base: BASE, strokes, ...(when === undefined ? {} : { when }) })
 
 async function bench() {
   const ctx = new Context()
@@ -75,49 +80,40 @@ describe('ui-keybindings apply', () => {
 
   it('persists a binding through setBinding', async () => {
     const { face, set } = await mount()
-    face.setBinding(COMPOSER_SEND_ACTION, { strokes: [{ key: 'k', modifiers: ['ctrl'] }], when: 'agentBusy' })
-    expect(set).toHaveBeenCalledWith('bindings', [{
-      strokes: [{ key: 'k', modifiers: ['ctrl'] }],
-      action: COMPOSER_SEND_ACTION, source: 'user',
-      when: 'agentBusy',
-    }])
+    face.setBinding(ovr([{ key: 'k', modifiers: ['ctrl'] }], 'agentBusy'))
+    expect(set).toHaveBeenCalledWith('bindings', [ovr([{ key: 'k', modifiers: ['ctrl'] }], 'agentBusy')])
   })
 
   it('adopts a durable binding change pushed from the settings scope', async () => {
     const { face, publish } = await mount()
-    publish({ bindings: [{ strokes: [{ key: 'j', modifiers: ['meta'] }], action: COMPOSER_SEND_ACTION, source: 'user', when: 'agentBusy' }] })
-    expect(face.hooks.bindings.getSnapshot()).toEqual([
-      { strokes: [{ key: 'j', modifiers: ['meta'] }], action: COMPOSER_SEND_ACTION, source: 'user', when: 'agentBusy' },
-    ])
+    publish({ bindings: [ovr([{ key: 'j', modifiers: ['meta'] }], 'agentBusy')] })
+    expect(face.hooks.bindings.getSnapshot()).toEqual([ovr([{ key: 'j', modifiers: ['meta'] }], 'agentBusy')])
   })
 
   it('does not persist an unchanged binding', async () => {
     const { face, set, publish } = await mount()
-    publish({ bindings: [{ strokes: ENTER.strokes, action: COMPOSER_SEND_ACTION, source: 'user' }] })
-    face.setBinding(COMPOSER_SEND_ACTION, ENTER)
+    publish({ bindings: [ovr(ENTER.strokes)] })
+    face.setBinding(ovr(ENTER.strokes))
     expect(set).not.toHaveBeenCalled()
   })
 
   it('persists against the default list when the document is not yet loaded', async () => {
     const { face, set, publish } = await mount()
     publish(undefined)
-    face.setBinding(COMPOSER_SEND_ACTION, { strokes: [{ key: 'k', modifiers: ['ctrl'] }] })
-    expect(set).toHaveBeenCalledWith('bindings', [{
-      strokes: [{ key: 'k', modifiers: ['ctrl'] }],
-      action: COMPOSER_SEND_ACTION, source: 'user',
-    }])
+    face.setBinding(ovr([{ key: 'k', modifiers: ['ctrl'] }]))
+    expect(set).toHaveBeenCalledWith('bindings', [ovr([{ key: 'k', modifiers: ['ctrl'] }])])
   })
 
   it('preserves entries for other actions while editing the send action', async () => {
     const { face, set, publish } = await mount()
     publish({ bindings: [
-      { strokes: [{ key: 'Enter', modifiers: [] }], action: COMPOSER_SEND_ACTION, source: 'user' },
-      { strokes: [{ key: 'p', modifiers: ['ctrl'] }], action: PREVIEW_ACTION, source: 'user' },
+      ovr([{ key: 'Enter', modifiers: [] }]),
+      ovr([{ key: 'p', modifiers: ['ctrl'] }], undefined, PREVIEW_ACTION),
     ] })
-    face.setBinding(COMPOSER_SEND_ACTION, { strokes: [{ key: 'k', modifiers: ['ctrl'] }] })
+    face.setBinding(ovr([{ key: 'k', modifiers: ['ctrl'] }]))
     expect(set).toHaveBeenCalledWith('bindings', [
-      { strokes: [{ key: 'k', modifiers: ['ctrl'] }], action: COMPOSER_SEND_ACTION, source: 'user' },
-      { strokes: [{ key: 'p', modifiers: ['ctrl'] }], action: PREVIEW_ACTION, source: 'user' },
+      ovr([{ key: 'k', modifiers: ['ctrl'] }]),
+      ovr([{ key: 'p', modifiers: ['ctrl'] }], undefined, PREVIEW_ACTION),
     ])
   })
 })

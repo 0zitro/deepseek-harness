@@ -7,11 +7,10 @@ import {
 import type {} from '@deepseek-ai/dsh-client-ui-settings/client'
 // Type-only: pulls the locale plugin's Context merge (ctx.locale).
 import type {} from '@deepseek-ai/dsh-client-locale/client'
-import { keybindingOfEntry, type Keybinding, type KeybindingEntry } from '../keybinding.ts'
+import { type KeybindingOverride } from '../keybinding.ts'
 import {
   DEFAULT_KEYBINDING_ENTRIES, KEYBINDINGS_SETTINGS_NAMESPACE, type KeybindingsSettings,
 } from '../keybinding-settings.ts'
-import type { UiActionId } from '../ui-action.ts'
 import { UiActionRegistry } from './action-registry.ts'
 import { createKeybindingDispatcher } from './dispatch.ts'
 import { KeybindingsSection, type KeybindingsSectionInjected } from './KeybindingsSection.tsx'
@@ -23,17 +22,17 @@ export const inject = ['slots', 'settingsScope', 'locale']
 
 /** The durable keybindings list bound to the settings scope, plus a write-back. */
 interface BindingsScope {
-  value: SnapshotStore<readonly KeybindingEntry[]>
-  set: (action: UiActionId, next: Keybinding) => void
+  value: SnapshotStore<readonly KeybindingOverride[]>
+  set: (override: KeybindingOverride) => void
 }
 
 /**
  * Bind the persisted list to the settings scope. External edits are adopted
- * back without being written out again; `set` replaces one action's entry,
- * leaving every other action untouched.
+ * back without being written out again; `set` replaces one override, leaving
+ * every other override untouched.
  */
 function bindBindings(host: SettingsScope<KeybindingsSettings>): BindingsScope {
-  const value = createSnapshotStore<readonly KeybindingEntry[]>(DEFAULT_KEYBINDING_ENTRIES)
+  const value = createSnapshotStore<readonly KeybindingOverride[]>(DEFAULT_KEYBINDING_ENTRIES)
 
   const adopt = () => {
     const next = host.getSnapshot().value?.bindings ?? DEFAULT_KEYBINDING_ENTRIES
@@ -43,19 +42,14 @@ function bindBindings(host: SettingsScope<KeybindingsSettings>): BindingsScope {
   host.subscribe(adopt)
   adopt()
 
-  const set = (action: UiActionId, next: Keybinding) => {
-    const existing = value.getSnapshot().find(entry => entry.action === action)
-    if (existing !== undefined && shallowEqual(keybindingOfEntry(existing), next)) return
-    const entry: KeybindingEntry = {
-      strokes: next.strokes,
-      action,
-      source: 'user',
-      ...(next.when === undefined ? {} : { when: next.when }),
-    }
+  const set = (override: KeybindingOverride) => {
     const previous = host.getSnapshot().value?.bindings ?? DEFAULT_KEYBINDING_ENTRIES
-    const bindings = previous.some(current => current.action === action)
-      ? previous.map(current => current.action === action ? entry : current)
-      : [...previous, entry]
+    const existing = previous.findIndex(current =>
+      current.action === override.action && current.key === override.key && current.source === override.source)
+    if (existing !== -1 && shallowEqual(previous[existing], override)) return
+    const bindings = existing === -1
+      ? [...previous, override]
+      : previous.map((current, index) => index === existing ? override : current)
     value.set(bindings)
     void host.set('bindings', bindings)
   }

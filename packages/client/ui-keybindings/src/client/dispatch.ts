@@ -1,7 +1,7 @@
 /** Keystroke dispatch: match keydowns against the persisted entries and run the matched action. */
 import type { SnapshotStore } from '@deepseek-ai/dsh-client-runtime/client'
 import { ChordMatcher } from '../chord.ts'
-import { isRecordableKey, type KeybindingEntry, type KeybindingSource } from '../keybinding.ts'
+import { isRecordableKey, type KeybindingDefault, type KeybindingEntry, type KeybindingKey, type KeybindingOverride, type KeybindingSource } from '../keybinding.ts'
 import { evaluateWhen, parseWhenClause, type WhenContext } from '../when-clause.ts'
 import type { UiActionId } from '../ui-action.ts'
 import type { UiActionDefinition } from './action-registry.ts'
@@ -41,21 +41,80 @@ export function dispatchKeydown(
   if (matched !== null) runMatched(matched, actions)
 }
 
-/** The effective entries: every persisted override, else every default binding (system source). */
+/** The top-ranked override for (action, key): user > plugin > system, then registration. */
+export function topOverride(
+  overrides: readonly KeybindingOverride[],
+  action: UiActionId,
+  key: KeybindingKey,
+): KeybindingOverride | undefined {
+  let best: KeybindingOverride | undefined
+  for (const override of overrides) {
+    if (override.action !== action || override.key !== key) continue
+    if (best === undefined || sourceRank(override.source) < sourceRank(best.source)) best = override
+  }
+  return best
+}
+
+/** Emit a default as a system-sourced effective entry. */
+export function defaultEntry(def: KeybindingDefault, action: UiActionId): KeybindingEntry {
+  return {
+    strokes: def.strokes,
+    action,
+    source: 'system',
+    ...(def.when === undefined ? {} : { when: def.when }),
+  }
+}
+
+/** Merge one default with its top override, producing a full effective entry. */
+export function mergeOverride(
+  def: KeybindingDefault | undefined,
+  action: UiActionId,
+  override: KeybindingOverride,
+): KeybindingEntry {
+  // Reconcile with the world: the current default, else the retained base snapshot.
+  const base = def ?? override.base
+  const when = override.when ?? base.when
+  return {
+    strokes: override.strokes ?? base.strokes,
+    action,
+    source: override.source,
+    ...(when === undefined ? {} : { when }),
+    ...(override.prio === undefined ? {} : { prio: override.prio }),
+  }
+}
+
+/** The current default for (action, key), or undefined when it is unavailable. */
+function findDefault(
+  actions: readonly UiActionDefinition[],
+  action: UiActionId,
+  key: KeybindingKey,
+): KeybindingDefault | undefined {
+  for (const candidate of actions) {
+    if (candidate.id !== action) continue
+    for (const def of candidate.defaultKeybindings ?? []) {
+      if (def.key === key) return def
+    }
+  }
+  return undefined
+}
+
+/** The effective entries: each default merged with its top override, plus orphans resolved against their retained base. */
 export function effectiveEntries(
   actions: readonly UiActionDefinition[],
-  bindings: readonly KeybindingEntry[],
+  overrides: readonly KeybindingOverride[],
 ): readonly KeybindingEntry[] {
   const entries: KeybindingEntry[] = []
   for (const action of actions) {
-    const overrides = bindings.filter(entry => entry.action === action.id)
-    if (overrides.length > 0) {
-      entries.push(...overrides)
-    } else {
-      for (const keybinding of action.defaultKeybindings ?? []) {
-        entries.push({ ...keybinding, action: action.id, source: 'system' })
-      }
+    for (const def of action.defaultKeybindings ?? []) {
+      const override = topOverride(overrides, action.id, def.key)
+      entries.push(override === undefined ? defaultEntry(def, action.id) : mergeOverride(def, action.id, override))
     }
+  }
+  // An orphaned override (its key was retired wholesale) still resolves: the
+  // retained base snapshot stands in while the origin is unavailable.
+  for (const override of overrides) {
+    if (findDefault(actions, override.action, override.key) !== undefined) continue
+    entries.push(mergeOverride(undefined, override.action, override))
   }
   return entries
 }
@@ -98,7 +157,7 @@ export function findPrioClash(
 
 /** Listen for window keydowns and dispatch them against the effective bindings. */
 export function createKeybindingDispatcher(
-  bindings: SnapshotStore<readonly KeybindingEntry[]>,
+  bindings: SnapshotStore<readonly KeybindingOverride[]>,
   actions: SnapshotStore<readonly UiActionDefinition[]>,
   context: ReadonlySnapshot<WhenContext>,
 ): () => void {
