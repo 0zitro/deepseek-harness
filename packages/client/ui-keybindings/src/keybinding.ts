@@ -102,17 +102,20 @@ export type KeybindingOverrideRef = Pick<KeybindingOverride, 'action' | 'source'
  */
 export type KeybindingEdit = Partial<Pick<KeybindingOverride, 'strokes' | 'when' | 'prio'>>
 
+/**
+ * Canonical identity of a gesture. Modifiers are read in the canonical order
+ * rather than the order they were written in, so a stroke set by hand in a
+ * settings document identifies with the same gesture the recorder produces.
+ */
+export function strokesKey(strokes: readonly KeyStroke[]): string {
+  return strokes
+    .map(stroke => [...KEYBINDING_MODIFIERS.filter(modifier => stroke.modifiers.includes(modifier)), stroke.key].join('+'))
+    .join(' ')
+}
+
 /** Whether two stroke sequences are the same gesture, modifier order aside. */
 export function sameStrokes(left: readonly KeyStroke[], right: readonly KeyStroke[]): boolean {
-  if (left.length !== right.length) return false
-
-  return left.every((stroke, index) => {
-    const other = right[index]
-    return other !== undefined
-      && stroke.key === other.key
-      && stroke.modifiers.length === other.modifiers.length
-      && stroke.modifiers.every(modifier => other.modifiers.includes(modifier))
-  })
+  return strokesKey(left) === strokesKey(right)
 }
 
 /** Whether two bindings state the same gesture under the same predicate. */

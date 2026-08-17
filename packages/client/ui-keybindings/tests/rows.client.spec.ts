@@ -58,13 +58,22 @@ describe('keybindingRows', () => {
     expect(row?.entry).toMatchObject({ strokes: [{ key: 'Enter', modifiers: ['ctrl'] }], when: 'composerActive' })
   })
 
-  it('seeds an unstated prio from the position dispatch resolves it at', () => {
+  it('seeds a binding that competes with nothing at zero', () => {
     const rows = keybindingRows([sendAction(), {
       id: PREVIEW_ACTION, label: 'Preview', run: () => {},
       defaultKeybindings: [{ key: keybindingKey('composer.preview'), strokes: [{ key: 'p', modifiers: ['ctrl'] }] }],
     }], [])
-    expect(rows.map(row => row.prio)).toEqual([1, 0])
+    expect(rows.map(row => row.prio)).toEqual([0, 0])
     expect(rows.map(row => row.action)).toEqual([PREVIEW_ACTION, COMPOSER_SEND_ACTION])
+  })
+
+  it('numbers two bindings that do compete', () => {
+    const rows = keybindingRows([sendAction(), {
+      id: PREVIEW_ACTION, label: 'Preview', run: () => {},
+      // The same gesture as the send default, so the two are ordered against each other.
+      defaultKeybindings: [{ key: keybindingKey('composer.preview'), strokes: [...ENTER] }],
+    }], [])
+    expect(rows.map(row => [row.action, row.prio])).toEqual([[PREVIEW_ACTION, 1], [COMPOSER_SEND_ACTION, 0]])
   })
 
   it('keeps a stated prio and marks it overridden', () => {

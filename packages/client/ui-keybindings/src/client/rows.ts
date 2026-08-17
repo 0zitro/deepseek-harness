@@ -13,7 +13,7 @@ import {
 } from '../keybinding.ts'
 import type { UiActionId } from '../ui-action.ts'
 import type { UiActionDefinition } from './action-registry.ts'
-import { defaultEntry, findDefault, mergeOverride, seededPrio, topOverride } from './dispatch.ts'
+import { defaultEntry, findDefault, mergeOverride, seedPrios, topOverride } from './dispatch.ts'
 
 /** Which of an override's fields the override states itself. */
 export interface KeybindingProvenance {
@@ -113,9 +113,10 @@ export function keybindingRows(
     })
   }
 
-  // Seeding reads the position in the effective list, so it happens before the
-  // display sort; sorting after keeps one command's rows together.
-  return rows
-    .map((row, index) => ({ ...row, prio: seededPrio(row.entry.prio, index) }))
+  // Seeding reads each entry's position among the ones it can collide with, so
+  // it runs over the list in registration order; sorting after keeps one
+  // command's rows together without disturbing the values.
+  return seedPrios(rows, row => row.entry)
+    .map(({ item, prio }) => ({ ...item, prio }))
     .sort((left, right) => compareActionIds(left.action, right.action))
 }

@@ -240,21 +240,29 @@ describe('assignOrder', () => {
   const orderEntry = (strokes: KeyStroke[], prio?: number, source: KeybindingSource = 'user'): KeybindingEntry =>
     ({ strokes, action: COMPOSER_SEND_ACTION, source, ...(prio === undefined ? {} : { prio }) })
 
-  it('seeds the registration order and sorts by prio within a source', () => {
+  it('seeds every collision scope from zero', () => {
     const a = orderEntry([{ key: 'a', modifiers: [] }])
     const b = orderEntry([{ key: 'b', modifiers: [] }])
+    // Different gestures never compete, so neither is ordered behind the other.
     expect(assignOrder([a, b])).toEqual([
       { ...a, prio: 0 },
-      { ...b, prio: 1 },
+      { ...b, prio: 0 },
     ])
   })
 
-  it('sorts by a user prio within a source', () => {
-    const a = orderEntry([{ key: 'a', modifiers: [] }], 2)
-    const b = orderEntry([{ key: 'b', modifiers: [] }])
-    expect(assignOrder([a, b])).toEqual([
-      { ...b, prio: 1 },
-      { ...a, prio: 2 },
+  it('numbers the entries sharing one gesture and source', () => {
+    const first = orderEntry([{ key: 'a', modifiers: [] }])
+    const second = orderEntry([{ key: 'a', modifiers: ['ctrl'] }])
+    const third = orderEntry([{ key: 'a', modifiers: [] }])
+    expect(assignOrder([first, second, third]).map(entry => entry.prio)).toEqual([0, 0, 1])
+  })
+
+  it('sorts a seeded entry ahead of a higher stated prio in its scope', () => {
+    const stated = orderEntry([{ key: 'a', modifiers: [] }], 2)
+    const seeded = orderEntry([{ key: 'a', modifiers: [] }])
+    expect(assignOrder([stated, seeded])).toEqual([
+      { ...seeded, prio: 1 },
+      { ...stated, prio: 2 },
     ])
   })
 
