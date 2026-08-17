@@ -22,6 +22,13 @@ function scope(name: string, child: HTMLElement): HTMLElement {
   return element
 }
 
+function control(): HTMLElement {
+  const element = document.createElement('div')
+  element.setAttribute('data-activate', '')
+  element.tabIndex = 0
+  return element
+}
+
 describe('UiWhenContext', () => {
   it('starts empty', async () => {
     const { context } = await mount()
@@ -52,6 +59,18 @@ describe('UiWhenContext', () => {
     document.body.appendChild(scope('composer', input))
     fireEvent.focusIn(input)
     window.dispatchEvent(new Event('blur'))
+    expect(context.context.getSnapshot()).toEqual({})
+  })
+
+  it('derives controlActive while a control is focused and clears it otherwise', async () => {
+    const { context } = await mount()
+    const element = control()
+    document.body.appendChild(element)
+    fireEvent.focusIn(element)
+    expect(context.context.getSnapshot()).toEqual({ controlActive: true })
+    const input = document.createElement('input')
+    document.body.appendChild(input)
+    fireEvent.focusIn(input)
     expect(context.context.getSnapshot()).toEqual({})
   })
 

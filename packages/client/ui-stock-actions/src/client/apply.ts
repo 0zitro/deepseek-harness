@@ -43,7 +43,7 @@ export function apply(ctx: Context): void {
     id: COMPOSER_SEND_ACTION,
     label: t('composerSend.label'),
     description: t('composerSend.description'),
-    defaultKeybinding: { strokes: [{ key: 'Enter', modifiers: [] }], when: 'composerActive && !commandMenuOpen' },
+    defaultKeybindings: [{ strokes: [{ key: 'Enter', modifiers: [] }], when: 'composerActive && !commandMenuOpen' }],
     run: () => { ctx.composer.send() },
   }), 'ui-stock-actions: composer send action')
 
@@ -65,7 +65,7 @@ export function apply(ctx: Context): void {
     id: COMPOSER_UNDO_ACTION,
     label: t('composerUndo.label'),
     description: t('composerUndo.description'),
-    defaultKeybinding: { strokes: [{ key: 'z', modifiers: ['ctrl'] }], when: 'composerActive' },
+    defaultKeybindings: [{ strokes: [{ key: 'z', modifiers: ['ctrl'] }], when: 'composerActive' }],
     run: () => { ctx.composer.undo() },
   }), 'ui-stock-actions: composer undo action')
 
@@ -73,7 +73,7 @@ export function apply(ctx: Context): void {
     id: COMPOSER_REDO_ACTION,
     label: t('composerRedo.label'),
     description: t('composerRedo.description'),
-    defaultKeybinding: { strokes: [{ key: 'z', modifiers: ['ctrl', 'shift'] }], when: 'composerActive' },
+    defaultKeybindings: [{ strokes: [{ key: 'z', modifiers: ['ctrl', 'shift'] }], when: 'composerActive' }],
     run: () => { ctx.composer.redo() },
   }), 'ui-stock-actions: composer redo action')
 
@@ -81,7 +81,7 @@ export function apply(ctx: Context): void {
     id: COMPOSER_DISMISS_POPUP_ACTION,
     label: t('composerDismissPopup.label'),
     description: t('composerDismissPopup.description'),
-    defaultKeybinding: { strokes: [{ key: 'Escape', modifiers: [] }], when: 'composerActive' },
+    defaultKeybindings: [{ strokes: [{ key: 'Escape', modifiers: [] }], when: 'composerActive' }],
     run: () => { ctx.composer.dismissPopup() },
   }), 'ui-stock-actions: composer dismiss popup action')
 
@@ -89,7 +89,7 @@ export function apply(ctx: Context): void {
     id: COMPOSER_CLAIM_TOKEN_ACTION,
     label: t('composerClaimToken.label'),
     description: t('composerClaimToken.description'),
-    defaultKeybinding: { strokes: [{ key: ' ', modifiers: [] }], when: 'composerActive && tokenLeading' },
+    defaultKeybindings: [{ strokes: [{ key: ' ', modifiers: [] }], when: 'composerActive && tokenLeading' }],
     run: () => { ctx.composer.space() },
   }), 'ui-stock-actions: composer claim token action')
 
@@ -97,7 +97,7 @@ export function apply(ctx: Context): void {
     id: COMMAND_PALETTE_FOCUS_NEXT_ACTION,
     label: t('commandPaletteFocusNext.label'),
     description: t('commandPaletteFocusNext.description'),
-    defaultKeybinding: { strokes: [{ key: 'ArrowDown', modifiers: [] }], when: 'commandMenuOpen' },
+    defaultKeybindings: [{ strokes: [{ key: 'ArrowDown', modifiers: [] }], when: 'commandMenuOpen' }],
     run: () => { ctx.composer.arbitrate('down') },
   }), 'ui-stock-actions: command palette focus next action')
 
@@ -105,7 +105,7 @@ export function apply(ctx: Context): void {
     id: COMMAND_PALETTE_FOCUS_PREVIOUS_ACTION,
     label: t('commandPaletteFocusPrevious.label'),
     description: t('commandPaletteFocusPrevious.description'),
-    defaultKeybinding: { strokes: [{ key: 'ArrowUp', modifiers: [] }], when: 'commandMenuOpen' },
+    defaultKeybindings: [{ strokes: [{ key: 'ArrowUp', modifiers: [] }], when: 'commandMenuOpen' }],
     run: () => { ctx.composer.arbitrate('up') },
   }), 'ui-stock-actions: command palette focus previous action')
 
@@ -113,7 +113,7 @@ export function apply(ctx: Context): void {
     id: COMMAND_PALETTE_SELECT_ACTION,
     label: t('commandPaletteSelect.label'),
     description: t('commandPaletteSelect.description'),
-    defaultKeybinding: { strokes: [{ key: 'Enter', modifiers: [] }], when: 'commandMenuOpen' },
+    defaultKeybindings: [{ strokes: [{ key: 'Enter', modifiers: [] }], when: 'commandMenuOpen' }],
     run: () => { ctx.composer.arbitrate('enter') },
   }), 'ui-stock-actions: command palette select action')
 
@@ -121,7 +121,7 @@ export function apply(ctx: Context): void {
     id: OVERLAY_CLOSE_ACTION,
     label: t('overlayClose.label'),
     description: t('overlayClose.description'),
-    defaultKeybinding: { strokes: [{ key: 'Escape', modifiers: [] }], when: 'overlayOpen' },
+    defaultKeybindings: [{ strokes: [{ key: 'Escape', modifiers: [] }], when: 'overlayOpen' }],
     run: () => { ctx.overlays.closeTop() },
   }), 'ui-stock-actions: overlay close action')
 }

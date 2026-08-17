@@ -17,8 +17,8 @@ export interface UiActionDefinition {
   label: string
   /** Optional row description. */
   description?: string
-  /** Default gesture used when the persisted list has no entry for this action. */
-  defaultKeybinding?: Keybinding
+  /** Default gestures used when the persisted list has no entry for this action. */
+  defaultKeybindings?: readonly Keybinding[]
   /** Handler invoked when a keybinding for this action completes. */
   run: () => void
 }
