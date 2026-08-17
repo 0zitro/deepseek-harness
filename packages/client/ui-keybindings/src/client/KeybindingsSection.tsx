@@ -9,6 +9,7 @@ import {
 } from '../keybinding.ts'
 import { parseWhenClause } from '../when-clause.ts'
 import type { UiActionDefinition } from './action-registry.ts'
+import { useDraft } from './draft.ts'
 import { defaultEntry, mergeOverride, topOverride } from './dispatch.ts'
 import { KeybindingRecorder } from './KeybindingRecorder.tsx'
 import css from './keybindings.module.css'
@@ -69,21 +70,27 @@ function resolveActions(
   return result
 }
 
-/** The when-clause text input, validating the expression on blur. */
+/** Whether a clause is storable: blank states no predicate, anything else must parse. */
+function storable(clause: string): boolean {
+  if (clause === '') return true
+  try {
+    parseWhenClause(clause)
+    return true
+  } catch {
+    return false
+  }
+}
+
+/** The when-clause text input, validated and committed on blur. */
 function WhenInput({ value, onChange, t }: { value: string; onChange: (when: string) => void; t: SectionT }) {
   const [invalid, setInvalid] = useState(false)
+  const [draft, setDraft] = useDraft(value)
 
   const onBlur = () => {
-    if (value === '') {
-      setInvalid(false)
-      return
-    }
-    try {
-      parseWhenClause(value)
-      setInvalid(false)
-    } catch {
-      setInvalid(true)
-    }
+    setInvalid(!storable(draft))
+    // A clause that does not parse is not stored: it would resolve false and
+    // silently disable the binding it belongs to.
+    if (storable(draft) && draft !== value) onChange(draft)
   }
 
   return (
@@ -94,9 +101,9 @@ function WhenInput({ value, onChange, t }: { value: string; onChange: (when: str
       </div>
       <input
         className={`${css.whenInput}${invalid ? ` ${css.whenInvalid}` : ''}`}
-        value={value}
+        value={draft}
         placeholder={t('when.placeholder')}
-        onChange={(event) => { onChange(event.target.value) }}
+        onChange={(event) => { setDraft(event.target.value) }}
         onBlur={onBlur}
         aria-invalid={invalid || undefined}
         spellCheck={false}

@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { cleanup, fireEvent, render, screen } from '@testing-library/react'
+import { act, cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { bindSnapshotSelector } from '@deepseek-ai/dsh-client-web-react'
 import { createSnapshotStore, type SessionListState, type WorkspaceListState } from '@deepseek-ai/dsh-client-runtime/client'
 import { makeTranslate } from '@deepseek-ai/dsh-client-test-runtime'
@@ -60,7 +60,7 @@ function mount(actions: readonly UiActionDefinition[] = [
     t: makeTranslate(en),
   }
   render(<KeybindingsSection {...props} />)
-  return { setBinding }
+  return { setBinding, bindingsStore }
 }
 
 describe('KeybindingsSection', () => {
@@ -71,10 +71,21 @@ describe('KeybindingsSection', () => {
     expect(screen.getByPlaceholderText('e.g. composerFocused && !agentBusy')).toBeDefined()
   })
 
-  it('persists a when clause through the setter', () => {
+  it('persists a when clause on blur, not while typing', () => {
     const { setBinding } = mount()
-    fireEvent.change(screen.getByPlaceholderText('e.g. composerFocused && !agentBusy'), { target: { value: 'agentBusy' } })
+    const input = screen.getByPlaceholderText('e.g. composerFocused && !agentBusy')
+
+    fireEvent.change(input, { target: { value: 'agentBusy' } })
+    expect(setBinding).not.toHaveBeenCalled()
+
+    fireEvent.blur(input)
     expect(setBinding).toHaveBeenCalledWith(REF, BASE, { when: 'agentBusy' })
+  })
+
+  it('commits nothing when a blurred field was not edited', () => {
+    const { setBinding } = mount()
+    fireEvent.blur(screen.getByPlaceholderText('e.g. composerFocused && !agentBusy'))
+    expect(setBinding).not.toHaveBeenCalled()
   })
 
   it('shows the description and an empty chord when an action has no default', () => {
@@ -89,12 +100,14 @@ describe('KeybindingsSection', () => {
     expect(screen.getByDisplayValue('composerActive')).toBeDefined()
   })
 
-  it('flags an invalid when clause on blur', () => {
-    mount()
+  it('flags an invalid when clause on blur and stores nothing', () => {
+    const { setBinding } = mount()
     const input = screen.getByPlaceholderText('e.g. composerFocused && !agentBusy')
     fireEvent.change(input, { target: { value: 'a &&' } })
     fireEvent.blur(input)
     expect(input.getAttribute('aria-invalid')).toBe('true')
+    // A clause that does not parse resolves false, so storing it would disable the binding.
+    expect(setBinding).not.toHaveBeenCalled()
   })
 
   it('persists a recorded chord through the setter', () => {
@@ -110,9 +123,22 @@ describe('KeybindingsSection', () => {
     const { setBinding } = mount()
     const input = screen.getByPlaceholderText('e.g. composerFocused && !agentBusy')
     fireEvent.change(input, { target: { value: 'agentBusy' } })
+    fireEvent.blur(input)
     fireEvent.change(input, { target: { value: '' } })
+    fireEvent.blur(input)
     // An empty clause states no predicate, which is how a default's clause is cleared.
     expect(setBinding).toHaveBeenLastCalledWith(REF, BASE, { when: '' })
+  })
+
+  it('replaces an untouched draft when the stored clause changes underneath', () => {
+    const { bindingsStore } = mount()
+    const input = screen.getByPlaceholderText('e.g. composerFocused && !agentBusy')
+    fireEvent.change(input, { target: { value: 'half-typed' } })
+
+    // Another client stored a clause while this field was being edited.
+    act(() => { bindingsStore.set([{ ...REF, base: BASE, when: 'agentBusy' }]) })
+
+    expect(screen.getByDisplayValue('agentBusy')).toBeDefined()
   })
 
   it('leaves the error state clear on an empty when clause', () => {
@@ -126,12 +152,13 @@ describe('KeybindingsSection', () => {
     const { setBinding } = mount()
     const input = screen.getByPlaceholderText('e.g. composerFocused && !agentBusy')
     fireEvent.change(input, { target: { value: 'agentBusy' } })
+    fireEvent.blur(input)
     const recorder = screen.getByRole('button', { name: /Send message/ })
     fireEvent.click(recorder)
     fireEvent.keyDown(recorder, { key: 'k', ctrlKey: true, metaKey: false, altKey: false, shiftKey: false })
     fireEvent.click(screen.getByRole('button', { name: 'Done' }))
     expect(setBinding).toHaveBeenLastCalledWith(REF, BASE, { strokes: [{ key: 'k', modifiers: ['ctrl'] }] })
-    // The clause set a moment ago survives in the stored override, not in this edit.
+    // The clause committed a moment ago survives in the stored override, not in this edit.
     expect(screen.getByDisplayValue('agentBusy')).toBeDefined()
   })
 })
