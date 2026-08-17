@@ -63,10 +63,11 @@ function declare(slots: SlotRegistry): () => void {
 async function mount() {
   const b = await bench()
   declare(b.slots)
-  await b.ctx.plugin({ inject: [...inject], apply }).await()
+  const fiber = b.ctx.plugin({ inject: [...inject], apply })
+  await fiber.await()
   const entry = b.slots.entries('settings.section')[0]!
   const injected = entry.inject as unknown as () => KeybindingsSectionInjected
-  return { ...b, face: injected() }
+  return { ...b, fiber, face: injected() }
 }
 
 describe('ui-keybindings apply', () => {
@@ -168,6 +169,67 @@ describe('ui-keybindings apply', () => {
 
     face.setBinding(REF, WITH_WHEN, { prio: 0 })
     expect(set).toHaveBeenCalledWith('bindings', [{ ...REF, base: WITH_WHEN, when: 'agentBusy', prio: 0 }])
+  })
+
+  it('reuptakes a moved default into the stored base, once', async () => {
+    const { ctx, set, publish } = await mount()
+    publish({ bindings: [{ ...REF, base: WITH_WHEN, strokes: [{ key: 'k', modifiers: ['ctrl'] }] }] })
+
+    const moved: Keybinding = { strokes: [{ key: 'Enter', modifiers: ['shift'] }], when: 'composerActive' }
+    ctx.uiActions.register({
+      id: COMPOSER_SEND_ACTION,
+      label: 'Send',
+      defaultKeybindings: [{ key: KEY, ...moved }],
+      run: () => {},
+    })
+
+    expect(set).toHaveBeenCalledWith('bindings', [
+      { ...REF, base: moved, strokes: [{ key: 'k', modifiers: ['ctrl'] }] },
+    ])
+
+    // Storing the reconciled list republishes it; the second pass finds nothing to do.
+    set.mockClear()
+    publish({ bindings: [{ ...REF, base: moved, strokes: [{ key: 'k', modifiers: ['ctrl'] }] }] })
+    expect(set).not.toHaveBeenCalled()
+  })
+
+  it('leaves the base of an override whose default is unavailable', async () => {
+    const { set, publish } = await mount()
+
+    publish({ bindings: [{ ...REF, base: WITH_WHEN, strokes: [{ key: 'k', modifiers: ['ctrl'] }] }] })
+
+    expect(set).not.toHaveBeenCalled()
+  })
+
+  it('reconciles nothing while the stored list is unavailable', async () => {
+    const { set, publish } = await mount()
+    publish({ bindings: [{ ...REF, base: WITH_WHEN, strokes: [{ key: 'k', modifiers: ['ctrl'] }] }] })
+
+    publish(undefined)
+
+    expect(set).not.toHaveBeenCalled()
+  })
+
+  it('stops reconciling once the fiber is disposed', async () => {
+    const { ctx, fiber, set, publish } = await mount()
+    ctx.uiActions.register({
+      id: COMPOSER_SEND_ACTION,
+      label: 'Send',
+      defaultKeybindings: [{ key: KEY, strokes: [{ key: 'Enter', modifiers: ['shift'] }] }],
+      run: () => {},
+    })
+    const drifted: KeybindingsSettings = {
+      bindings: [{ ...REF, base: WITH_WHEN, strokes: [{ key: 'k', modifiers: ['ctrl'] }] }],
+    }
+
+    publish(drifted)
+    expect(set).toHaveBeenCalledOnce()
+
+    set.mockClear()
+    await fiber.dispose()
+    publish(drifted)
+
+    expect(set).not.toHaveBeenCalled()
   })
 
   it('refuses a write with no stored list to derive from', async () => {
