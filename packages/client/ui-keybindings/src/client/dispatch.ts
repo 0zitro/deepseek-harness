@@ -195,7 +195,7 @@ export function seedPrios<T>(
   for (const item of items) {
     const entry = entryOf(item)
     if (entry.prio === undefined) continue
-    const scope = strokeSourceKey(entry)
+    const scope = collisionScope(entry)
     claimed.set(scope, (claimed.get(scope) ?? new Set()).add(entry.prio))
   }
 
@@ -205,7 +205,7 @@ export function seedPrios<T>(
     const entry = entryOf(item)
     if (entry.prio !== undefined) return { item, prio: entry.prio }
 
-    const scope = strokeSourceKey(entry)
+    const scope = collisionScope(entry)
     let slot = next.get(scope) ?? 0
     while (claimed.get(scope)?.has(slot) === true) slot += 1
     next.set(scope, slot + 1)
@@ -214,25 +214,14 @@ export function seedPrios<T>(
   })
 }
 
-/** Stable (stroke, source) key for the prio-uniqueness scope. */
-function strokeSourceKey(entry: KeybindingEntry): string {
-  return `${strokesKey(entry.strokes)}\u0000${entry.source}`
-}
-
 /**
- * The effective entry clashing with `candidate` on the same (stroke, source)
- * and prio, excluding `action`'s own entries, or undefined. Operates over the
- * assignOrder output so a seeded prio is compared against a user-chosen one.
+ * The scope a prio orders within: entries sharing one gesture and one source
+ * are the only ones a priority ever separates.
+ * @param entry - the effective entry.
+ * @returns a stable key equal for entries that compete.
  */
-export function findPrioClash(
-  entries: readonly KeybindingEntry[],
-  action: UiActionId,
-  candidate: KeybindingEntry,
-): KeybindingEntry | undefined {
-  if (candidate.prio === undefined) return undefined
-  const key = strokeSourceKey(candidate)
-  return entries.find(entry =>
-    entry.action !== action && strokeSourceKey(entry) === key && entry.prio === candidate.prio)
+export function collisionScope(entry: KeybindingEntry): string {
+  return `${strokesKey(entry.strokes)}\u0000${entry.source}`
 }
 
 /** Listen for window keydowns and dispatch them against the effective bindings. */

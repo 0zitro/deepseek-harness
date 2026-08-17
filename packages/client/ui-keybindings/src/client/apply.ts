@@ -15,8 +15,10 @@ import {
 import {
   DEFAULT_KEYBINDING_ENTRIES, KEYBINDINGS_SETTINGS_NAMESPACE, type KeybindingsSettings,
 } from '../keybinding-settings.ts'
-import { UiActionRegistry, type UiActionDefinition } from './action-registry.ts'
+import { UiActionRegistry } from './action-registry.ts'
 import { createKeybindingDispatcher, reconcileBases } from './dispatch.ts'
+import { insertPrio, type PrioAssignment } from './reorder.ts'
+import { keybindingRows } from './rows.ts'
 import { KeybindingsSection, type KeybindingsSectionInjected } from './KeybindingsSection.tsx'
 import { UiWhenContext } from './when-context.ts'
 import { en, NS, zh } from './locales.ts'
@@ -31,7 +33,7 @@ const USER_SOURCE: KeybindingSource = 'user'
 interface BindingsScope {
   value: SnapshotStore<readonly SourcedOverride[]>
   set: (ref: KeybindingOverrideRef, base: Keybinding, edit: KeybindingEdit) => void
-  reconcile: (actions: readonly UiActionDefinition[]) => void
+  reconcile: () => void
 }
 
 /** Whether an edit would leave the override's own fields as they already stand. */
@@ -52,6 +54,21 @@ function alreadyStored(override: KeybindingOverride, edit: KeybindingEdit): bool
  * from, and the write is refused rather than allowed to replace overrides it
  * never saw.
  */
+/** Apply one priority assignment to the document, dropping an override it empties. */
+function assign(
+  overrides: readonly KeybindingOverride[],
+  { ref, prio }: PrioAssignment,
+): readonly KeybindingOverride[] {
+  return overrides.flatMap((override) => {
+    if (override.action !== ref.action || override.key !== ref.key) return [override]
+    if (prio !== undefined) return [{ ...override, prio }]
+
+    // Retiring the last field an override states leaves it saying nothing.
+    const { prio: _retired, ...rest } = override
+    return rest.strokes === undefined && rest.when === undefined ? [] : [rest]
+  })
+}
+
 function bindBindings(host: SettingsScope<KeybindingsSettings>, ctx: Context): BindingsScope {
   const value = createSnapshotStore<readonly SourcedOverride[]>([])
   // The document is what changes; the published view is it, stamped. Comparing
@@ -79,21 +96,43 @@ function bindBindings(host: SettingsScope<KeybindingsSettings>, ctx: Context): B
     if (stored !== undefined && alreadyStored(stored, edit)) return
 
     const override: KeybindingOverride = { ...(stored ?? { ...ref, base }), ...edit }
-    const bindings = stored === undefined
+    const edited = stored === undefined
       ? [...previous, override]
       : previous.map((current, index) => index === at ? override : current)
-    void host.set('bindings', bindings)
+
+    void host.set('bindings', edit.prio === undefined ? edited : reordered(edited, ref, edit.prio))
+  }
+
+  /**
+   * A stated priority places the binding: whatever ordered at or after it in
+   * the same scope moves one place back, judged against the world the edit
+   * would leave rather than the one it arrived in — adopting a default moves
+   * it into the user's scope, where the places are already taken.
+   */
+  const reordered = (
+    overrides: readonly KeybindingOverride[],
+    ref: KeybindingOverrideRef,
+    prio: number,
+  ): readonly KeybindingOverride[] => {
+    const registered = ctx.uiActions.actions.getSnapshot()
+    const rows = keybindingRows(registered, overrides.map(o => ({ ...o, source: USER_SOURCE })))
+    const candidate = rows.find(row => row.action === ref.action && row.key === ref.key)
+    /* v8 ignore next -- every override yields a row, against its default or as an orphan */
+    if (candidate === undefined) return overrides
+
+    return insertPrio(rows, candidate, prio, action => registered.some(entry => entry.id === action))
+      .reduce(assign, overrides)
   }
 
   // Reuptake: a default whose gesture moved replaces the base its overrides
   // still snapshot, so the stored base stays the one the origin ships. The
   // comparison is structural, so a pass over an already-reconciled list writes
   // nothing and the observer driving this settles after one write.
-  const reconcile = (actions: readonly UiActionDefinition[]) => {
+  const reconcile = () => {
     const previous = host.getSnapshot().value?.bindings
     if (previous === undefined) return
 
-    const bindings = reconcileBases(previous, actions)
+    const bindings = reconcileBases(previous, ctx.uiActions.actions.getSnapshot())
     if (bindings === previous) return
 
     void host.set('bindings', bindings)
@@ -126,11 +165,11 @@ export function apply(ctx: Context): void {
   // Reconcile whenever either side moves: a registration brings a new default,
   // a durable change brings overrides that may still snapshot the old one.
   ctx.effect(() => {
-    const actions = ctx.uiActions.actions
-    const reconcile = () => { bindings.reconcile(actions.getSnapshot()) }
-
-    const disposers = [actions.subscribe(reconcile), bindings.value.subscribe(reconcile)]
-    reconcile()
+    const disposers = [
+      ctx.uiActions.actions.subscribe(bindings.reconcile),
+      bindings.value.subscribe(bindings.reconcile),
+    ]
+    bindings.reconcile()
 
     return () => { for (const dispose of disposers) dispose() }
   }, 'ui-keybindings: base reconcile')
