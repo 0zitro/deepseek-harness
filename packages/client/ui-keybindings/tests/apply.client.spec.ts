@@ -84,6 +84,17 @@ describe('ui-keybindings apply', () => {
     expect(set).toHaveBeenCalledWith('bindings', [ovr([{ key: 'k', modifiers: ['ctrl'] }], 'agentBusy')])
   })
 
+  it('shows an edit only once it is stored', async () => {
+    const { face, publish } = await mount()
+    const edited = ovr([{ key: 'k', modifiers: ['ctrl'] }])
+
+    face.setBinding(edited)
+    expect(face.hooks.bindings.getSnapshot()).toEqual(DEFAULT_KEYBINDING_ENTRIES)
+
+    publish({ bindings: [edited] })
+    expect(face.hooks.bindings.getSnapshot()).toEqual([edited])
+  })
+
   it('adopts a durable binding change pushed from the settings scope', async () => {
     const { face, publish } = await mount()
     publish({ bindings: [ovr([{ key: 'j', modifiers: ['meta'] }], 'agentBusy')] })
@@ -97,11 +108,16 @@ describe('ui-keybindings apply', () => {
     expect(set).not.toHaveBeenCalled()
   })
 
-  it('persists against the default list when the document is not yet loaded', async () => {
-    const { face, set, publish } = await mount()
+  it('refuses a write with no stored list to derive from', async () => {
+    const { ctx, face, set, publish } = await mount()
+    const error = vi.spyOn(ctx.logger, 'error').mockImplementation(() => {})
     publish(undefined)
+
     face.setBinding(ovr([{ key: 'k', modifiers: ['ctrl'] }]))
-    expect(set).toHaveBeenCalledWith('bindings', [ovr([{ key: 'k', modifiers: ['ctrl'] }])])
+
+    // Writing the whole list off an unread one would drop every override it never saw.
+    expect(set).not.toHaveBeenCalled()
+    expect(error).toHaveBeenCalledOnce()
   })
 
   it('preserves entries for other actions while editing the send action', async () => {

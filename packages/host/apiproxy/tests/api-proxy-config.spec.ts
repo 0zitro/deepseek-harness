@@ -344,6 +344,9 @@ describe('settings domain', () => {
     ctx.settings.register(settingsNamespace('ui-conversation'), z.object({
       busyEnter: z.union(['queue', 'steer']).default('queue'),
     }))
+    ctx.settings.register(settingsNamespace('ui-keybindings'), z.object({
+      bindings: z.array(z.object({ action: z.string() })).default([]),
+    }))
     ctx.settings.register(settingsNamespace('shell'), z.object({
       timeoutMs: z.number().default(120_000),
     }))
@@ -358,7 +361,7 @@ describe('settings domain', () => {
     const value = expectOk(await api.settings.describe(request({})))
     expect(value.namespaces.map(view => view.ns)).toEqual([
       'llm-deepseek', 'permission', 'ui-theme', 'locale', 'ui-conversation',
-      'shell', 'agent-loop', 'web-search-deepseek',
+      'ui-keybindings', 'shell', 'agent-loop', 'web-search-deepseek',
     ])
     const permission = expectOk(await api.settings.mutate(request({
       ns: 'permission',
@@ -380,6 +383,11 @@ describe('settings domain', () => {
       ops: [{ op: 'set', path: ['busyEnter'], value: 'steer' }],
     })))
     expect(conversation.value).toEqual({ busyEnter: 'steer' })
+    const keybindings = expectOk(await api.settings.mutate(request({
+      ns: 'ui-keybindings',
+      ops: [{ op: 'set', path: ['bindings'], value: [{ action: 'composer.send' }] }],
+    })))
+    expect(keybindings.value).toEqual({ bindings: [{ action: 'composer.send' }] })
     const bash = expectOk(await api.settings.mutate(request({
       ns: 'shell',
       ops: [{ op: 'set', path: ['timeoutMs'], value: 5_000 }],
