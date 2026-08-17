@@ -375,13 +375,13 @@ describe('image draft rail', () => {
     expect(removeImage).toHaveBeenCalledWith('draft-1')
   })
 
-  it('opens the original image on a single click and closes it with Escape', () => {
+  it('opens the original image on a single click and closes it via the close control', () => {
     const file = new File([Uint8Array.of(1)], 'pixel.png', { type: 'image/png' })
     const attachment = { kind: 'image' as const, id: 'draft-1' as DraftAttachmentId, file, previewUrl: 'blob:draft-1' }
     const { view } = bench({ attachments: [attachment] })
     fireEvent.click(view.getByTitle('查看原图'))
     expect(view.getByRole('dialog', { name: '原图预览' })).toBeTruthy()
-    fireEvent.keyDown(window, { key: 'Escape' })
+    fireEvent.click(view.getByRole('button', { name: '关闭原图预览' }))
     expect(view.queryByRole('dialog', { name: '原图预览' })).toBeNull()
   })
 

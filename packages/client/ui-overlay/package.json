@@ -1,6 +1,6 @@
 {
-  "name": "@deepseek-ai/dsh-client-ui-stock-actions",
-  "description": "Built-in UI actions and their default keybindings, registered against the keybindings orchestrator",
+  "name": "@deepseek-ai/dsh-client-ui-overlay",
+  "description": "LIFO overlay manager bridging OverlayScope DOM events to the overlay.close action",
   "version": "0.1.0-rc.5",
   "publishConfig": {
     "access": "public"
@@ -8,7 +8,7 @@
   "repository": {
     "type": "git",
     "url": "git+https://github.com/deepseek-ai/deepseek-harness.git",
-    "directory": "packages/client/ui-stock-actions"
+    "directory": "packages/client/ui-overlay"
   },
   "type": "module",
   "main": "lib/index.js",
@@ -32,10 +32,7 @@
   "dsh": {
     "client": {
       "inject": [
-        "@deepseek-ai/dsh-client-ui-keybindings",
-        "@deepseek-ai/dsh-client-locale",
-        "@deepseek-ai/dsh-client-ui-conversation",
-        "@deepseek-ai/dsh-client-ui-overlay"
+        "@deepseek-ai/dsh-client-ui-keybindings"
       ],
       "platform": "web"
     }
@@ -47,19 +44,13 @@
   "license": "MIT",
   "peerDependencies": {
     "@deepseek-ai/cordis": "workspace:^",
-    "@deepseek-ai/dsh-client-locale": "workspace:^",
-    "@deepseek-ai/dsh-client-ui-conversation": "workspace:^",
     "@deepseek-ai/dsh-client-ui-keybindings": "workspace:^",
-    "@deepseek-ai/dsh-client-ui-overlay": "workspace:^",
     "@deepseek-ai/dsh-invariants": "workspace:^"
   },
   "devDependencies": {
     "@deepseek-ai/cordis": "workspace:^",
-    "@deepseek-ai/dsh-client-locale": "workspace:^",
     "@deepseek-ai/dsh-client-test-runtime": "workspace:^",
-    "@deepseek-ai/dsh-client-ui-conversation": "workspace:^",
     "@deepseek-ai/dsh-client-ui-keybindings": "workspace:^",
-    "@deepseek-ai/dsh-client-ui-overlay": "workspace:^",
     "@deepseek-ai/dsh-invariants": "workspace:^"
   },
   "files": [

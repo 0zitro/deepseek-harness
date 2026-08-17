@@ -195,6 +195,9 @@
     - id: ui-keybindings
       name: '@deepseek-ai/dsh-client-ui-keybindings'
 
+    - id: ui-overlay
+      name: '@deepseek-ai/dsh-client-ui-overlay'
+
     - id: ui-settings-plugin-inventory
       name: '@deepseek-ai/dsh-client-ui-settings-plugin-inventory'
 

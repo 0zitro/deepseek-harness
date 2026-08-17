@@ -1,6 +1,6 @@
 import { useEffect, useRef } from 'react'
 import { createPortal } from 'react-dom'
-import { IconCloseOutline16 } from '@deepseek-ai/dsh-client-ui-primitives'
+import { IconCloseOutline16, OverlayScope } from '@deepseek-ai/dsh-client-ui-primitives'
 import css from './ImageLightbox.module.css'
 
 /** Lightbox strings the owner resolves from its own locale namespace. */
@@ -36,29 +36,19 @@ export function ImageLightbox({ src, alt, labels, onClose }: {
   useEffect(() => {
     restoreRef.current = document.activeElement instanceof HTMLElement ? document.activeElement : null
     closeRef.current?.focus()
-    const onKeyDown = (event: globalThis.KeyboardEvent): void => {
-      if (event.key === 'Escape') onClose()
-    }
-    window.addEventListener('keydown', onKeyDown)
     return () => {
-      window.removeEventListener('keydown', onKeyDown)
       restoreRef.current?.focus()
     }
-  }, [onClose])
+  }, [])
 
   return createPortal(
-    <div
-      className={css.backdrop}
-      role="dialog"
-      aria-modal="true"
-      aria-label={labels.dialog}
-    >
+    <OverlayScope name="lightbox" onClose={onClose} className={css.backdrop} role="dialog" aria-modal="true" aria-label={labels.dialog}>
       <div className={css.mask} aria-hidden="true" onMouseDown={onClose} />
       <img className={css.image} src={src} alt={alt} />
       <button ref={closeRef} type="button" className={css.close} aria-label={labels.close} onClick={onClose}>
         <IconCloseOutline16 size={16} />
       </button>
-    </div>,
+    </OverlayScope>,
     document.body,
   )
 }

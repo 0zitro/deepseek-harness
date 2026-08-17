@@ -141,19 +141,6 @@ describe('SettingsPanel close paths', () => {
     expect(screen.queryByRole('dialog')).toBeNull()
   })
 
-  it('closes via document-level Escape and unhooks the listener with the panel', () => {
-    mount()
-    openPanel()
-    fireEvent.keyDown(document, { key: 'Escape' })
-    expect(screen.queryByRole('dialog')).toBeNull()
-    // Ignored while closed (listener removed with the panel) and non-Escape
-    // keys are ignored while open.
-    fireEvent.keyDown(document, { key: 'Escape' })
-    openPanel()
-    fireEvent.keyDown(document, { key: 'Enter' })
-    expect(screen.getByRole('dialog')).toBeTruthy()
-  })
-
   it('lands focus on the close button when the dialog opens', () => {
     mount()
     openPanel()

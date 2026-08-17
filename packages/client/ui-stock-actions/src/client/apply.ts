@@ -4,6 +4,8 @@ import type { Context } from '@deepseek-ai/cordis'
 import type { UiActionId } from '@deepseek-ai/dsh-client-ui-keybindings/client'
 // Type-only: pulls the composer Context merge (ctx.composer).
 import type {} from '@deepseek-ai/dsh-client-ui-conversation/client'
+// Type-only: pulls the overlay Context merge (ctx.overlays).
+import type {} from '@deepseek-ai/dsh-client-ui-overlay/client'
 // Type-only: pulls the locale plugin's Context merge (ctx.locale).
 import type {} from '@deepseek-ai/dsh-client-locale/client'
 import { en, NS, zh } from './locales.ts'
@@ -14,9 +16,10 @@ const COMPOSER_QUEUE_ACTION = 'composer.queue' as UiActionId
 const COMPOSER_STEER_ACTION = 'composer.steer' as UiActionId
 const COMPOSER_UNDO_ACTION = 'composer.undo' as UiActionId
 const COMPOSER_REDO_ACTION = 'composer.redo' as UiActionId
+const OVERLAY_CLOSE_ACTION = 'overlay.close' as UiActionId
 
 /** Services required by the stock-actions plugin. */
-export const inject = ['uiActions', 'locale', 'composer']
+export const inject = ['uiActions', 'locale', 'composer', 'overlays']
 
 /**
  * Register the built-in actions. Each action is registered through the
@@ -68,4 +71,12 @@ export function apply(ctx: Context): void {
     defaultKeybinding: { strokes: [{ key: 'z', modifiers: ['ctrl', 'shift'] }], when: 'composerActive' },
     run: () => { ctx.composer.redo() },
   }), 'ui-stock-actions: composer redo action')
+
+  ctx.effect(() => ctx.uiActions.register({
+    id: OVERLAY_CLOSE_ACTION,
+    label: t('overlayClose.label'),
+    description: t('overlayClose.description'),
+    defaultKeybinding: { strokes: [{ key: 'Escape', modifiers: [] }], when: 'overlayOpen' },
+    run: () => { ctx.overlays.closeTop() },
+  }), 'ui-stock-actions: overlay close action')
 }

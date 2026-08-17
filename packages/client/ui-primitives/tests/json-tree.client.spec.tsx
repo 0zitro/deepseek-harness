@@ -310,7 +310,7 @@ describe('JsonTree', () => {
     fireEvent.mouseOver(root)
     fireEvent.mouseLeave(root)
     expect(screen.getByRole('menu')).toBeDefined()
-    fireEvent.keyDown(document, { key: 'Escape' })
+    fireEvent.pointerDown(document.body)
     expect(screen.queryByRole('button', { name: /Copy/ })).toBeNull()
 
     fireEvent.mouseOver(secondRow)
