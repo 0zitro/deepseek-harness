@@ -116,13 +116,23 @@ export type KeybindingOverrideRef = Pick<KeybindingOverride, 'action' | 'key'>
 export type KeybindingEdit = Partial<Pick<KeybindingOverride, 'strokes' | 'when' | 'prio'>>
 
 /**
+ * A stroke's modifiers in canonical order, whatever order they were written
+ * in — the shared root of every spelling of a gesture.
+ * @param stroke - the stroke to read.
+ * @returns its modifiers, canonically ordered and without duplicates.
+ */
+export function canonicalModifiers(stroke: KeyStroke): KeybindingModifier[] {
+  return KEYBINDING_MODIFIERS.filter(modifier => stroke.modifiers.includes(modifier))
+}
+
+/**
  * Canonical identity of a gesture. Modifiers are read in the canonical order
  * rather than the order they were written in, so a stroke set by hand in a
  * settings document identifies with the same gesture the recorder produces.
  */
 export function strokesKey(strokes: readonly KeyStroke[]): string {
   return strokes
-    .map(stroke => [...KEYBINDING_MODIFIERS.filter(modifier => stroke.modifiers.includes(modifier)), stroke.key].join('+'))
+    .map(stroke => [...canonicalModifiers(stroke), stroke.key].join('+'))
     .join(' ')
 }
 

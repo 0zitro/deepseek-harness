@@ -21,13 +21,45 @@
   row-gap: 2px;
 }
 
+/* The heading centres in the cell and the sort mark sits at the inline end,
+   out of the flow, so the heading's position does not shift when a column is
+   sorted and the mark follows the writing direction. */
 .header {
-  padding: 4px 0 8px;
+  position: relative;
+  padding: 4px 14px 8px;
+  border: none;
+  background: transparent;
+  cursor: pointer;
   color: var(--dsw-alias-label-secondary);
+  font-family: inherit;
   font-size: 12px;
   line-height: 16px;
   font-weight: 500;
-  white-space: nowrap;
+  text-align: center;
+}
+
+.header:hover {
+  color: var(--dsw-alias-label-primary);
+}
+
+.heading {
+  overflow-wrap: anywhere;
+}
+
+.sortMark {
+  position: absolute;
+  inset-inline-end: 0;
+  top: 4px;
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  color: var(--dsw-alias-brand-primary);
+}
+
+/* Which column the order consults first, shown only when more than one does. */
+.sortRank {
+  font-size: 10px;
+  line-height: 12px;
 }
 
 /* The command reads once over the bindings it owns, centered on its run. */

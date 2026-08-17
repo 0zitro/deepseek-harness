@@ -11,6 +11,10 @@ import type { UiActionDefinition } from './action-registry.ts'
 import { useDraft } from './draft.ts'
 import { KeybindingRecorder } from './KeybindingRecorder.tsx'
 import { keybindingRows, type KeybindingRow } from './rows.ts'
+import {
+  COLUMNS, dropSort, sortRows, toggleSort,
+  type ColumnSort, type SortableColumn,
+} from './sorting.ts'
 import css from './keybindings.module.css'
 
 /** Registration-side preference face. */
@@ -186,6 +190,40 @@ function BindingCells(
   )
 }
 
+/** One column heading: a click sorts by it, a double click drops it from the order. */
+function ColumnHeader(
+  { column, sorts, onSorts, t }: {
+    column: SortableColumn
+    sorts: readonly ColumnSort[]
+    onSorts: (next: readonly ColumnSort[]) => void
+    t: SectionT
+  },
+) {
+  const at = sorts.findIndex(sort => sort.id === column.id)
+  const sorted = sorts[at]
+  const direction = sorted === undefined
+    ? undefined
+    : t(sorted.direction === 'asc' ? 'sort.ascending' : 'sort.descending')
+
+  return (
+    <button
+      type="button"
+      className={css.header}
+      aria-label={direction === undefined ? t(column.label) : `${t(column.label)}: ${direction}`}
+      onClick={() => { onSorts(toggleSort(sorts, column)) }}
+      onDoubleClick={() => { onSorts(dropSort(sorts, column.id)) }}
+    >
+      <span className={css.heading}>{t(column.label)}</span>
+      {sorted !== undefined && (
+        <span className={css.sortMark} aria-hidden="true">
+          {sorts.length > 1 && <span className={css.sortRank}>{at + 1}</span>}
+          {sorted.direction === 'asc' ? '↑' : '↓'}
+        </span>
+      )}
+    </button>
+  )
+}
+
 /**
  * The Keybindings page: a borderless five-column table over the effective
  * bindings. One command's rows are adjacent and share a single label cell
@@ -194,18 +232,20 @@ function BindingCells(
 export function KeybindingsSection({ useActions, useBindings, setBinding, t }: KeybindingsSectionProps) {
   const actions = useActions(value => value)
   const bindings = useBindings(value => value)
-  const runs = useMemo(() => commandRuns(keybindingRows(actions, bindings)), [actions, bindings])
+  const [sorts, setSorts] = useState<readonly ColumnSort[]>([])
+  const runs = useMemo(
+    () => commandRuns(sortRows(keybindingRows(actions, bindings), sorts)),
+    [actions, bindings, sorts],
+  )
 
   // One grid over every row, because the command cell spans the rows it owns;
   // a per-row element could not stretch across its siblings. Each control
   // names its own column and command, so the columns need no header semantics.
   return (
     <div className={css.table}>
-      <div className={css.header}>{t('column.command')}</div>
-      <div className={css.header}>{t('column.stroke')}</div>
-      <div className={css.header}>{t('column.when')}</div>
-      <div className={css.header}>{t('column.prio')}</div>
-      <div className={css.header}>{t('column.source')}</div>
+      {COLUMNS.map(column => (
+        <ColumnHeader key={column.id} column={column} sorts={sorts} onSorts={setSorts} t={t} />
+      ))}
       {runs.map(run => (
         <Fragment key={run.rows[0]?.action}>
           <div className={css.command} style={{ gridRow: `span ${run.rows.length}` }}>

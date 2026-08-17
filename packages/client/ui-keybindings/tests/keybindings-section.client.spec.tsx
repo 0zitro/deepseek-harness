@@ -191,7 +191,7 @@ describe('KeybindingsSection', () => {
 
   it('persists a prio on blur and refuses one that cannot order', () => {
     const { setBinding } = mount()
-    const prio = screen.getByLabelText(/Priority/)
+    const prio = screen.getByRole('spinbutton')
 
     // A number field holds this; a place in an order cannot.
     fireEvent.change(prio, { target: { value: '1.5' } })
@@ -206,7 +206,7 @@ describe('KeybindingsSection', () => {
 
   it('lets a prio stand empty while edited and restores it on blur', () => {
     const { setBinding } = mount()
-    const prio = screen.getByLabelText(/Priority/)
+    const prio = screen.getByRole('spinbutton')
 
     fireEvent.change(prio, { target: { value: '' } })
     expect((prio as HTMLInputElement).value).toBe('')
@@ -231,5 +231,44 @@ describe('KeybindingsSection', () => {
     // No stored override can claim a plugin: the document holds only the
     // user's. A plugin-contributed default is what will carry this source.
     expect(sourceLabel(pluginId('dsh-demo'), makeTranslate(en))).toBe('dsh-demo')
+  })
+
+  it('sorts by a clicked column in the direction its kind reads naturally', () => {
+    mount([
+      { id: COMPOSER_SEND_ACTION, label: 'Send message', defaultKeybindings: [{ key: KEY, ...ENTER }], run: () => {} },
+      { id: PREVIEW_ACTION, label: 'Preview', defaultKeybindings: [{ key: keybindingKey('preview'), strokes: [{ key: 'a', modifiers: [] }] }], run: () => {} },
+    ])
+    const commands = () => screen.getAllByRole('button', { name: /message|Preview/ }).map(node => node.textContent)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Keybinding' }))
+
+    // 'a' orders before 'Enter', so the preview row leads.
+    expect(commands()[0]).toContain('A')
+  })
+
+  it('reverses on a second click and drops the column on a double click', () => {
+    mount()
+    const header = screen.getByRole('button', { name: /^Priority/ })
+
+    fireEvent.click(header)
+    expect(screen.getByRole('button', { name: 'Priority: ascending' })).toBeDefined()
+
+    fireEvent.click(header)
+    expect(screen.getByRole('button', { name: 'Priority: descending' })).toBeDefined()
+
+    // The clicks composing a double click toggle first; the drop discards that.
+    fireEvent.doubleClick(header)
+    expect(screen.getByRole('button', { name: 'Priority' })).toBeDefined()
+  })
+
+  it('numbers the columns once more than one orders the table', () => {
+    mount()
+    fireEvent.click(screen.getByRole('button', { name: 'Source' }))
+    expect(screen.getByRole('button', { name: 'Source: ascending' }).textContent).not.toContain('1')
+
+    fireEvent.click(screen.getByRole('button', { name: 'When clause' }))
+
+    expect(screen.getByRole('button', { name: 'Source: ascending' }).textContent).toContain('1')
+    expect(screen.getByRole('button', { name: 'When clause: ascending' }).textContent).toContain('2')
   })
 })
