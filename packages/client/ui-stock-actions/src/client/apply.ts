@@ -12,6 +12,8 @@ import { en, NS, zh } from './locales.ts'
 const COMPOSER_SEND_ACTION = 'composer.send' as UiActionId
 const COMPOSER_QUEUE_ACTION = 'composer.queue' as UiActionId
 const COMPOSER_STEER_ACTION = 'composer.steer' as UiActionId
+const COMPOSER_UNDO_ACTION = 'composer.undo' as UiActionId
+const COMPOSER_REDO_ACTION = 'composer.redo' as UiActionId
 
 /** Services required by the stock-actions plugin. */
 export const inject = ['uiActions', 'locale', 'composer']
@@ -50,4 +52,20 @@ export function apply(ctx: Context): void {
     description: t('composerSteer.description'),
     run: () => { ctx.composer.steer() },
   }), 'ui-stock-actions: composer steer action')
+
+  ctx.effect(() => ctx.uiActions.register({
+    id: COMPOSER_UNDO_ACTION,
+    label: t('composerUndo.label'),
+    description: t('composerUndo.description'),
+    defaultKeybinding: { strokes: [{ key: 'z', modifiers: ['ctrl'] }], when: 'composerActive' },
+    run: () => { ctx.composer.undo() },
+  }), 'ui-stock-actions: composer undo action')
+
+  ctx.effect(() => ctx.uiActions.register({
+    id: COMPOSER_REDO_ACTION,
+    label: t('composerRedo.label'),
+    description: t('composerRedo.description'),
+    defaultKeybinding: { strokes: [{ key: 'z', modifiers: ['ctrl', 'shift'] }], when: 'composerActive' },
+    run: () => { ctx.composer.redo() },
+  }), 'ui-stock-actions: composer redo action')
 }

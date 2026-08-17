@@ -472,16 +472,6 @@ describe('Enter semantics', () => {
     fireEvent.keyDown(textarea, { key: 'Enter', shiftKey: true })
     expect(sink).not.toHaveBeenCalled() // and not preventDefault'd: native newline
   })
-
-  it('platform undo/redo chords route to the machine, never the browser stack', () => {
-    const { textarea, shell } = bench({ draft: '' })
-    fireEvent.change(textarea, { target: { value: 'first' } })
-    fireEvent.change(textarea, { target: { value: 'first second' } })
-    fireEvent.keyDown(textarea, { key: 'z', ctrlKey: true })
-    expect(shell.snapshot.draft).not.toBe('first second')
-    fireEvent.keyDown(textarea, { key: 'z', ctrlKey: true, shiftKey: true })
-    expect(shell.snapshot.draft).toBe('first second')
-  })
 })
 
 describe('running and lock semantics', () => {

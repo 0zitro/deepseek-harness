@@ -13,7 +13,7 @@ async function mount() {
   ctx.provide('locale', locale)
   const register = vi.fn((_definition: UiActionDefinition) => () => {})
   ctx.provide('uiActions', { register })
-  const composer = { send: vi.fn(), queue: vi.fn(), steer: vi.fn() }
+  const composer = { send: vi.fn(), queue: vi.fn(), steer: vi.fn(), undo: vi.fn(), redo: vi.fn() }
   ctx.provide('composer', composer)
   await ctx.plugin({ inject: [...inject], apply }).await()
   return { register, composer }
@@ -30,7 +30,21 @@ describe('ui-stock-actions apply', () => {
       id: 'composer.send',
       label: '发送消息',
       description: '提交输入框的按键组合。',
-      defaultKeybinding: { strokes: [{ key: 'Enter', modifiers: [] }], when: 'composerActive' },
+      defaultKeybinding: { strokes: [{ key: 'Enter', modifiers: [] }], when: 'composerActive && !commandMenuOpen' },
+    }))
+  })
+
+  it('registers undo and redo with default chords', async () => {
+    const { register } = await mount()
+    expect(register).toHaveBeenCalledWith(expect.objectContaining({
+      id: 'composer.undo',
+      label: '撤销',
+      defaultKeybinding: { strokes: [{ key: 'z', modifiers: ['ctrl'] }], when: 'composerActive' },
+    }))
+    expect(register).toHaveBeenCalledWith(expect.objectContaining({
+      id: 'composer.redo',
+      label: '重做',
+      defaultKeybinding: { strokes: [{ key: 'z', modifiers: ['ctrl', 'shift'] }], when: 'composerActive' },
     }))
   })
 
@@ -47,8 +61,12 @@ describe('ui-stock-actions apply', () => {
     runOf('composer.send')?.()
     runOf('composer.queue')?.()
     runOf('composer.steer')?.()
+    runOf('composer.undo')?.()
+    runOf('composer.redo')?.()
     expect(composer.send).toHaveBeenCalledOnce()
     expect(composer.queue).toHaveBeenCalledOnce()
     expect(composer.steer).toHaveBeenCalledOnce()
+    expect(composer.undo).toHaveBeenCalledOnce()
+    expect(composer.redo).toHaveBeenCalledOnce()
   })
 })
