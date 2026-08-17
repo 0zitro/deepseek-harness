@@ -15,16 +15,10 @@
       "path": "../ui-keybindings"
     },
     {
-      "path": "../ui-conversation"
-    },
-    {
-      "path": "../ui-overlay"
-    },
-    {
-      "path": "../locale"
-    },
-    {
       "path": "../../runtime-diagnostics/invariants"
     }
+  ],
+  "exclude": [
+    "**/*.legacy.*"
   ]
 }

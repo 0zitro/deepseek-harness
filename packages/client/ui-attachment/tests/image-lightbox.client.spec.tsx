@@ -9,7 +9,7 @@ afterEach(cleanup)
 const labels = { dialog: '原图预览', close: '关闭原图预览' }
 
 describe('ImageLightbox', () => {
-  it('focuses its close control, closes by button and Escape, and restores focus', () => {
+  it('focuses its close control, closes by button, and restores focus', () => {
     const opener = document.createElement('button')
     document.body.appendChild(opener)
     opener.focus()
@@ -17,11 +17,8 @@ describe('ImageLightbox', () => {
     const view = render(<ImageLightbox src="blob:original" alt="原图" labels={labels} onClose={onClose} />)
     const close = view.getByRole('button', { name: '关闭原图预览' })
     expect(document.activeElement).toBe(close)
-    fireEvent.keyDown(window, { key: 'a' })
-    expect(onClose).not.toHaveBeenCalled()
-    fireEvent.keyDown(window, { key: 'Escape' })
     fireEvent.click(close)
-    expect(onClose).toHaveBeenCalledTimes(2)
+    expect(onClose).toHaveBeenCalledTimes(1)
     view.unmount()
     expect(document.activeElement).toBe(opener)
     opener.remove()

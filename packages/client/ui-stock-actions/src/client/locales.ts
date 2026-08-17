@@ -14,6 +14,8 @@ export const zh = {
   'composerUndo.description': '撤销输入框的上一步编辑。',
   'composerRedo.label': '重做',
   'composerRedo.description': '重做输入框最近撤销的编辑。',
+  'overlayClose.label': '关闭浮层',
+  'overlayClose.description': '关闭最上层的浮层（菜单、对话框、弹窗等）。',
 } satisfies Record<string, string>
 
 export type StockActionsKey = keyof typeof zh
@@ -29,6 +31,8 @@ export const en = {
   'composerUndo.description': 'Undo the last composer edit.',
   'composerRedo.label': 'Redo',
   'composerRedo.description': 'Redo the last undone composer edit.',
+  'overlayClose.label': 'Close overlay',
+  'overlayClose.description': 'Close the topmost overlay (menu, dialog, popover).',
 } satisfies Record<StockActionsKey, string>
 
 declare module '@deepseek-ai/dsh-client-ui-slots' {

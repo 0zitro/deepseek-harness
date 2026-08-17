@@ -14,7 +14,7 @@ import { useCallback, useEffect, useId, useRef, useState } from 'react'
 import clsx from 'clsx'
 import {
   IconAgentPresetOutline16, IconCloseOutline16, IconDataOutline16,
-  IconPersonalizationOutline16, IconSettingsOutline16,
+  IconPersonalizationOutline16, IconSettingsOutline16, OverlayScope,
 } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { SettingsRootComponentProps, SettingsSectionRow } from './shell-contract.ts'
 import css from './SettingsRoot.module.css'
@@ -46,14 +46,6 @@ function SettingsPanel({ rows, renderSlot, activeId, onSelect, onClose }: PanelP
   const active = rows.find(r => r.id === activeId)?.id ?? rows[0]?.id
   const titleId = useId()
 
-  useEffect(() => {
-    const onKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onClose()
-    }
-    document.addEventListener('keydown', onKeyDown)
-    return () => { document.removeEventListener('keydown', onKeyDown) }
-  }, [onClose])
-
   // Baseline focus management: entering the dialog lands on the close button.
   const closeButton = useRef<HTMLButtonElement | null>(null)
   useEffect(() => { closeButton.current?.focus() }, [])
@@ -61,7 +53,7 @@ function SettingsPanel({ rows, renderSlot, activeId, onSelect, onClose }: PanelP
   return (
     <div className={css.overlay} role="presentation">
       <div className={css.mask} aria-hidden="true" onClick={onClose} />
-      <div className={css.panel} role="dialog" aria-modal="true" aria-labelledby={titleId}>
+      <OverlayScope name="settings" onClose={onClose} className={css.panel} role="dialog" aria-modal="true" aria-labelledby={titleId}>
         <nav className={css.nav}>
           <div className={css.navTitle} id={titleId}>{renderSlot('settings.header', {})}</div>
           <div className={css.navList}>
@@ -91,7 +83,7 @@ function SettingsPanel({ rows, renderSlot, activeId, onSelect, onClose }: PanelP
             {active !== undefined && renderSlot('settings.section', { close: onClose }, { only: active })}
           </div>
         </div>
-      </div>
+      </OverlayScope>
     </div>
   )
 }

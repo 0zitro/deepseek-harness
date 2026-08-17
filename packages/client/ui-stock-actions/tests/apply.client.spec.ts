@@ -15,13 +15,15 @@ async function mount() {
   ctx.provide('uiActions', { register })
   const composer = { send: vi.fn(), queue: vi.fn(), steer: vi.fn(), undo: vi.fn(), redo: vi.fn() }
   ctx.provide('composer', composer)
+  const overlays = { closeTop: vi.fn() }
+  ctx.provide('overlays', overlays)
   await ctx.plugin({ inject: [...inject], apply }).await()
-  return { register, composer }
+  return { register, composer, overlays }
 }
 
 describe('ui-stock-actions apply', () => {
   it('declares the services it uses', () => {
-    expect(inject).toEqual(['uiActions', 'locale', 'composer'])
+    expect(inject).toEqual(['uiActions', 'locale', 'composer', 'overlays'])
   })
 
   it('registers send with its default binding', async () => {
@@ -54,8 +56,17 @@ describe('ui-stock-actions apply', () => {
     expect(register).toHaveBeenCalledWith(expect.objectContaining({ id: 'composer.steer', label: '转向发送' }))
   })
 
+  it('registers overlay close with Escape', async () => {
+    const { register } = await mount()
+    expect(register).toHaveBeenCalledWith(expect.objectContaining({
+      id: 'overlay.close',
+      label: '关闭浮层',
+      defaultKeybinding: { strokes: [{ key: 'Escape', modifiers: [] }], when: 'overlayOpen' },
+    }))
+  })
+
   it('routes each action to its composer method', async () => {
-    const { register, composer } = await mount()
+    const { register, composer, overlays } = await mount()
     const definitions = register.mock.calls.map(call => call[0])
     const runOf = (id: string) => definitions.find(def => def.id === id)?.run
     runOf('composer.send')?.()
@@ -63,10 +74,12 @@ describe('ui-stock-actions apply', () => {
     runOf('composer.steer')?.()
     runOf('composer.undo')?.()
     runOf('composer.redo')?.()
+    runOf('overlay.close')?.()
     expect(composer.send).toHaveBeenCalledOnce()
     expect(composer.queue).toHaveBeenCalledOnce()
     expect(composer.steer).toHaveBeenCalledOnce()
     expect(composer.undo).toHaveBeenCalledOnce()
     expect(composer.redo).toHaveBeenCalledOnce()
+    expect(overlays.closeTop).toHaveBeenCalledOnce()
   })
 })

@@ -13,6 +13,7 @@ import type { CSSProperties, ReactNode } from 'react'
 import { createPortal } from 'react-dom'
 import clsx from 'clsx'
 import { IconCheckOutline16 } from './icons/index.tsx'
+import { OverlayScope } from './OverlayScope.tsx'
 import { usePointerGrace } from './pointer-grace.ts'
 import css from './Menu.module.css'
 
@@ -176,14 +177,9 @@ export function Menu({ open, anchor, items, selectedId, selectedIds, onSelect, o
       if (listRef.current?.contains(e.target) === true) return
       onClose()
     }
-    const onKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onClose()
-    }
     document.addEventListener('pointerdown', onPointerDown)
-    document.addEventListener('keydown', onKeyDown)
     return () => {
       document.removeEventListener('pointerdown', onPointerDown)
-      document.removeEventListener('keydown', onKeyDown)
     }
   }, [open, onClose])
 
@@ -263,8 +259,10 @@ export function Menu({ open, anchor, items, selectedId, selectedIds, onSelect, o
   // already at the final position (with getAnchorRect returning null the
   // list simply stays hidden).
   const list = open && (
-    <div
+    <OverlayScope
       ref={listRef}
+      name="menu"
+      onClose={onClose}
       className={clsx(css.list, dense && css.denseList, compact && css.compactList, scrollable && css.scrollable, portal && css.portal, side === 'top' && !portal && css.sideTop, align === 'end' && !portal && css.alignEnd)}
       style={portal ? fixedPos ?? MEASURE_STYLE : undefined}
       role="menu"
@@ -281,7 +279,7 @@ export function Menu({ open, anchor, items, selectedId, selectedIds, onSelect, o
           {footer.map(renderEntry)}
         </div>
       )}
-    </div>
+    </OverlayScope>
   )
 
   // Pointer-leave dismissal watches the WRAPPER, not the list: React's

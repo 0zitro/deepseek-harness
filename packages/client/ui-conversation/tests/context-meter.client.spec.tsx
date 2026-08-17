@@ -134,7 +134,7 @@ describe('ContextMeter', () => {
     expect(view.container.querySelector('[role="dialog"]')).toBeNull()
   })
 
-  it('closes on outside pointerdown and Escape — but not inside clicks', () => {
+  it('closes on outside pointerdown — but not inside clicks', () => {
     const view = meter({
       contextPressure: { pressureTokens: 32_000, contextWindow: 128_000 },
       contextBreakdown: BREAKDOWN,
@@ -149,10 +149,6 @@ describe('ContextMeter', () => {
     fireEvent.pointerDown(again)
     expect(view.container.querySelector('[role="dialog"]')).not.toBeNull()
     fireEvent.pointerDown(document.body)
-    expect(view.container.querySelector('[role="dialog"]')).toBeNull()
-    // Escape.
-    openPanel()
-    fireEvent.keyDown(document, { key: 'Escape' })
     expect(view.container.querySelector('[role="dialog"]')).toBeNull()
   })
 })
