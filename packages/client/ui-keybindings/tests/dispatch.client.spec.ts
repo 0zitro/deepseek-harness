@@ -6,7 +6,7 @@ import { type KeybindingEntry, type KeyStroke } from '../src/keybinding.ts'
 import { COMPOSER_SEND_ACTION, type UiActionId } from '../src/ui-action.ts'
 import type { WhenContext } from '../src/when-clause.ts'
 import type { UiActionDefinition } from '../src/client/action-registry.ts'
-import { createKeybindingDispatcher, dispatchKeydown, effectiveEntries, resolveWhen, runMatched } from '../src/client/dispatch.ts'
+import { assignPrios, createKeybindingDispatcher, dispatchKeydown, effectiveEntries, resolveWhen, runMatched } from '../src/client/dispatch.ts'
 
 function entry(strokes: KeyStroke[], action: UiActionId = COMPOSER_SEND_ACTION): KeybindingEntry {
   return { strokes, action }
@@ -168,6 +168,47 @@ describe('effectiveEntries', () => {
       { strokes: [{ key: 'b', modifiers: [] }], action: COMPOSER_SEND_ACTION },
     ]
     expect(effectiveEntries(actions, bindings)).toEqual(bindings)
+  })
+})
+
+describe('assignPrios', () => {
+  const prioEntry = (strokes: KeyStroke[], prio?: number): KeybindingEntry =>
+    ({ strokes, action: COMPOSER_SEND_ACTION, ...(prio === undefined ? {} : { prio }) })
+
+  it('seeds the registration order when no prio is set', () => {
+    const a = prioEntry([{ key: 'a', modifiers: [] }])
+    const b = prioEntry([{ key: 'b', modifiers: [] }])
+    expect(assignPrios([a, b])).toEqual([
+      { ...a, prio: 0 },
+      { ...b, prio: 1 },
+    ])
+  })
+
+  it('honours a valid unique user prio, preserving the seeded order elsewhere', () => {
+    const a = prioEntry([{ key: 'a', modifiers: [] }], 2)
+    const b = prioEntry([{ key: 'b', modifiers: [] }])
+    expect(assignPrios([a, b])).toEqual([
+      { ...b, prio: 1 },
+      { ...a, prio: 2 },
+    ])
+  })
+
+  it('honours the first of two clashing prios and seeds the second', () => {
+    const a = prioEntry([{ key: 'a', modifiers: [] }], 1)
+    const b = prioEntry([{ key: 'b', modifiers: [] }], 1)
+    expect(assignPrios([a, b])).toEqual([
+      { ...a, prio: 1 },
+      { ...b, prio: 2 },
+    ])
+  })
+
+  it('retires a negative or non-integer prio to the seeded slot', () => {
+    const a = prioEntry([{ key: 'a', modifiers: [] }], -1)
+    const b = prioEntry([{ key: 'b', modifiers: [] }], 0.5)
+    expect(assignPrios([a, b])).toEqual([
+      { ...a, prio: 0 },
+      { ...b, prio: 1 },
+    ])
   })
 })
 

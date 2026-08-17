@@ -59,6 +59,32 @@ export function effectiveEntries(
   return entries
 }
 
+/** Assign a unique collision-ordering prio (0 = highest) and sort by it. */
+export function assignPrios(entries: readonly KeybindingEntry[]): readonly KeybindingEntry[] {
+  const claimed = new Set<number>()
+  const targets = new Map<KeybindingEntry, number>()
+  for (const entry of entries) {
+    const override = entry.prio
+    if (override !== undefined && Number.isInteger(override) && override >= 0 && !claimed.has(override)) {
+      targets.set(entry, override)
+      claimed.add(override)
+    }
+  }
+  const assigned = entries.map((entry, index) => {
+    const target = targets.get(entry)
+    let prio: number
+    if (target !== undefined) {
+      prio = target
+    } else {
+      prio = index
+      while (claimed.has(prio)) prio += 1
+      claimed.add(prio)
+    }
+    return { ...entry, prio }
+  })
+  return assigned.sort((a, b) => a.prio - b.prio)
+}
+
 /** Listen for window keydowns and dispatch them against the effective bindings. */
 export function createKeybindingDispatcher(
   bindings: SnapshotStore<readonly KeybindingEntry[]>,
@@ -66,7 +92,7 @@ export function createKeybindingDispatcher(
   context: ReadonlySnapshot<WhenContext>,
 ): () => void {
   const active = (entry: KeybindingEntry) => resolveWhen(entry.when, context.getSnapshot())
-  const entries = () => effectiveEntries(actions.getSnapshot(), bindings.getSnapshot())
+  const entries = () => assignPrios(effectiveEntries(actions.getSnapshot(), bindings.getSnapshot()))
   let matcher = new ChordMatcher<KeybindingEntry>(entries(), active)
   const rebuild = () => {
     matcher = new ChordMatcher<KeybindingEntry>(entries(), active)
