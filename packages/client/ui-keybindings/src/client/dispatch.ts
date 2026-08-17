@@ -12,9 +12,13 @@ export function runMatched(matched: KeybindingEntry, actions: readonly UiActionD
   actions.find(action => action.id === matched.action)?.run()
 }
 
-/** Whether a binding's `when` clause holds against the context; absent clauses are always active. */
+/**
+ * Whether a binding's `when` clause holds against the context. A clause that
+ * is absent or blank states no predicate and is always active, which is how an
+ * override clears the predicate its default carries.
+ */
 export function resolveWhen(when: string | undefined, context: WhenContext): boolean {
-  if (when === undefined) return true
+  if (when === undefined || when.trim() === '') return true
   try {
     return evaluateWhen(parseWhenClause(when), context)
   } catch {

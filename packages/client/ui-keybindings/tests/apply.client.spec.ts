@@ -26,6 +26,12 @@ const BASE: Keybinding = { strokes: [{ key: 'Enter', modifiers: [] }] }
 const ovr = (strokes: KeyStroke[], when?: string, action: UiActionId = COMPOSER_SEND_ACTION): KeybindingOverride =>
   ({ action, source: 'user', key: KEY, base: BASE, strokes, ...(when === undefined ? {} : { when }) })
 
+/** The override the section's controls address. */
+const REF = { action: COMPOSER_SEND_ACTION, source: 'user', key: KEY } as const
+
+/** A default carrying a clause, as the composer's send default does. */
+const WITH_WHEN: Keybinding = { strokes: [{ key: 'Enter', modifiers: [] }], when: 'composerActive' }
+
 async function bench() {
   const ctx = new Context()
   await ctx.plugin(SlotRegistry).await()
@@ -80,19 +86,52 @@ describe('ui-keybindings apply', () => {
 
   it('persists a binding through setBinding', async () => {
     const { face, set } = await mount()
-    face.setBinding(ovr([{ key: 'k', modifiers: ['ctrl'] }], 'agentBusy'))
+    face.setBinding(REF, BASE, { strokes: [{ key: 'k', modifiers: ['ctrl'] }], when: 'agentBusy' })
     expect(set).toHaveBeenCalledWith('bindings', [ovr([{ key: 'k', modifiers: ['ctrl'] }], 'agentBusy')])
   })
 
   it('shows an edit only once it is stored', async () => {
     const { face, publish } = await mount()
-    const edited = ovr([{ key: 'k', modifiers: ['ctrl'] }])
+    const strokes: KeyStroke[] = [{ key: 'k', modifiers: ['ctrl'] }]
+    const edited = ovr(strokes)
 
-    face.setBinding(edited)
+    face.setBinding(REF, BASE, { strokes })
     expect(face.hooks.bindings.getSnapshot()).toEqual(DEFAULT_KEYBINDING_ENTRIES)
 
     publish({ bindings: [edited] })
     expect(face.hooks.bindings.getSnapshot()).toEqual([edited])
+  })
+
+  it('stores only the field the user changed', async () => {
+    const { face, set } = await mount()
+
+    face.setBinding(REF, WITH_WHEN, { strokes: [{ key: 'Enter', modifiers: ['ctrl'] }] })
+
+    // Recording a stroke must not freeze the clause the default carries, or a
+    // later change to that clause would never reach the merged binding.
+    expect(set).toHaveBeenCalledWith('bindings', [{
+      action: COMPOSER_SEND_ACTION,
+      source: 'user',
+      key: KEY,
+      base: WITH_WHEN,
+      strokes: [{ key: 'Enter', modifiers: ['ctrl'] }],
+    }])
+  })
+
+  it('accumulates a second edit onto the stored override', async () => {
+    const { face, set, publish } = await mount()
+    publish({ bindings: [{ ...REF, base: WITH_WHEN, strokes: [{ key: 'Enter', modifiers: ['ctrl'] }] }] })
+
+    face.setBinding(REF, WITH_WHEN, { when: '' })
+
+    expect(set).toHaveBeenCalledWith('bindings', [{
+      action: COMPOSER_SEND_ACTION,
+      source: 'user',
+      key: KEY,
+      base: WITH_WHEN,
+      strokes: [{ key: 'Enter', modifiers: ['ctrl'] }],
+      when: '',
+    }])
   })
 
   it('adopts a durable binding change pushed from the settings scope', async () => {
@@ -104,8 +143,31 @@ describe('ui-keybindings apply', () => {
   it('does not persist an unchanged binding', async () => {
     const { face, set, publish } = await mount()
     publish({ bindings: [ovr(ENTER.strokes)] })
-    face.setBinding(ovr(ENTER.strokes))
+    face.setBinding(REF, BASE, { strokes: [{ key: 'Enter', modifiers: [] }] })
     expect(set).not.toHaveBeenCalled()
+  })
+
+  it('writes a field the stored override does not carry yet', async () => {
+    const { face, set, publish } = await mount()
+    publish({ bindings: [{ ...REF, base: WITH_WHEN, when: 'agentBusy' }] })
+
+    face.setBinding(REF, WITH_WHEN, { strokes: [{ key: 'Enter', modifiers: ['ctrl'] }] })
+
+    expect(set).toHaveBeenCalledWith('bindings', [
+      { ...REF, base: WITH_WHEN, when: 'agentBusy', strokes: [{ key: 'Enter', modifiers: ['ctrl'] }] },
+    ])
+  })
+
+  it('does not persist a prio or clause the override already carries', async () => {
+    const { face, set, publish } = await mount()
+    publish({ bindings: [{ ...REF, base: WITH_WHEN, when: 'agentBusy', prio: 2 }] })
+
+    face.setBinding(REF, WITH_WHEN, { prio: 2 })
+    face.setBinding(REF, WITH_WHEN, { when: 'agentBusy' })
+    expect(set).not.toHaveBeenCalled()
+
+    face.setBinding(REF, WITH_WHEN, { prio: 0 })
+    expect(set).toHaveBeenCalledWith('bindings', [{ ...REF, base: WITH_WHEN, when: 'agentBusy', prio: 0 }])
   })
 
   it('refuses a write with no stored list to derive from', async () => {
@@ -113,7 +175,7 @@ describe('ui-keybindings apply', () => {
     const error = vi.spyOn(ctx.logger, 'error').mockImplementation(() => {})
     publish(undefined)
 
-    face.setBinding(ovr([{ key: 'k', modifiers: ['ctrl'] }]))
+    face.setBinding(REF, BASE, { strokes: [{ key: 'k', modifiers: ['ctrl'] }] })
 
     // Writing the whole list off an unread one would drop every override it never saw.
     expect(set).not.toHaveBeenCalled()
@@ -126,7 +188,7 @@ describe('ui-keybindings apply', () => {
       ovr([{ key: 'Enter', modifiers: [] }]),
       ovr([{ key: 'p', modifiers: ['ctrl'] }], undefined, PREVIEW_ACTION),
     ] })
-    face.setBinding(ovr([{ key: 'k', modifiers: ['ctrl'] }]))
+    face.setBinding(REF, BASE, { strokes: [{ key: 'k', modifiers: ['ctrl'] }] })
     expect(set).toHaveBeenCalledWith('bindings', [
       ovr([{ key: 'k', modifiers: ['ctrl'] }]),
       ovr([{ key: 'p', modifiers: ['ctrl'] }], undefined, PREVIEW_ACTION),

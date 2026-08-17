@@ -7,7 +7,10 @@ import {
 import type {} from '@deepseek-ai/dsh-client-ui-settings/client'
 // Type-only: pulls the locale plugin's Context merge (ctx.locale).
 import type {} from '@deepseek-ai/dsh-client-locale/client'
-import { type KeybindingOverride } from '../keybinding.ts'
+import {
+  sameStrokes,
+  type Keybinding, type KeybindingEdit, type KeybindingOverride, type KeybindingOverrideRef,
+} from '../keybinding.ts'
 import {
   DEFAULT_KEYBINDING_ENTRIES, KEYBINDINGS_SETTINGS_NAMESPACE, type KeybindingsSettings,
 } from '../keybinding-settings.ts'
@@ -23,7 +26,16 @@ export const inject = ['slots', 'settingsScope', 'locale']
 /** The durable keybindings list bound to the settings scope, plus a write-back. */
 interface BindingsScope {
   value: SnapshotStore<readonly KeybindingOverride[]>
-  set: (override: KeybindingOverride) => void
+  set: (ref: KeybindingOverrideRef, base: Keybinding, edit: KeybindingEdit) => void
+}
+
+/** Whether an edit would leave the override's own fields as they already stand. */
+function alreadyStored(override: KeybindingOverride, edit: KeybindingEdit): boolean {
+  if (edit.when !== undefined && edit.when !== override.when) return false
+  if (edit.prio !== undefined && edit.prio !== override.prio) return false
+
+  return edit.strokes === undefined
+    || (override.strokes !== undefined && sameStrokes(edit.strokes, override.strokes))
 }
 
 /**
@@ -46,20 +58,22 @@ function bindBindings(host: SettingsScope<KeybindingsSettings>, ctx: Context): B
   host.subscribe(adopt)
   adopt()
 
-  const set = (override: KeybindingOverride) => {
+  const set = (ref: KeybindingOverrideRef, base: Keybinding, edit: KeybindingEdit) => {
     const previous = host.getSnapshot().value?.bindings
     if (previous === undefined) {
       ctx.logger.error('ui-keybindings: the stored keybindings are unavailable; the change was not saved')
       return
     }
 
-    const existing = previous.findIndex(current =>
-      current.action === override.action && current.key === override.key && current.source === override.source)
-    if (existing !== -1 && shallowEqual(previous[existing], override)) return
+    const at = previous.findIndex(current =>
+      current.action === ref.action && current.key === ref.key && current.source === ref.source)
+    const stored = previous[at]
+    if (stored !== undefined && alreadyStored(stored, edit)) return
 
-    const bindings = existing === -1
+    const override: KeybindingOverride = { ...(stored ?? { ...ref, base }), ...edit }
+    const bindings = stored === undefined
       ? [...previous, override]
-      : previous.map((current, index) => index === existing ? override : current)
+      : previous.map((current, index) => index === at ? override : current)
     void host.set('bindings', bindings)
   }
   return { value, set }

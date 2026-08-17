@@ -3,9 +3,9 @@ import {
   KEYBINDING_MODIFIER_LABELS, KEYBINDING_MODIFIERS,
   KeybindingOverrideSchema, KeyStrokeSchema, isRecordableKey, keybindingKeyLabel, keybindingKey,
   keybindingLabels, keybindingOfEntry, modifiersOf, normalizeEventKey,
-  strokeFromEvent, strokeLabels, strokeMatches,
+  sameStrokes, strokeFromEvent, strokeLabels, strokeMatches,
 } from '../src/keybinding.ts'
-import type { KeyGesture } from '../src/keybinding.ts'
+import type { KeyGesture, KeyStroke } from '../src/keybinding.ts'
 import { COMPOSER_SEND_ACTION } from '../src/ui-action.ts'
 
 function gesture(
@@ -140,5 +140,24 @@ describe('keybindingOfEntry', () => {
     })).toEqual({ strokes: [{ key: 'a', modifiers: ['ctrl'] }], when: 'agentBusy' })
     expect(keybindingOfEntry({ strokes: [{ key: 'Enter', modifiers: [] }], action: COMPOSER_SEND_ACTION, source: 'user' }))
       .toEqual({ strokes: [{ key: 'Enter', modifiers: [] }] })
+  })
+})
+
+describe('sameStrokes', () => {
+  const CTRL_K: KeyStroke[] = [{ key: 'k', modifiers: ['ctrl'] }]
+
+  it('holds for the same gesture whatever the modifier order', () => {
+    expect(sameStrokes(CTRL_K, [{ key: 'k', modifiers: ['ctrl'] }])).toBe(true)
+    expect(sameStrokes(
+      [{ key: 'z', modifiers: ['ctrl', 'shift'] }],
+      [{ key: 'z', modifiers: ['shift', 'ctrl'] }],
+    )).toBe(true)
+  })
+
+  it('fails on a different length, key, or modifier set', () => {
+    expect(sameStrokes(CTRL_K, [])).toBe(false)
+    expect(sameStrokes(CTRL_K, [{ key: 'j', modifiers: ['ctrl'] }])).toBe(false)
+    expect(sameStrokes(CTRL_K, [{ key: 'k', modifiers: [] }])).toBe(false)
+    expect(sameStrokes(CTRL_K, [{ key: 'k', modifiers: ['alt'] }])).toBe(false)
   })
 })

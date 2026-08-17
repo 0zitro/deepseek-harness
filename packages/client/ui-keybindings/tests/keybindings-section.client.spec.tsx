@@ -8,7 +8,10 @@ import { KeybindingsSection } from '../src/client/KeybindingsSection.tsx'
 import type { KeybindingsSectionProps } from '../src/client/KeybindingsSection.tsx'
 import type { UiActionDefinition } from '../src/client/action-registry.ts'
 import { en } from '../src/client/locales.ts'
-import { keybindingKey, type Keybinding, type KeybindingOverride, type KeyStroke } from '../src/keybinding.ts'
+import {
+  keybindingKey,
+  type Keybinding, type KeybindingEdit, type KeybindingOverride, type KeybindingOverrideRef,
+} from '../src/keybinding.ts'
 import { COMPOSER_SEND_ACTION, type UiActionId } from '../src/ui-action.ts'
 
 afterEach(cleanup)
@@ -19,8 +22,7 @@ const PREVIEW_ACTION = 'composer.preview' as UiActionId
 const ENTER: Keybinding = { strokes: [{ key: 'Enter', modifiers: [] }] }
 const KEY = keybindingKey('send')
 const BASE: Keybinding = { strokes: [{ key: 'Enter', modifiers: [] }] }
-const ovr = (strokes: KeyStroke[], when?: string): KeybindingOverride =>
-  ({ action: COMPOSER_SEND_ACTION, source: 'user', key: KEY, base: BASE, strokes, ...(when === undefined ? {} : { when }) })
+const REF = { action: COMPOSER_SEND_ACTION, source: 'user', key: KEY } as const
 
 function emptySessions() {
   return bindSnapshotSelector(createSnapshotStore<SessionListState>({
@@ -40,10 +42,13 @@ function mount(actions: readonly UiActionDefinition[] = [
 ]) {
   const actionsStore = createSnapshotStore<readonly UiActionDefinition[]>(actions)
   const bindingsStore = createSnapshotStore<readonly KeybindingOverride[]>([])
-  const setBinding = vi.fn((override: KeybindingOverride) => {
-    const keep = (existing: KeybindingOverride) =>
-      existing.action !== override.action || existing.key !== override.key || existing.source !== override.source
-    bindingsStore.set([...bindingsStore.getSnapshot().filter(keep), override])
+  // Mirrors the bound scope: an edit merges into the stored override.
+  const setBinding = vi.fn((ref: KeybindingOverrideRef, base: Keybinding, edit: KeybindingEdit) => {
+    const addresses = (existing: KeybindingOverride) =>
+      existing.action === ref.action && existing.key === ref.key && existing.source === ref.source
+    const stored = bindingsStore.getSnapshot().find(addresses)
+    const override: KeybindingOverride = { ...(stored ?? { ...ref, base }), ...edit }
+    bindingsStore.set([...bindingsStore.getSnapshot().filter(existing => !addresses(existing)), override])
   })
   const props: KeybindingsSectionProps = {
     close: () => {},
@@ -69,7 +74,7 @@ describe('KeybindingsSection', () => {
   it('persists a when clause through the setter', () => {
     const { setBinding } = mount()
     fireEvent.change(screen.getByPlaceholderText('e.g. composerFocused && !agentBusy'), { target: { value: 'agentBusy' } })
-    expect(setBinding).toHaveBeenCalledWith(ovr(ENTER.strokes, 'agentBusy'))
+    expect(setBinding).toHaveBeenCalledWith(REF, BASE, { when: 'agentBusy' })
   })
 
   it('shows the description and an empty chord when an action has no default', () => {
@@ -98,15 +103,16 @@ describe('KeybindingsSection', () => {
     fireEvent.click(recorder)
     fireEvent.keyDown(recorder, { key: 'k', ctrlKey: true, metaKey: false, altKey: false, shiftKey: false })
     fireEvent.click(screen.getByRole('button', { name: 'Done' }))
-    expect(setBinding).toHaveBeenCalledWith(ovr([{ key: 'k', modifiers: ['ctrl'] }]))
+    expect(setBinding).toHaveBeenCalledWith(REF, BASE, { strokes: [{ key: 'k', modifiers: ['ctrl'] }] })
   })
 
-  it('clears the when clause back to undefined', () => {
+  it('clears the when clause to an empty predicate', () => {
     const { setBinding } = mount()
     const input = screen.getByPlaceholderText('e.g. composerFocused && !agentBusy')
     fireEvent.change(input, { target: { value: 'agentBusy' } })
     fireEvent.change(input, { target: { value: '' } })
-    expect(setBinding).toHaveBeenLastCalledWith(ovr(ENTER.strokes))
+    // An empty clause states no predicate, which is how a default's clause is cleared.
+    expect(setBinding).toHaveBeenLastCalledWith(REF, BASE, { when: '' })
   })
 
   it('leaves the error state clear on an empty when clause', () => {
@@ -116,7 +122,7 @@ describe('KeybindingsSection', () => {
     expect(input.getAttribute('aria-invalid')).toBeNull()
   })
 
-  it('preserves the when clause while recording a chord', () => {
+  it('records a chord without restating the clause it did not touch', () => {
     const { setBinding } = mount()
     const input = screen.getByPlaceholderText('e.g. composerFocused && !agentBusy')
     fireEvent.change(input, { target: { value: 'agentBusy' } })
@@ -124,6 +130,8 @@ describe('KeybindingsSection', () => {
     fireEvent.click(recorder)
     fireEvent.keyDown(recorder, { key: 'k', ctrlKey: true, metaKey: false, altKey: false, shiftKey: false })
     fireEvent.click(screen.getByRole('button', { name: 'Done' }))
-    expect(setBinding).toHaveBeenLastCalledWith(ovr([{ key: 'k', modifiers: ['ctrl'] }], 'agentBusy'))
+    expect(setBinding).toHaveBeenLastCalledWith(REF, BASE, { strokes: [{ key: 'k', modifiers: ['ctrl'] }] })
+    // The clause set a moment ago survives in the stored override, not in this edit.
+    expect(screen.getByDisplayValue('agentBusy')).toBeDefined()
   })
 })

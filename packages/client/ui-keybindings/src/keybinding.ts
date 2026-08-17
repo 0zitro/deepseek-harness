@@ -92,6 +92,29 @@ export interface KeybindingOverride {
   prio?: number
 }
 
+/** Identifies the override an edit addresses, independently of what it carries. */
+export type KeybindingOverrideRef = Pick<KeybindingOverride, 'action' | 'source' | 'key'>
+
+/**
+ * One edit of an override: the fields the user just changed, and nothing else.
+ * A field absent here stays absent from the override and keeps inheriting from
+ * the base, so a later change to the default still reaches the merged binding.
+ */
+export type KeybindingEdit = Partial<Pick<KeybindingOverride, 'strokes' | 'when' | 'prio'>>
+
+/** Whether two stroke sequences are the same gesture, modifier order aside. */
+export function sameStrokes(left: readonly KeyStroke[], right: readonly KeyStroke[]): boolean {
+  if (left.length !== right.length) return false
+
+  return left.every((stroke, index) => {
+    const other = right[index]
+    return other !== undefined
+      && stroke.key === other.key
+      && stroke.modifiers.length === other.modifiers.length
+      && stroke.modifiers.every(modifier => other.modifiers.includes(modifier))
+  })
+}
+
 /** The gesture (strokes and when) of an entry, without its action. */
 export function keybindingOfEntry(entry: KeybindingEntry): Keybinding {
   return { strokes: entry.strokes, ...(entry.when === undefined ? {} : { when: entry.when }) }
