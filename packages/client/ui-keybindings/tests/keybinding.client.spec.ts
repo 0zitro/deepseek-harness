@@ -117,11 +117,11 @@ describe('constants and schema', () => {
     expect(KeyStrokeSchema({ key: 'a', modifiers: ['ctrl'] })).toEqual({ key: 'a', modifiers: ['ctrl'] })
     expect(KeybindingEntrySchema({
       strokes: [{ key: 'a', modifiers: ['ctrl'] }],
-      action: COMPOSER_SEND_ACTION,
+      action: COMPOSER_SEND_ACTION, source: 'user',
       when: 'agentBusy',
     })).toEqual({
       strokes: [{ key: 'a', modifiers: ['ctrl'] }],
-      action: COMPOSER_SEND_ACTION,
+      action: COMPOSER_SEND_ACTION, source: 'user',
       when: 'agentBusy',
     })
   })
@@ -131,10 +131,10 @@ describe('keybindingOfEntry', () => {
   it('projects an entry to its gesture, dropping the action', () => {
     expect(keybindingOfEntry({
       strokes: [{ key: 'a', modifiers: ['ctrl'] }],
-      action: COMPOSER_SEND_ACTION,
+      action: COMPOSER_SEND_ACTION, source: 'user',
       when: 'agentBusy',
     })).toEqual({ strokes: [{ key: 'a', modifiers: ['ctrl'] }], when: 'agentBusy' })
-    expect(keybindingOfEntry({ strokes: [{ key: 'Enter', modifiers: [] }], action: COMPOSER_SEND_ACTION }))
+    expect(keybindingOfEntry({ strokes: [{ key: 'Enter', modifiers: [] }], action: COMPOSER_SEND_ACTION, source: 'user' }))
       .toEqual({ strokes: [{ key: 'Enter', modifiers: [] }] })
   })
 })

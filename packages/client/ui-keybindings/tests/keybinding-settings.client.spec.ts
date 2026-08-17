@@ -17,13 +17,13 @@ describe('keybinding settings', () => {
     expect(KeybindingsSettingsSchema({
       bindings: [{
         strokes: [{ key: 'k', modifiers: ['ctrl'] }, { key: 's', modifiers: ['ctrl'] }],
-        action: COMPOSER_SEND_ACTION,
+        action: COMPOSER_SEND_ACTION, source: 'user',
         when: 'agentBusy',
       }],
     })).toEqual({
       bindings: [{
         strokes: [{ key: 'k', modifiers: ['ctrl'] }, { key: 's', modifiers: ['ctrl'] }],
-        action: COMPOSER_SEND_ACTION,
+        action: COMPOSER_SEND_ACTION, source: 'user',
         when: 'agentBusy',
       }],
     })

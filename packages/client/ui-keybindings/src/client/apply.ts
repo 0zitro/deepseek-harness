@@ -49,6 +49,7 @@ function bindBindings(host: SettingsScope<KeybindingsSettings>): BindingsScope {
     const entry: KeybindingEntry = {
       strokes: next.strokes,
       action,
+      source: 'user',
       ...(next.when === undefined ? {} : { when: next.when }),
     }
     const previous = host.getSnapshot().value?.bindings ?? DEFAULT_KEYBINDING_ENTRIES

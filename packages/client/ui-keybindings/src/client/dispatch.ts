@@ -1,7 +1,7 @@
 /** Keystroke dispatch: match keydowns against the persisted entries and run the matched action. */
 import type { SnapshotStore } from '@deepseek-ai/dsh-client-runtime/client'
 import { ChordMatcher } from '../chord.ts'
-import { isRecordableKey, type KeybindingEntry } from '../keybinding.ts'
+import { isRecordableKey, type KeybindingEntry, type KeybindingSource } from '../keybinding.ts'
 import { evaluateWhen, parseWhenClause, type WhenContext } from '../when-clause.ts'
 import type { UiActionDefinition } from './action-registry.ts'
 import type { ReadonlySnapshot } from './when-context.ts'
@@ -40,7 +40,7 @@ export function dispatchKeydown(
   if (matched !== null) runMatched(matched, actions)
 }
 
-/** The effective entries: every persisted override, else every default binding. */
+/** The effective entries: every persisted override, else every default binding (system source). */
 export function effectiveEntries(
   actions: readonly UiActionDefinition[],
   bindings: readonly KeybindingEntry[],
@@ -52,37 +52,26 @@ export function effectiveEntries(
       entries.push(...overrides)
     } else {
       for (const keybinding of action.defaultKeybindings ?? []) {
-        entries.push({ ...keybinding, action: action.id })
+        entries.push({ ...keybinding, action: action.id, source: 'system' })
       }
     }
   }
   return entries
 }
 
-/** Assign a unique collision-ordering prio (0 = highest) and sort by it. */
-export function assignPrios(entries: readonly KeybindingEntry[]): readonly KeybindingEntry[] {
-  const claimed = new Set<number>()
-  const targets = new Map<KeybindingEntry, number>()
-  for (const entry of entries) {
-    const override = entry.prio
-    if (override !== undefined && Number.isInteger(override) && override >= 0 && !claimed.has(override)) {
-      targets.set(entry, override)
-      claimed.add(override)
-    }
-  }
-  const assigned = entries.map((entry, index) => {
-    const target = targets.get(entry)
-    let prio: number
-    if (target !== undefined) {
-      prio = target
-    } else {
-      prio = index
-      while (claimed.has(prio)) prio += 1
-      claimed.add(prio)
-    }
-    return { ...entry, prio }
-  })
-  return assigned.sort((a, b) => a.prio - b.prio)
+/** Cross-source dispatch rank: the user outranks plugins, which outrank the shipped defaults. */
+export function sourceRank(source: KeybindingSource): number {
+  if (source === 'user') return 0
+  if (source === 'system') return 2
+  return 1
+}
+
+/** Seed an absent prio by registration order and sort by source-rank → prio → registration. */
+export function assignOrder(entries: readonly KeybindingEntry[]): readonly KeybindingEntry[] {
+  return entries
+    .map((entry, index) => ({ entry, rank: sourceRank(entry.source), prio: entry.prio ?? index }))
+    .sort((a, b) => a.rank - b.rank || a.prio - b.prio)
+    .map(({ entry, prio }) => ({ ...entry, prio }))
 }
 
 /** Listen for window keydowns and dispatch them against the effective bindings. */
@@ -92,7 +81,7 @@ export function createKeybindingDispatcher(
   context: ReadonlySnapshot<WhenContext>,
 ): () => void {
   const active = (entry: KeybindingEntry) => resolveWhen(entry.when, context.getSnapshot())
-  const entries = () => assignPrios(effectiveEntries(actions.getSnapshot(), bindings.getSnapshot()))
+  const entries = () => assignOrder(effectiveEntries(actions.getSnapshot(), bindings.getSnapshot()))
   let matcher = new ChordMatcher<KeybindingEntry>(entries(), active)
   const rebuild = () => {
     matcher = new ChordMatcher<KeybindingEntry>(entries(), active)

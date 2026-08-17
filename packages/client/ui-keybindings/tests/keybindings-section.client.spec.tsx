@@ -40,6 +40,7 @@ function mount(actions: readonly UiActionDefinition[] = [
     const entry: KeybindingEntry = {
       strokes: next.strokes,
       action,
+      source: 'user',
       ...(next.when === undefined ? {} : { when: next.when }),
     }
     bindingsStore.set([
