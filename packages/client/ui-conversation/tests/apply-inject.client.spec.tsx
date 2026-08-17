@@ -61,7 +61,8 @@ async function bench() {
   runtime.provide('layout', layoutFake)
   const locale = new LocaleRuntime(runtime.ctx)
   runtime.provide('locale', locale)
-  runtime.provide('uiWhenContext', { set: () => () => {} })
+  const whenKeys = new Map<string, boolean>()
+  runtime.provide('uiWhenContext', { set: (key: string, value: boolean) => { whenKeys.set(key, value); return () => {} } })
   runtime.slots.installLocale(locale)
 
   // The AppFrame role: the conversation-package slots must be declared by a
@@ -125,11 +126,19 @@ async function bench() {
   return {
     runtime, feature, slots: runtime.slots, entryOf,
     conversationApi, conversationHeaderApi, residentApi, composerApi, chatViewApi, inputApi,
-    sessionFake, layoutFake,
+    sessionFake, layoutFake, whenKeys,
   }
 }
 
 describe('conversation slot inject API', () => {
+  it('publishes the composer context keys from the input triggers', async () => {
+    const b = await bench()
+    // The fixture session carries no input-trigger controller, so both keys
+    // settle to false through the no-controller arm of the effect.
+    expect(b.whenKeys.get('commandMenuOpen')).toBe(false)
+    expect(b.whenKeys.get('tokenLeading')).toBe(false)
+  })
+
   it('assembles the thin API side-effect-free', async () => {
     const b = await bench()
     const { injected } = b.conversationApi(ROOT)

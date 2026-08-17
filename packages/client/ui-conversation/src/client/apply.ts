@@ -440,33 +440,47 @@ export function apply(ctx: Context): void {
   // The command menu keeps focus on the textarea, so its open state is a
   // context key (not a focus scope) — the dispatcher gates composer.send on it.
   ctx.effect(() => {
-    let clear: (() => void) | undefined
+    let clearOpen: (() => void) | undefined
+    let clearLeading: (() => void) | undefined
     let disposeLauncher: (() => void) | undefined
-    const setOpen = (open: boolean): void => {
-      clear?.()
-      clear = ctx.uiWhenContext.set('commandMenuOpen', open)
+    let disposeMenu: (() => void) | undefined
+    const publish = (open: boolean, leading: boolean): void => {
+      clearOpen?.()
+      clearOpen = ctx.uiWhenContext.set('commandMenuOpen', open)
+      clearLeading?.()
+      clearLeading = ctx.uiWhenContext.set('tokenLeading', leading)
     }
     const sync = (): void => {
       disposeLauncher?.()
+      disposeMenu?.()
       disposeLauncher = undefined
+      disposeMenu = undefined
       const id = sessions.list.getSnapshot().current
-      const launcher = id === undefined ? undefined : inputHub.inputTriggers(id)?.launcher
-      if (launcher === undefined) {
-        setOpen(false)
+      const controller = id === undefined ? undefined : inputHub.inputTriggers(id)
+      if (controller === undefined) {
+        publish(false, false)
         return
       }
-      const read = (): void => { setOpen(launcher.getSnapshot() === 'command') }
+      const read = (): void => {
+        publish(
+          controller.launcher.getSnapshot() === 'command',
+          controller.menu.getSnapshot().hit?.position === 'leading',
+        )
+      }
       read()
-      disposeLauncher = launcher.subscribe(read)
+      disposeLauncher = controller.launcher.subscribe(read)
+      disposeMenu = controller.menu.subscribe(read)
     }
     sync()
     const disposeSessions = sessions.list.subscribe(sync)
     return () => {
-      clear?.()
+      clearOpen?.()
+      clearLeading?.()
       disposeLauncher?.()
+      disposeMenu?.()
       disposeSessions()
     }
-  }, 'ui-conversation: commandMenuOpen')
+  }, 'ui-conversation: composer context keys')
 
   // The plan strip rides the input dock above the queue rows (same posture).
   ctx.plugin(todoDockEntry)

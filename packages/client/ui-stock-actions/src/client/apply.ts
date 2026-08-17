@@ -89,7 +89,7 @@ export function apply(ctx: Context): void {
     id: COMPOSER_CLAIM_TOKEN_ACTION,
     label: t('composerClaimToken.label'),
     description: t('composerClaimToken.description'),
-    defaultKeybinding: { strokes: [{ key: ' ', modifiers: [] }], when: 'composerActive' },
+    defaultKeybinding: { strokes: [{ key: ' ', modifiers: [] }], when: 'composerActive && tokenLeading' },
     run: () => { ctx.composer.space() },
   }), 'ui-stock-actions: composer claim token action')
 

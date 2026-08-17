@@ -277,8 +277,9 @@ export function InputBar({
     }
     // Shift+Enter is the native newline UNCONDITIONALLY; every other managed
     // chord — Enter submit, undo/redo, menu arbitration, popup dismiss, token
-    // claim — dispatches through the keybindings actions gated on composerActive
-    // and commandMenuOpen.
+    // claim — dispatches through the keybindings actions. The token claim
+    // (Space) is gated on tokenLeading so a literal space still reaches the
+    // native input outside a leading token.
     if (e.key === 'Enter' && e.shiftKey) return
   }
 
