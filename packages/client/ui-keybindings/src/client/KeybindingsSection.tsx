@@ -1,17 +1,16 @@
-/** The Keybindings settings page: one recorder row plus its when clause per effective binding. */
-import { useMemo, useState } from 'react'
+/** The Keybindings settings page: one table row per effective binding. */
+import { Fragment, useMemo, useState } from 'react'
 import type { InjectFace, PropsLocale, PropsRuntime } from '@deepseek-ai/dsh-client-ui-slots'
 import type { SnapshotStore } from '@deepseek-ai/dsh-client-runtime/client'
 import {
-  keybindingKey, keybindingOfDefault, keybindingOfEntry,
-  type Keybinding, type KeybindingEdit, type KeybindingKey, type KeybindingOverride,
-  type KeybindingOverrideRef, type KeyStroke,
+  type Keybinding, type KeybindingEdit, type KeybindingOverride, type KeybindingOverrideRef,
+  type KeybindingSource, type KeyStroke,
 } from '../keybinding.ts'
 import { parseWhenClause } from '../when-clause.ts'
 import type { UiActionDefinition } from './action-registry.ts'
 import { useDraft } from './draft.ts'
-import { defaultEntry, mergeOverride, topOverride } from './dispatch.ts'
 import { KeybindingRecorder } from './KeybindingRecorder.tsx'
+import { keybindingRows, type KeybindingRow } from './rows.ts'
 import css from './keybindings.module.css'
 
 /** Registration-side preference face. */
@@ -35,43 +34,47 @@ export type KeybindingsSectionProps =
 /** The section's localized translate face. */
 type SectionT = PropsLocale<'keybindings'>['t']
 
-/** One effective binding resolved to its merged gesture and the default it merges into. */
-interface ResolvedAction {
-  definition: UiActionDefinition
-  key: KeybindingKey
-  base: Keybinding
-  binding: Keybinding
+/** Consecutive rows of one command, which share a single label cell. */
+interface CommandRun {
+  label: string
+  description?: string | undefined
+  rows: readonly KeybindingRow[]
 }
 
-/** Resolve each default merged with its top override, keyed for the setter. */
-function resolveActions(
-  actions: readonly UiActionDefinition[],
-  overrides: readonly KeybindingOverride[],
-): readonly ResolvedAction[] {
-  const result: ResolvedAction[] = []
-  for (const definition of actions) {
-    const defaults = definition.defaultKeybindings ?? []
-    if (defaults.length === 0) {
-      // An unbound action still gets a row so the user can record a binding.
-      result.push({ definition, key: keybindingKey(definition.id), base: { strokes: [] }, binding: { strokes: [] } })
+/** Group the ordered rows into runs of one command. */
+function commandRuns(rows: readonly KeybindingRow[]): readonly CommandRun[] {
+  const runs: CommandRun[] = []
+
+  for (const row of rows) {
+    const open = runs[runs.length - 1]
+    if (open !== undefined && open.rows[0]?.action === row.action) {
+      runs[runs.length - 1] = { ...open, rows: [...open.rows, row] }
       continue
     }
-    for (const def of defaults) {
-      const override = topOverride(overrides, definition.id, def.key)
-      const entry = override === undefined ? defaultEntry(def, definition.id) : mergeOverride(def, definition.id, override)
-      result.push({
-        definition,
-        key: def.key,
-        base: keybindingOfDefault(def),
-        binding: keybindingOfEntry(entry),
-      })
-    }
+    runs.push({ label: row.label, description: row.description, rows: [row] })
   }
-  return result
+  return runs
+}
+
+/** Join the defined names; a css-module lookup is optional by type. */
+function classes(...names: readonly (string | false | undefined)[]): string {
+  return names.filter(name => typeof name === 'string').join(' ')
+}
+
+/** An overridden field reads as the user's; an inherited one recedes. */
+function fieldClass(overridden: boolean): string | undefined {
+  return overridden ? css.overridden : css.inherited
+}
+
+/** Where a binding comes from: the shipped default, the user, or a named plugin. */
+function sourceLabel(source: KeybindingSource, t: SectionT): string {
+  if (source === 'system') return t('source.system')
+  if (source === 'user') return t('source.user')
+  return source
 }
 
 /** Whether a clause is storable: blank states no predicate, anything else must parse. */
-function storable(clause: string): boolean {
+function storableClause(clause: string): boolean {
   if (clause === '') return true
   try {
     parseWhenClause(clause)
@@ -81,76 +84,121 @@ function storable(clause: string): boolean {
   }
 }
 
-/** The when-clause text input, validated and committed on blur. */
-function WhenInput({ value, onChange, t }: { value: string; onChange: (when: string) => void; t: SectionT }) {
+/** Whether a prio is storable: 0 is highest and only whole, non-negative values order. */
+function storablePrio(prio: string): boolean {
+  return /^\d+$/.test(prio.trim())
+}
+
+/** A blur-committed cell input, flagged while its draft is unfit to store. */
+function CellInput(
+  { value, storable, commit, className, ...rest }: {
+    value: string
+    storable: (draft: string) => boolean
+    commit: (draft: string) => void
+    className?: string | undefined
+    placeholder?: string
+    inputMode?: 'numeric'
+    'aria-label': string
+  },
+) {
   const [invalid, setInvalid] = useState(false)
   const [draft, setDraft] = useDraft(value)
 
   const onBlur = () => {
-    setInvalid(!storable(draft))
-    // A clause that does not parse is not stored: it would resolve false and
-    // silently disable the binding it belongs to.
-    if (storable(draft) && draft !== value) onChange(draft)
+    const fit = storable(draft)
+    setInvalid(!fit)
+    if (fit && draft !== value) commit(draft)
   }
 
   return (
-    <div className={css.whenRow}>
-      <div className={css.rowText}>
-        <div className={css.title}>{t('when.label')}</div>
-        <div className={css.desc}>{t('when.description')}</div>
-      </div>
-      <input
-        className={`${css.whenInput}${invalid ? ` ${css.whenInvalid}` : ''}`}
-        value={draft}
-        placeholder={t('when.placeholder')}
-        onChange={(event) => { setDraft(event.target.value) }}
-        onBlur={onBlur}
-        aria-invalid={invalid || undefined}
-        spellCheck={false}
-      />
-    </div>
+    <input
+      {...rest}
+      className={classes(css.cellInput, className, invalid && css.invalid)}
+      value={draft}
+      onChange={(event) => { setDraft(event.target.value) }}
+      onBlur={onBlur}
+      aria-invalid={invalid || undefined}
+      spellCheck={false}
+    />
   )
 }
 
-/** One effective binding's recorder and when clause, persisting through the injected setter. */
-function ActionRow(
-  { action, setBinding, t }: { action: ResolvedAction; setBinding: KeybindingsSectionInjected['setBinding']; t: SectionT },
+/** The four editable cells of one binding: gesture, clause, prio, source. */
+function BindingCells(
+  { row, setBinding, t }: { row: KeybindingRow; setBinding: KeybindingsSectionInjected['setBinding']; t: SectionT },
 ) {
-  const { definition, key, base, binding } = action
-  const ref = { action: definition.id, source: 'user', key } as const
+  const ref = { action: row.action, source: 'user', key: row.key } as const
 
   // Each control writes its own field only: a field the user did not touch
   // stays absent from the override and keeps following the default.
-  const setStrokes = (strokes: KeyStroke[]) => { setBinding(ref, base, { strokes }) }
-  const setWhen = (when: string) => { setBinding(ref, base, { when }) }
+  const setStrokes = (strokes: KeyStroke[]) => { setBinding(ref, row.base, { strokes }) }
 
   return (
     <>
-      <div className={css.row}>
-        <div className={css.rowText}>
-          <div className={css.title}>{definition.label}</div>
-          {definition.description !== undefined && <div className={css.desc}>{definition.description}</div>}
-        </div>
-        <KeybindingRecorder strokes={binding.strokes} onStrokesChange={setStrokes} label={definition.label} doneLabel={t('recorder.done')} />
+      <div className={classes(css.cell, fieldClass(row.overridden.strokes))}>
+        <KeybindingRecorder
+          strokes={row.entry.strokes}
+          onStrokesChange={setStrokes}
+          label={row.label}
+          doneLabel={t('recorder.done')}
+        />
       </div>
-      <WhenInput value={binding.when ?? ''} onChange={setWhen} t={t} />
+      <div className={css.cell}>
+        <CellInput
+          value={row.entry.when ?? ''}
+          storable={storableClause}
+          commit={(when) => { setBinding(ref, row.base, { when }) }}
+          className={fieldClass(row.overridden.when)}
+          placeholder={t('when.placeholder')}
+          aria-label={`${t('column.when')}: ${row.label}`}
+        />
+      </div>
+      <div className={css.cell}>
+        <CellInput
+          value={String(row.prio)}
+          storable={storablePrio}
+          commit={(prio) => { setBinding(ref, row.base, { prio: Number(prio) }) }}
+          className={classes(css.prioInput, fieldClass(row.overridden.prio))}
+          inputMode="numeric"
+          aria-label={`${t('column.prio')}: ${row.label}`}
+        />
+      </div>
+      <div className={classes(css.cell, css.source)}>{sourceLabel(row.entry.source, t)}</div>
     </>
   )
 }
 
 /**
- * The Keybindings page. One row per effective binding; the recorder owns the
- * strokes and the input owns the when clause, both persisting through the
- * injected setter.
+ * The Keybindings page: a borderless five-column table over the effective
+ * bindings. One command's rows are adjacent and share a single label cell
+ * spanning them, so the command reads once over the bindings it owns.
  */
 export function KeybindingsSection({ useActions, useBindings, setBinding, t }: KeybindingsSectionProps) {
   const actions = useActions(value => value)
   const bindings = useBindings(value => value)
-  const rows = useMemo(() => resolveActions(actions, bindings), [actions, bindings])
+  const runs = useMemo(() => commandRuns(keybindingRows(actions, bindings)), [actions, bindings])
 
+  // One grid over every row, because the command cell spans the rows it owns;
+  // a per-row element could not stretch across its siblings. Each control
+  // names its own column and command, so the columns need no header semantics.
   return (
-    <div className={css.section}>
-      {rows.map(action => <ActionRow key={`${action.definition.id}:${action.key}`} action={action} setBinding={setBinding} t={t} />)}
+    <div className={css.table}>
+      <div className={css.header}>{t('column.command')}</div>
+      <div className={css.header}>{t('column.stroke')}</div>
+      <div className={css.header}>{t('column.when')}</div>
+      <div className={css.header}>{t('column.prio')}</div>
+      <div className={css.header}>{t('column.source')}</div>
+      {runs.map(run => (
+        <Fragment key={run.rows[0]?.action}>
+          <div className={css.command} style={{ gridRow: `span ${run.rows.length}` }}>
+            <div>{run.label}</div>
+            {run.description !== undefined && <div className={css.description}>{run.description}</div>}
+          </div>
+          {run.rows.map(row => (
+            <BindingCells key={`${row.action}:${row.key}`} row={row} setBinding={setBinding} t={t} />
+          ))}
+        </Fragment>
+      ))}
     </div>
   )
 }

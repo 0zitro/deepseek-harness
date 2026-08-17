@@ -9,7 +9,7 @@ import type { KeybindingsSectionProps } from '../src/client/KeybindingsSection.t
 import type { UiActionDefinition } from '../src/client/action-registry.ts'
 import { en } from '../src/client/locales.ts'
 import {
-  keybindingKey,
+  keybindingKey, pluginId,
   type Keybinding, type KeybindingEdit, type KeybindingOverride, type KeybindingOverrideRef,
 } from '../src/keybinding.ts'
 import { COMPOSER_SEND_ACTION, type UiActionId } from '../src/ui-action.ts'
@@ -160,5 +160,59 @@ describe('KeybindingsSection', () => {
     expect(setBinding).toHaveBeenLastCalledWith(REF, BASE, { strokes: [{ key: 'k', modifiers: ['ctrl'] }] })
     // The clause committed a moment ago survives in the stored override, not in this edit.
     expect(screen.getByDisplayValue('agentBusy')).toBeDefined()
+  })
+
+  it('renders one command cell spanning the rows it owns', () => {
+    mount([{
+      id: COMPOSER_SEND_ACTION,
+      label: 'Send message',
+      defaultKeybindings: [
+        { key: KEY, strokes: ENTER.strokes },
+        { key: keybindingKey('send.alt'), strokes: [{ key: 'Enter', modifiers: ['ctrl'] }] },
+      ],
+      run: () => {},
+    }])
+
+    // Two bindings, one command: the label is written once, spanning both.
+    expect(screen.getAllByRole('button', { name: /Send message/ })).toHaveLength(2)
+    const command = screen.getByText('Send message')
+    expect(command.parentElement?.style.gridRow).toBe('span 2')
+  })
+
+  it('marks an overridden field apart from one still following its default', () => {
+    const { bindingsStore } = mount()
+    const clause = screen.getByPlaceholderText('e.g. composerFocused && !agentBusy')
+    const inherited = clause.className
+
+    act(() => { bindingsStore.set([{ ...REF, base: BASE, when: 'agentBusy' }]) })
+
+    expect(screen.getByDisplayValue('agentBusy').className).not.toBe(inherited)
+  })
+
+  it('persists a prio on blur and refuses one that cannot order', () => {
+    const { setBinding } = mount()
+    const prio = screen.getByLabelText(/Priority/)
+
+    fireEvent.change(prio, { target: { value: '-1' } })
+    fireEvent.blur(prio)
+    expect(setBinding).not.toHaveBeenCalled()
+    expect(prio.getAttribute('aria-invalid')).toBe('true')
+
+    fireEvent.change(prio, { target: { value: '3' } })
+    fireEvent.blur(prio)
+    expect(setBinding).toHaveBeenCalledWith(REF, BASE, { prio: 3 })
+  })
+
+  it('names the source, resolving a plugin to its own id', () => {
+    const { bindingsStore } = mount()
+    expect(screen.getByText('System')).toBeDefined()
+
+    act(() => { bindingsStore.set([{ ...REF, base: BASE, strokes: [{ key: 'k', modifiers: ['ctrl'] }] }]) })
+    expect(screen.getByText('User')).toBeDefined()
+
+    act(() => {
+      bindingsStore.set([{ ...REF, source: pluginId('dsh-demo'), base: BASE, strokes: [{ key: 'k', modifiers: ['ctrl'] }] }])
+    })
+    expect(screen.getByText('dsh-demo')).toBeDefined()
   })
 })

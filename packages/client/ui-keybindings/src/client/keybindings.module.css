@@ -5,52 +5,94 @@
  * themes both resolve.
  */
 
-.section {
-  display: flex;
-  flex-direction: column;
-}
-
-.row {
-  display: flex;
+/* One grid over every row: the command cell spans the rows it owns, which no
+   per-row element could do. Every column is minmax(0, …) so a long label or
+   clause wraps inside its cell instead of widening the row past the panel. */
+.table {
+  display: grid;
+  grid-template-columns:
+    minmax(0, 1.5fr)
+    minmax(0, 1.4fr)
+    minmax(0, 1.6fr)
+    minmax(56px, 0.4fr)
+    minmax(0, 0.7fr);
   align-items: center;
-  justify-content: space-between;
-  gap: 16px;
-  padding: 12px 0;
+  column-gap: 12px;
+  row-gap: 2px;
 }
 
-.whenRow {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 16px;
-  padding: 12px 0;
-  border-top: 1px solid var(--dsw-alias-border-l1);
+.header {
+  padding: 4px 0 8px;
+  color: var(--dsw-alias-label-secondary);
+  font-size: 12px;
+  line-height: 16px;
+  font-weight: 500;
+  white-space: nowrap;
 }
 
-.rowText {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  min-width: 0;
-}
-
-.title {
+/* The command reads once over the bindings it owns, centered on its run. */
+.command {
+  align-self: center;
+  padding: 6px 0;
+  overflow-wrap: anywhere;
   color: var(--dsw-alias-label-primary);
   font-size: 14px;
   line-height: 20px;
 }
 
-.desc {
+.description {
   color: var(--dsw-alias-label-secondary);
   font-size: 12px;
   line-height: 16px;
 }
 
-.recorderRow {
-  display: inline-flex;
+.cell {
+  display: flex;
   align-items: center;
-  gap: 8px;
-  max-width: 60%;
+  min-width: 0;
+  padding: 3px 0;
+}
+
+/* A field the user overrode is theirs; one still following its default recedes
+   toward the background without becoming unreadable. */
+.overridden {
+  font-style: italic;
+}
+
+.inherited {
+  opacity: 0.62;
+}
+
+.cellInput {
+  width: 100%;
+  min-width: 0;
+  padding: 3px 8px;
+  border-radius: 6px;
+  border: 1px solid var(--dsw-alias-border-l1);
+  background: var(--dsw-alias-bg-base);
+  color: var(--dsw-alias-label-primary);
+  font: inherit;
+  font-size: 13px;
+  line-height: 18px;
+}
+
+.cellInput:focus {
+  border-color: var(--dsw-alias-brand-primary);
+}
+
+.invalid {
+  border-color: var(--dsw-alias-state-error-primary);
+}
+
+.prioInput {
+  text-align: center;
+}
+
+.source {
+  overflow-wrap: anywhere;
+  color: var(--dsw-alias-label-secondary);
+  font-size: 13px;
+  line-height: 18px;
 }
 
 .recorder {
@@ -58,7 +100,9 @@
   align-items: center;
   flex-wrap: wrap;
   gap: 4px;
-  padding: 4px 8px;
+  width: 100%;
+  min-width: 0;
+  padding: 3px 8px;
   border-radius: 6px;
   border: 1px solid var(--dsw-alias-border-l1);
   background: var(--dsw-alias-bg-base);
@@ -72,16 +116,25 @@
   border-color: var(--dsw-alias-brand-primary);
 }
 
+.recorderRow {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  min-width: 0;
+}
+
 .done {
-  padding: 4px 10px;
+  flex: none;
+  padding: 3px 8px;
   border-radius: 6px;
   border: 1px solid var(--dsw-alias-brand-primary);
   background: var(--dsw-alias-bg-base);
   color: var(--dsw-alias-brand-primary);
   cursor: pointer;
   font: inherit;
-  font-size: 13px;
-  line-height: 18px;
+  font-size: 12px;
+  line-height: 16px;
 }
 
 .strokeGroup {
@@ -117,24 +170,4 @@
   border-color: var(--dsw-alias-brand-primary);
   background: color-mix(in srgb, var(--dsw-alias-brand-primary) 15%, var(--dsw-alias-bg-base));
   color: var(--dsw-alias-brand-primary);
-}
-
-.whenInput {
-  width: 50%;
-  padding: 4px 8px;
-  border-radius: 6px;
-  border: 1px solid var(--dsw-alias-border-l1);
-  background: var(--dsw-alias-bg-base);
-  color: var(--dsw-alias-label-primary);
-  font: inherit;
-  font-size: 13px;
-  line-height: 18px;
-}
-
-.whenInput:focus {
-  border-color: var(--dsw-alias-brand-primary);
-}
-
-.whenInvalid {
-  border-color: var(--dsw-alias-state-error-primary);
 }
