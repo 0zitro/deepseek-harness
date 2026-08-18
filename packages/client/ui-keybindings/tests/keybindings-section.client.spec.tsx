@@ -16,6 +16,22 @@ import { COMPOSER_SEND_ACTION, type UiActionId } from '../src/ui-action.ts'
 
 afterEach(cleanup)
 
+/** jsdom lays nothing out and captures no pointer, so a drag needs both supplied. */
+function stubDragging(table: Element | null | undefined) {
+  for (const cell of [...(table?.children ?? [])]) {
+    cell.getBoundingClientRect = () =>
+      ({ width: 100, height: 20, x: 0, y: 0, top: 0, left: 0, right: 100, bottom: 20, toJSON: () => ({}) })
+  }
+  for (const handle of [...(table?.querySelectorAll('[role="separator"]') ?? [])]) {
+    handle.setPointerCapture = () => {}
+  }
+}
+
+/** The fr weights the grid's tracks carry, in column order. */
+const weights = (table: Element | null | undefined) =>
+  [...((table as HTMLElement | null)?.style.gridTemplateColumns ?? '').matchAll(/([\d.]+)fr/g)]
+    .map(match => Number(match[1]))
+
 const PREVIEW_ACTION = 'composer.preview' as UiActionId
 
 /** The composer's Enter default, mirroring the stock-actions registration. */
@@ -270,5 +286,72 @@ describe('KeybindingsSection', () => {
 
     expect(screen.getByRole('button', { name: 'Source: ascending' }).textContent).toContain('1')
     expect(screen.getByRole('button', { name: 'When clause: ascending' }).textContent).toContain('2')
+  })
+
+  it('moves a boundary between two columns and leaves the rest', () => {
+    mount()
+    const handles = screen.getAllByRole('separator')
+    // One boundary per pair, so the last column has none.
+    expect(handles).toHaveLength(4)
+
+    const table = handles[0]?.closest('div')?.parentElement
+    stubDragging(table)
+
+    fireEvent.pointerDown(handles[0]!, { clientX: 0, pointerId: 1 })
+    fireEvent.pointerMove(handles[0]!, { clientX: 40, pointerId: 1 })
+
+    const tracks = weights(table)
+    expect(tracks).toHaveLength(5)
+    // The pair absorbs the drag: the first widens, the second gives way.
+    expect(tracks[0]).toBeGreaterThan(100)
+    expect(tracks[1]).toBeLessThan(100)
+    expect(tracks[2]).toBe(100)
+    // What one gained the other gave up, so their total is unchanged.
+    expect((tracks[0] ?? 0) + (tracks[1] ?? 0)).toBeCloseTo(200)
+  })
+
+  it('ignores a drag it cannot measure', () => {
+    mount()
+    const handle = screen.getAllByRole('separator')[0]!
+
+    fireEvent.pointerDown(handle, { clientX: 0, pointerId: 1 })
+    fireEvent.pointerMove(handle, { clientX: 40, pointerId: 1 })
+
+    // Nothing is laid out here, so there is no width to take a fraction of.
+    expect(handle.closest('div')?.parentElement?.getAttribute('style')).toBeNull()
+  })
+
+  it('lets go of the boundary when the pointer does', () => {
+    mount()
+    const handles = screen.getAllByRole('separator')
+    const table = handles[0]?.closest('div')?.parentElement
+    stubDragging(table)
+
+    fireEvent.pointerDown(handles[0]!, { clientX: 0, pointerId: 1 })
+    fireEvent.pointerMove(handles[0]!, { clientX: 40, pointerId: 1 })
+    const held = weights(table)
+
+    fireEvent.pointerUp(handles[0]!, { pointerId: 1 })
+    fireEvent.pointerMove(handles[0]!, { clientX: 120, pointerId: 1 })
+
+    expect(weights(table)).toEqual(held)
+  })
+
+  it('follows the writing direction when it is reversed', () => {
+    document.documentElement.dir = 'rtl'
+    try {
+      mount()
+      const handles = screen.getAllByRole('separator')
+      const table = handles[0]?.closest('div')?.parentElement
+      stubDragging(table)
+
+      fireEvent.pointerDown(handles[0]!, { clientX: 0, pointerId: 1 })
+      fireEvent.pointerMove(handles[0]!, { clientX: 40, pointerId: 1 })
+
+      // The same motion widens the other column, because the inline end moved.
+      expect(weights(table)[0]).toBeLessThan(100)
+    } finally {
+      document.documentElement.dir = ''
+    }
   })
 })
