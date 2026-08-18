@@ -1,5 +1,5 @@
 /** A binding's chord recorder: shows committed strokes as `<kbd>` chips and captures a new chord. */
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import type { KeybindingModifier, KeyStroke } from '../keybinding.ts'
 import {
   KEYBINDING_MODIFIER_LABELS, keybindingKeyLabel, modifiersOf, strokeFromEvent,
@@ -23,6 +23,8 @@ const MODIFIER_KEY_TO_NAME: Record<string, KeybindingModifier> = {
 const LOCK_KEYS = new Set(['CapsLock', 'NumLock', 'ScrollLock'])
 
 export interface KeybindingRecorderProps {
+  /** Whether this recorder starts recording, for a binding just added. */
+  armed?: boolean
   /** Current persisted strokes. */
   strokes: KeyStroke[]
   /** Persist a newly recorded chord (one or more strokes). */
@@ -74,11 +76,15 @@ function describe(strokes: readonly KeyStroke[], held: readonly KeybindingModifi
  * Escape or blur cancels, and plain Backspace removes the last stroke — so a
  * bare Enter is an ordinary stroke, not a commit gesture.
  */
-export function KeybindingRecorder({ strokes, onStrokesChange, label, doneLabel, clearLabel }: KeybindingRecorderProps) {
-  const [recording, setRecording] = useState(false)
+export function KeybindingRecorder(
+  { armed = false, strokes, onStrokesChange, label, doneLabel, clearLabel }: KeybindingRecorderProps,
+) {
+  const [recording, setRecording] = useState(armed)
   const [held, setHeld] = useState<KeybindingModifier[]>([])
   const [draft, setDraft] = useState<KeyStroke[]>([])
   const [hovered, setHovered] = useState(false)
+  const strokeStrip = useRef<HTMLSpanElement>(null)
+  const recorder = useRef<HTMLButtonElement>(null)
 
   const start = () => {
     setRecording(true)
@@ -153,6 +159,30 @@ export function KeybindingRecorder({ strokes, onStrokesChange, label, doneLabel,
     }
   }, [recording])
 
+  // A recorder that starts armed takes focus with it. Recording cancels on
+  // blur, and blur cannot arrive at something that was never focused: without
+  // this it would keep capturing the window after the user moved on.
+  // Focus follows arming, which happens once: `armed` names the recorder the
+  // user just asked for, and the row carrying it is new.
+  useEffect(() => {
+    if (armed) recorder.current?.focus()
+  }, [armed])
+
+  // A chord wider than its column records off the end of the strip unless the
+  // strip follows its own tail: chips append at the inline end, and the stroke
+  // that was just pressed is the one that has to be visible. Only while
+  // recording — a committed gesture reads from its start.
+  useEffect(() => {
+    const strip = strokeStrip.current
+    /* v8 ignore next -- the strip is mounted for as long as the recorder is */
+    if (strip === null || !recording) return
+
+    // Scroll offsets are physical: under RTL the scrollable range runs the
+    // other way, so the end of the content is the negative extreme.
+    const towardEnd = getComputedStyle(strip).direction === 'rtl' ? -1 : 1
+    strip.scrollLeft = strip.scrollWidth * towardEnd
+  }, [recording, draft, held])
+
   const described = recording ? describe(draft, held) : describe(strokes, [])
 
   return (
@@ -163,6 +193,7 @@ export function KeybindingRecorder({ strokes, onStrokesChange, label, doneLabel,
     >
       <button
         type="button"
+        ref={recorder}
         className={css.recorder}
         data-recording={recording || undefined}
         aria-label={`${label}: ${described}`}
@@ -172,7 +203,7 @@ export function KeybindingRecorder({ strokes, onStrokesChange, label, doneLabel,
         {/* A button is not a layout container: the reservation lives one level
             down, where a grid actually takes effect. */}
         <span className={css.recorderLayout} data-control={control || undefined}>
-          <span className={css.strokes}>
+          <span className={css.strokes} ref={strokeStrip}>
             {recording
               ? (
                 <>

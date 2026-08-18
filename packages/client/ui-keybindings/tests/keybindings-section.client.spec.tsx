@@ -203,6 +203,18 @@ describe('KeybindingsSection', () => {
     )
   })
 
+  it('arms the recorder of the binding it just added, and only that one', () => {
+    mount()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Add a keybinding: Send message' }))
+
+    // Two recorders now: the seat's own, and the one just added. Only the
+    // added one is recording, so the next keystroke lands where it was asked for.
+    const recorders = screen.getAllByRole('button', { name: /^Send message/ })
+    expect(recorders.map(node => node.dataset['recording'])).toEqual([undefined, 'true'])
+    expect(document.activeElement).toBe(recorders[1])
+  })
+
   it('offers one place to add per command, under the last binding it owns', () => {
     mount([
       { id: COMPOSER_SEND_ACTION, label: 'Send message', defaultKeybindings: [{ key: KEY, ...ENTER }], run: () => {} },

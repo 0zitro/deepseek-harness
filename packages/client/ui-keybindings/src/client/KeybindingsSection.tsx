@@ -133,6 +133,11 @@ function contributionKey(row: KeybindingRow): string {
   return `${row.action}:${row.key}:${row.superseded ? 'shipped' : 'bound'}`
 }
 
+/** The seat something addresses, as one string. */
+function seatKey({ action, key }: KeybindingOverrideRef): string {
+  return `${action}:${key}`
+}
+
 /** Join the defined names; a css-module lookup is optional by type. */
 function classes(...names: readonly (string | false | undefined)[]): string {
   return names.filter(name => typeof name === 'string').join(' ')
@@ -218,7 +223,12 @@ function CellInput(
 
 /** The four editable cells of one binding: gesture, clause, prio, source. */
 function BindingCells(
-  { row, setBinding, t }: { row: EffectiveRow; setBinding: KeybindingsSectionInjected['setBinding']; t: SectionT },
+  { row, armed, setBinding, t }: {
+    row: EffectiveRow
+    armed: boolean
+    setBinding: KeybindingsSectionInjected['setBinding']
+    t: SectionT
+  },
 ) {
   const ref = { action: row.action, key: row.key } as const
 
@@ -230,6 +240,7 @@ function BindingCells(
     <>
       <div className={classes(css.cell, fieldClass(row.overridden.strokes))} style={{ gridColumn: cellLine(1) }}>
         <KeybindingRecorder
+          armed={armed}
           strokes={row.entry.strokes}
           onStrokesChange={setStrokes}
           label={row.label}
@@ -580,10 +591,18 @@ export function KeybindingsSection(
     [actions, bindings, sorts],
   )
 
+  // The seat a binding was just added to, which is the one recorder that
+  // starts armed: an added binding is inert until a gesture is recorded, and
+  // asking for it is already the gesture that says one is coming.
+  const [added, setAdded] = useState<string | undefined>(undefined)
+
   // A binding is added by taking a seat of its own: it forks the base of the
   // binding it was added beside and states a gesture nothing can match, so it
   // is the user's from the start and inert until they record one.
-  const addBinding = (point: InsertPoint) => { setBinding(point.ref, point.base, { strokes: [] }) }
+  const addBinding = (point: InsertPoint) => {
+    setBinding(point.ref, point.base, { strokes: [] })
+    setAdded(seatKey(point.ref))
+  }
   // A sash spans the heading row and every binding under it.
   const rowCount = runs.reduce((total, run) => total + run.rows.length, 0)
 
@@ -622,7 +641,7 @@ export function KeybindingsSection(
                 ? <ShippedCells row={row} t={t} />
                 : (
                   <>
-                    <BindingCells row={row} setBinding={setBinding} t={t} />
+                    <BindingCells row={row} armed={added === seatKey(row)} setBinding={setBinding} t={t} />
                     {/* Only what the user holds is theirs to drop: a shipped
                         binding and a plugin's contribution are not. */}
                     {row.entry.source === 'user'
