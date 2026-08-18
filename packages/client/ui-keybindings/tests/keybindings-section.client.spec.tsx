@@ -75,6 +75,10 @@ function mount(actions: readonly UiActionDefinition[] = [
     const override: SourcedOverride = { ...(stored ?? { ...ref, base, source: 'user' }), ...edit }
     bindingsStore.set([...bindingsStore.getSnapshot().filter(existing => !addresses(existing)), override])
   })
+  const removeBinding = vi.fn((ref: KeybindingOverrideRef) => {
+    bindingsStore.set(bindingsStore.getSnapshot().filter(existing =>
+      existing.action !== ref.action || existing.key !== ref.key))
+  })
   const props: KeybindingsSectionProps = {
     close: () => {},
     useSessions: emptySessions(),
@@ -82,10 +86,11 @@ function mount(actions: readonly UiActionDefinition[] = [
     useActions: bindSnapshotSelector(actionsStore),
     useBindings: bindSnapshotSelector(bindingsStore),
     setBinding,
+    removeBinding,
     t: makeTranslate(en),
   }
   render(<KeybindingsSection {...props} />)
-  return { setBinding, bindingsStore }
+  return { setBinding, removeBinding, bindingsStore }
 }
 
 describe('KeybindingsSection', () => {

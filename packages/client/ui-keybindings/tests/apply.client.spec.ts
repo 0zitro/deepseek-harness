@@ -256,6 +256,28 @@ describe('ui-keybindings apply', () => {
     ])
   })
 
+  it('drops the user contribution a removal addresses and keeps the rest', async () => {
+    const { face, set, publish } = await mount()
+    const other = 'composer.other' as UiActionId
+    publish({ bindings: [
+      { ...REF, base: BASE, strokes: [{ key: 'k', modifiers: ['ctrl'] }] },
+      { action: other, key: KEY, base: BASE, when: 'agentBusy' },
+    ] })
+
+    face.removeBinding(REF)
+
+    expect(set).toHaveBeenCalledWith('bindings', [{ action: other, key: KEY, base: BASE, when: 'agentBusy' }])
+  })
+
+  it('writes nothing when a removal addresses a seat the document does not hold', async () => {
+    const { face, set, publish } = await mount()
+    publish({ bindings: [{ ...REF, base: BASE, when: 'agentBusy' }] })
+
+    face.removeBinding({ action: 'composer.absent' as UiActionId, key: KEY })
+
+    expect(set).not.toHaveBeenCalled()
+  })
+
   it('keeps an override that states nothing once its prio retires', async () => {
     const { ctx, face, set, publish } = await mount()
     const gone = 'composer.gone' as UiActionId
@@ -302,6 +324,18 @@ describe('ui-keybindings apply', () => {
     face.setBinding(REF, BASE, { strokes: [{ key: 'k', modifiers: ['ctrl'] }] })
 
     // Writing the whole list off an unread one would drop every override it never saw.
+    expect(set).not.toHaveBeenCalled()
+    expect(error).toHaveBeenCalledOnce()
+  })
+
+  it('refuses a removal with no stored list to derive from', async () => {
+    const { ctx, face, set, publish } = await mount()
+    const error = vi.spyOn(ctx.logger, 'error').mockImplementation(() => {})
+    publish(undefined)
+
+    face.removeBinding(REF)
+
+    // A list that cannot be read cannot say what removing one seat leaves.
     expect(set).not.toHaveBeenCalled()
     expect(error).toHaveBeenCalledOnce()
   })

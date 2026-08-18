@@ -33,6 +33,7 @@ const USER_SOURCE: KeybindingSource = 'user'
 interface BindingsScope {
   value: SnapshotStore<readonly SourcedOverride[]>
   set: (ref: KeybindingOverrideRef, base: Keybinding, edit: KeybindingEdit) => void
+  remove: (ref: KeybindingOverrideRef) => void
   reconcile: () => void
 }
 
@@ -87,12 +88,20 @@ function bindBindings(host: SettingsScope<KeybindingsSettings>, ctx: Context): B
   ctx.effect(() => host.subscribe(adopt), 'ui-keybindings: adopt the stored list')
   adopt()
 
-  const set = (ref: KeybindingOverrideRef, base: Keybinding, edit: KeybindingEdit) => {
+  // Every write derives the next list from the stored one, so a list that
+  // cannot be read is a write that cannot be made: replacing it would drop the
+  // overrides it never saw.
+  const readable = (): readonly KeybindingOverride[] | undefined => {
     const previous = host.getSnapshot().value?.bindings
     if (previous === undefined) {
       ctx.logger.error('ui-keybindings: the stored keybindings are unavailable; the change was not saved')
-      return
     }
+    return previous
+  }
+
+  const set = (ref: KeybindingOverrideRef, base: Keybinding, edit: KeybindingEdit) => {
+    const previous = readable()
+    if (previous === undefined) return
 
     const at = previous.findIndex(current => current.action === ref.action && current.key === ref.key)
     const stored = previous[at]
@@ -104,6 +113,22 @@ function bindBindings(host: SettingsScope<KeybindingsSettings>, ctx: Context): B
       : previous.map((current, index) => index === at ? override : current)
 
     void host.set('bindings', edit.prio === undefined ? edited : reordered(edited, ref, edit.prio))
+  }
+
+  /**
+   * Drop the user's contribution to a seat. What the seat ships is untouched,
+   * so a shipped binding returns to the page and a binding the user added
+   * leaves it altogether; a seat the document does not address is not an error
+   * to remove, it is a list that already reads the way the caller asked for.
+   */
+  const remove = (ref: KeybindingOverrideRef) => {
+    const previous = readable()
+    if (previous === undefined) return
+
+    const kept = previous.filter(current => current.action !== ref.action || current.key !== ref.key)
+    if (kept.length === previous.length) return
+
+    void host.set('bindings', kept)
   }
 
   /**
@@ -144,7 +169,7 @@ function bindBindings(host: SettingsScope<KeybindingsSettings>, ctx: Context): B
     void host.set('bindings', bindings)
   }
 
-  return { value, set, reconcile }
+  return { value, set, remove, reconcile }
 }
 
 /** Mounts the keybindings plugin.
@@ -194,6 +219,7 @@ export function apply(ctx: Context): void {
         bindings: bindings.value,
       },
       setBinding: bindings.set,
+      removeBinding: bindings.remove,
     }),
   }, KeybindingsSection))
 }
