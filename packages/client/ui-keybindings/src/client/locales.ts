@@ -16,6 +16,7 @@ export const zh = {
   'sort.descending': '降序',
   'recorder.done': '完成',
   'recorder.clear': '清除快捷键',
+  'binding.add': '添加快捷键',
   'source.system': '系统',
   'source.user': '用户',
 } satisfies Record<string, string>
@@ -35,6 +36,7 @@ export const en = {
   'sort.descending': 'descending',
   'recorder.done': 'Done',
   'recorder.clear': 'Clear the keybinding',
+  'binding.add': 'Add a keybinding',
   'source.system': 'System',
   'source.user': 'User',
 } satisfies Record<KeybindingsKey, string>

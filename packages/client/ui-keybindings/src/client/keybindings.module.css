@@ -31,6 +31,13 @@
   align-items: center;
   row-gap: 2px;
   overflow-x: auto;
+  /* The pane this sits in owns the vertical scroll; the table is as tall as
+     its bindings and never scrolls against them. Saying so is not redundant:
+     a scroll container on one axis scrolls on both unless told otherwise, so
+     anything hanging a pixel past the last row would raise a second bar. The
+     padding is where the band under the last binding lies. */
+  overflow-y: hidden;
+  padding-block-end: 8px;
   --dsh-sash-lane: 14px;
 }
 
@@ -182,6 +189,7 @@
 }
 
 .header:hover .ghost,
+.insert:hover .ghost,
 .recorderRow:hover .ghost {
   background: var(--dsw-alias-interactive-bg-hover);
 }
@@ -194,6 +202,66 @@
 .sortRank {
   font-size: 10px;
   line-height: 12px;
+}
+
+/* One binding's cells, on the table's own tracks from the second column on.
+   They are grouped because a grid row is as tall as the tallest thing in it —
+   the command's cell, wherever its description runs to another line — and the
+   place to add a binding has to sit under these boxes rather than under a row
+   that is taller than they are. The group draws nothing and catches nothing:
+   it spans the sash lanes, which stay the sashes' to take hold of. */
+.subRow {
+  display: grid;
+  grid-template-columns: subgrid;
+  align-items: center;
+  position: relative;
+  min-width: 0;
+  pointer-events: none;
+}
+
+.subRow > * {
+  pointer-events: auto;
+}
+
+/* Where a binding can be added: the space under one command's last box, which
+   no box occupies — the padding either side of the row gap. It hangs below the
+   cells rather than below the row, and takes no room of its own, so the table
+   stays as tall as its bindings. One band per command, never one per boundary:
+   a band whose command depended on which half of it the pointer was in read as
+   neither. */
+.insert {
+  position: absolute;
+  inset-inline: 0;
+  inset-block-start: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  height: 8px;
+}
+
+/* Drawn only under the pointer or the focus ring, and transparent rather than
+   hidden: hiding it would take it off the keyboard as well. Until then it
+   takes no pointer events either, so what it overhangs stays reachable. */
+.insert > * {
+  opacity: 0;
+  pointer-events: none;
+}
+
+.insert:hover > *,
+.insert:focus-within > * {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.insertRule {
+  flex: 1;
+  border-block-start: 1px dashed var(--dsw-alias-border-l1);
+}
+
+.insertPlus {
+  flex: none;
+  border: none;
 }
 
 /* The command reads once over the bindings it owns, centered on its run. */
