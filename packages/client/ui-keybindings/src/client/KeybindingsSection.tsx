@@ -277,6 +277,12 @@ function ShippedCells({ row, t }: { row: SupersededRow; t: SectionT }) {
   )
 }
 
+/** Whether a band draws what it would add. */
+function draw(band: HTMLElement, on: boolean): void {
+  if (on) band.dataset['drawn'] = 'true'
+  else delete band.dataset['drawn']
+}
+
 /** The control that adds a binding, drawn at the same weight as the others. */
 function Plus() {
   return (
@@ -303,27 +309,43 @@ function SubRow({ line, children }: { line: number; children: ReactNode }) {
 
 /**
  * The place a binding is added: a band of the space no box occupies, drawing
- * the line the new binding would take once the pointer is on it. Only the
- * control commits, never the band, so a click that lands beside it adds
- * nothing — an addition cannot yet be taken back, and the band lies where a
- * click meant for the box above or below it can miss.
+ * the line the new binding would take once the pointer is on it. The band is
+ * the control — pressing anywhere along the line adds the binding, rather than
+ * only on the mark in the middle of it.
  */
 function InsertControl(
   { point, onAdd, t }: { point: InsertPoint; onAdd: (point: InsertPoint) => void; t: SectionT },
 ) {
+  // The line follows the pointer across the band it is drawn in, so it reads
+  // as the place the binding would land rather than as a fixture of the row.
+  // The band is the only thing that knows where its own middle is, and that
+  // changes with every drag of a sash, so it is measured at the move.
+  const follow = (event: PointerEvent<HTMLButtonElement>) => {
+    const band = event.currentTarget
+    const bounds = band.getBoundingClientRect()
+    const reach = bounds.height / 2
+    const offset = event.clientY - bounds.top - reach
+
+    // Past the band the line holds where it was: a drawn band answers a wider
+    // space than it marks, so the pointer can leave the line without losing
+    // it, and what it stops doing there is following.
+    if (Math.abs(offset) <= reach) band.style.setProperty('--dsh-insert-y', `${offset}px`)
+    draw(band, true)
+  }
+
   return (
-    <div className={css.insert}>
+    <button
+      type="button"
+      className={css.insert}
+      aria-label={`${t('binding.add')}: ${point.label}`}
+      onClick={() => { onAdd(point) }}
+      onPointerMove={follow}
+      onPointerLeave={(event) => { draw(event.currentTarget, false) }}
+    >
       <span className={css.insertRule} />
-      <button
-        type="button"
-        className={classes(css.ghost, css.insertPlus)}
-        aria-label={`${t('binding.add')}: ${point.label}`}
-        onClick={() => { onAdd(point) }}
-      >
-        <Plus />
-      </button>
+      <span className={classes(css.ghost, css.insertPlus)}><Plus /></span>
       <span className={css.insertRule} />
-    </div>
+    </button>
   )
 }
 

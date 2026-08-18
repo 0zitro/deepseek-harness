@@ -29,7 +29,7 @@
     var(--dsh-sash-lane)
     minmax(min-content, 0.6fr);
   align-items: center;
-  row-gap: 2px;
+  row-gap: var(--dsh-row-gap);
   overflow-x: auto;
   /* The pane this sits in owns the vertical scroll; the table is as tall as
      its bindings and never scrolls against them. Saying so is not redundant:
@@ -39,6 +39,8 @@
   overflow-y: hidden;
   padding-block-end: 8px;
   --dsh-sash-lane: 14px;
+  --dsh-cell-pad: 3px;
+  --dsh-row-gap: 2px;
 }
 
 /* The heading cell: a column dragged under its heading clips it rather than
@@ -230,14 +232,38 @@
    a band whose command depended on which half of it the pointer was in read as
    neither. */
 .insert {
+  --dsh-insert-reach: 10px;
   position: absolute;
+  /* A sub-row is positioned, so the next one is a positioned sibling that
+     comes later and would take everything this band hangs down into — the
+     reach would work upwards, over its own cells, and not downwards. It is
+     lifted clear of them all instead. */
+  z-index: 1;
   inset-inline: 0;
-  inset-block-start: 100%;
+  /* The dead space itself, derived rather than guessed: the padding a cell
+     holds below its box, the row gap, and the padding the next cell holds
+     above its own. Nothing visible lies in it, whatever the rows are made of. */
+  inset-block-start: calc(100% - var(--dsh-cell-pad));
+  height: calc(2 * var(--dsh-cell-pad) + var(--dsh-row-gap));
   display: flex;
   align-items: center;
   justify-content: center;
   gap: 6px;
-  height: 8px;
+  padding: 0;
+  border: none;
+  background: none;
+  cursor: pointer;
+}
+
+/* Once drawn, the band answers a wider space than the line it marks: the
+   pointer may leave that line without losing it, and press it from anywhere in
+   the wider space. It reaches nothing while the band is cold, so the boxes
+   above and below keep every pixel until the pointer has asked for the band. */
+.insert[data-drawn]::before {
+  content: '';
+  position: absolute;
+  inset-inline: 0;
+  inset-block: calc(-1 * var(--dsh-insert-reach));
 }
 
 /* Drawn only under the pointer or the focus ring, and transparent rather than
@@ -248,20 +274,33 @@
   pointer-events: none;
 }
 
-.insert:hover > *,
-.insert:focus-within > * {
+
+/* Drawn while the pointer is anywhere the band reaches, which is wider than
+   the band once it is drawn and is the band alone until then. Nothing it draws
+   takes a pointer event of its own: the band is the control, so what it draws
+   only has to be seen. */
+.insert[data-drawn] > *,
+.insert:focus-visible > * {
   opacity: 1;
-  pointer-events: auto;
+}
+
+/* Drawn where the pointer is rather than where the band is: the line follows
+   it across the band, which is what makes it read as a place a binding would
+   land. It cannot leave the band, since the band is what tracks the pointer. */
+.insert > * {
+  transform: translateY(var(--dsh-insert-y, 0));
 }
 
 .insertRule {
   flex: 1;
-  border-block-start: 1px dashed var(--dsw-alias-border-l1);
+  border-block-start: 1px dashed var(--dsw-alias-border-l3);
 }
 
+/* The accent the send control and the caret take: the one blue in the app. */
 .insertPlus {
   flex: none;
   border: none;
+  color: var(--dsw-alias-state-business-primary);
 }
 
 /* The command reads once over the bindings it owns, centered on its run. */
@@ -284,7 +323,7 @@
   display: flex;
   align-items: center;
   min-width: 0;
-  padding: 3px 0;
+  padding: var(--dsh-cell-pad) 0;
 }
 
 /* A field the user overrode is theirs; one still following its default recedes
