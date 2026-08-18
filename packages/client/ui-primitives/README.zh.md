@@ -2,7 +2,7 @@
 
 [English](README.md) | 中文
 
-纯 React 原子组件（零 cordis）：StateDot、DisclosureRow、ic_ds_* 图标、Button/Pill/Menu/Modal/Input、Toast 短时横幅、OnboardingSurface 首次使用接管层（portal 到 body 的遮罩加不透明展示层，在且仅在自身生命周期内保持 `#root` 为 `inert`）、markdown 家族（MessageText/MarkdownText/JsonBlock）、只读 JsonTree 检查器、`useAnchoredMaxHeight` 钩子（把底部锚定的浮层高度收敛到锚点上方的视口空间，并在 resize、scroll 与调用方提供的依赖变化时重新测量）、TerminalBlock、DiffBlock、ReadBlock、SearchBlock，以及 WebBlock。
+纯 React 原子组件（零 cordis）：StateDot、DisclosureRow、ic_ds_* 图标、Button/Pill/Menu/Modal/Input、Toast 短时横幅、OnboardingSurface 首次使用接管层（portal 到 body 的遮罩加不透明展示层，在且仅在自身生命周期内保持 `#root` 为 `inert`）、markdown 家族（MessageText/MarkdownText/JsonBlock）、只读 JsonTree 检查器、`useAnchoredMaxHeight` 钩子（把底部锚定的浮层高度收敛到锚点上方的视口空间，并在 resize、scroll 与调用方提供的依赖变化时重新测量）、TerminalBlock、DiffBlock、ReadBlock、SearchBlock、WebBlock，以及为时有时无的占位者留出空间的 FittedRun/ScrollingRun 布局。
 
 ## 悬浮卡片
 
@@ -36,6 +36,14 @@
 
 `WebBlock` 渲染一次已完成的 web 检索，用一个组件绘制 `web` 渲染意图的两种 kind（由 `kind` 判别）。`search` 在有序引用列表上方显示可选的提供方回答（通过 `MarkdownText`）：每个 source 是一个安全外链，以其标题为标签，或以其主机名为标签，当 URL 无法解析或没有主机名（`file:`/`data:` URL）时回退到原始 URL，因此标签绝不为空；其下渲染 snippet 与发布日期。只有 http(s) URL 会成为锚点（设置 `target`/`rel`）——这是 `MarkdownText` 对不受信任链接所用 allowlist 的 http(s) 子集（该 allowlist 还允许 `mailto:`，此处排除）；任何其他 URL 渲染为纯文本。整份列表渲染在一个定高滚动容器里（`max-height: 320px`、`overflow-y: auto`），因此超出该高度的列表在原地纵向滚动，而不是把卡片撑高；`<li value>` 固定每个 source 的引用编号，从 1 起连续，而不依赖 `<ol>` 的隐式计数。当一次 search 合法地返回无 answer 且无 source 时，卡片显示一个明确的空状态提示，而不是空的 `<ol>`（chat 行不呈现原始 result content）。`fetch` 显示一个紧凑摘要：带链接的最终 URL 及其 HTTP 状态。两者都会标记一次被截断的检索。原理：[Web result 卡片笔记](../../../.agents/notes/implemented/feature/2026-07-30-web-result-card-frontend.md)与[来源滚动笔记](../../../.agents/notes/implemented/feature/2026-08-03-web-search-source-scroll.md)。
 
+## 行（run）
+
+行（run）是这样一段内容：它在某一端为时有时无的占位者预留空间——列标题上的排序标记、录制条上方的确认控件——无论占位者是否在场，这块空间都保持不变。这块空间以元素而非长度表述：调用方传入 `reserve`，即该端所能容纳的最宽形态，行把它隐藏渲染在 `occupant` 落入的同一个网格单元里。这里没有任何测量，也没有任何规则携带数字，因此一个多出排名的标记无需被告知就能预留带排名标记所需的宽度；占位者的出现或离开不会改变任何轨道，因为该单元在只有 reserve 时就已经是那么宽了。两种行在 RTL 下都自然镜像，不需要任何与方向相关的规则；`align` 提供的各交叉轴模式（`start`、`center`、`end`、`stretch`、`baseline`）下几何关系同样成立。
+
+`FittedRun` 就地阅读其内容，分三条轨道：前侧余量、内容、预留端。余量是 `fr` 系数，另两条以内在最小尺寸兜底，这就固定了让位顺序——空间紧张时，行先交出余量，余量用尽后它宁可溢出所在单元，也不裁剪内容或交出预留空间。`justify` 决定由哪一侧余量承载富余（`start`、`end`）、平分富余（`center`），还是把富余交给内容而非余量（`stretch`，适用于内容本身是一个有内部结构的盒子、而非一段待摆放的短语）。用 grid 而非 flex，是为了 flex 没有的一条性质：`1fr` 轨道即 `minmax(auto, 1fr)`，轨道的最小尺寸与它在富余空间中的份额彼此独立；而 flex 项的基础尺寸会计入容器的 `min-content`，富余就被记到了下限上。
+
+`ScrollingRun` 通过滚动来阅读其内容，并把 reserve 渲染两次——一次作为内容之前可坍缩的富余，一次作为内容之后固定的预留空间——放在一个滚动容器里，该容器在内容装得下时收缩包裹、装不下时填满其盒子。内容轨道与预留轨道都以各自的 `max-content` 兜底，于是富余空间唯一能到达的轨道就是那段可坍缩的富余，而这一个事实就是全部行为：只要还有余地，富余就吃掉它，内容保持居中；余地耗尽的过程中，富余逐步交还，内容随之向前端漂移；富余归零后行开始滚动，而为了避免滚动，它至多只移动了 reserve 的宽度。由于预留空间位于滚动内容之内，滚动到尽头正好让开它，因此调用方浮在行末端的控件永远不会盖住内容的最后一段。滚动条被隐藏（`scrollbar-width: none` 与 WebKit 伪元素），`overscroll-behavior-inline: contain` 则防止横向手势上溯到祖先滚动容器。这里的 `justify` 只有 `start`、`center`、`end`：滚动内容没有可供拉伸的宽度。
+
 ## 模型体验
 
 无。该包在浏览器中渲染纯 React 原子组件；这里没有任何内容进入模型请求。
@@ -51,4 +59,5 @@
 - **Pill 与 Input 没有设计来源**：两个原子组件均自行定义；与其相似的侧边栏搜索字段和视图标签条由消费方组合，不是这些原子组件。
 - **StateDot 没有 `Active` 变体**：支持的状态为 done、warning、ongoing 和 error。
 - **面向用户的文案经 label props 本地化，默认值为原中文字面量**：这些原子组件是 zero-cordis 的，拿不到 `ctx.locale`，因此 `HoverCard`（`copyLabel`/`copiedLabel`）、`TerminalBlock`（`labels`）、`JsonTree`（`labels`）、`CodeBlock`（`copyLabel`/`copiedLabel`）、`MarkdownText`（`codeLabels`）、`JsonBlock`（`truncatedLabel`）、`ConnectionBanner`（`label`）和 `Modal`（`closeLabel`）都把文案作为可选 props 接收。已本地化的插件用自己的 `t` 席位传入字典驱动的 label；什么都不传的消费方得到的就是这些默认值。`WebBlock` 尚未跟进这一模式：它的来源列表截断提示与 fetch 截断提示、以及空搜索提示仍是内联中文，待同样的 label-prop 处理。
+- **行信任其 `reserve` 就是最宽形态**：预留轨道以 reserve 实测的宽度兜底，因此比自己的 reserve 更宽的占位者会把该轨道撑大，这也是占位者出现时唯一可能让行发生位移的情形。这一点不做任何检测；由调用方给出最宽形态，或者接受这一位移。
 - **`TerminalBlock` 不是终端模拟器**：它渲染已结束或仍在运行的命令输出，而不是交互式会话：SGR 颜色与属性会被遵循，进度行所用的行内光标移动同样被遵循——回车、退格、行内擦除、制表位与字符宽度。绝对光标定位、清屏与备用屏幕序列会被剥离。基础 16 色中的洋红与青色没有对应 token，保持字面 rgb。
