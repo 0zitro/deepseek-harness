@@ -13,7 +13,7 @@ import { KeybindingRecorder } from './KeybindingRecorder.tsx'
 import { keybindingRows, type KeybindingRow } from './rows.ts'
 import {
   COLUMNS, dropSort, sortRows, toggleSort,
-  type ColumnSort, type SortableColumn,
+  type ColumnSort, type SortableColumn, type SortDirection,
 } from './sorting.ts'
 import css from './keybindings.module.css'
 
@@ -190,6 +190,28 @@ function BindingCells(
   )
 }
 
+/**
+ * The sort direction, drawn rather than typed: a glyph's weight depends on
+ * whichever font backs it, and this one has to read at 12px beside a heading.
+ */
+function SortArrow({ direction }: { direction: SortDirection }) {
+  const shaft = direction === 'asc' ? 'M6 10.5V2.5' : 'M6 1.5v8'
+  const head = direction === 'asc' ? 'M2.5 6L6 2.5 9.5 6' : 'M2.5 6l3.5 3.5L9.5 6'
+
+  return (
+    <svg className={css.sortArrow} viewBox="0 0 12 12" width="12" height="12">
+      <path
+        d={`${shaft} ${head}`}
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.75"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  )
+}
+
 /** One column heading: a click sorts by it, a double click drops it from the order. */
 function ColumnHeader(
   { column, sorts, onSorts, t }: {
@@ -213,13 +235,20 @@ function ColumnHeader(
       onClick={() => { onSorts(toggleSort(sorts, column)) }}
       onDoubleClick={() => { onSorts(dropSort(sorts, column.id)) }}
     >
-      <span className={css.heading}>{t(column.label)}</span>
-      {sorted !== undefined && (
-        <span className={css.sortMark} aria-hidden="true">
-          {sorts.length > 1 && <span className={css.sortRank}>{at + 1}</span>}
-          {sorted.direction === 'asc' ? '↑' : '↓'}
+      {/* A button is not a layout container: an engine may wrap its contents
+          in an anonymous block, which would leave a grid declared on the
+          button inert and its children flowing against each other. */}
+      <span className={css.headerLayout} data-sorted={sorted !== undefined || undefined}>
+        <span className={css.heading}>{t(column.label)}</span>
+        <span className={css.sortSlot} aria-hidden="true">
+          {sorted !== undefined && (
+            <span className={css.sortMark}>
+              {sorts.length > 1 && <span className={css.sortRank}>{at + 1}</span>}
+              <SortArrow direction={sorted.direction} />
+            </span>
+          )}
         </span>
-      )}
+      </span>
     </button>
   )
 }

@@ -6,27 +6,33 @@
  */
 
 /* One grid over every row: the command cell spans the rows it owns, which no
-   per-row element could do. Every column is minmax(0, …) so a long label or
-   clause wraps inside its cell instead of widening the row past the panel. */
+   per-row element could do.
+
+   Each track reconciles two widths: the fr share is what the column would
+   like, and min-content is what it cannot go under — a heading never wraps,
+   so the heading plus the room its sort mark needs is the floor. Cell content
+   stays free to wrap because the inputs carry min-width: 0 and the wrapping
+   text breaks anywhere, so only the heading and the widest chip raise it.
+   A panel too narrow for the floors scrolls rather than bleeding. */
 .table {
   display: grid;
   grid-template-columns:
-    minmax(0, 1.5fr)
-    minmax(0, 1.4fr)
-    minmax(0, 1.6fr)
-    minmax(56px, 0.4fr)
-    minmax(0, 0.7fr);
+    minmax(min-content, 1.5fr)
+    minmax(min-content, 1.4fr)
+    minmax(min-content, 1.6fr)
+    minmax(min-content, 0.4fr)
+    minmax(min-content, 0.7fr);
   align-items: center;
   column-gap: 12px;
   row-gap: 2px;
+  overflow-x: auto;
 }
 
-/* The heading centres in the cell and the sort mark sits at the inline end,
-   out of the flow, so the heading's position does not shift when a column is
-   sorted and the mark follows the writing direction. */
+/* The heading cell: a button that only paints, since its layout lives one
+   level down. */
 .header {
-  position: relative;
-  padding: 4px 14px 8px;
+  padding: 4px 6px;
+  margin-block-end: 4px;
   border: none;
   background: transparent;
   cursor: pointer;
@@ -35,25 +41,92 @@
   font-size: 12px;
   line-height: 16px;
   font-weight: 500;
-  text-align: center;
 }
 
 .header:hover {
   color: var(--dsw-alias-label-primary);
 }
 
-.heading {
-  overflow-wrap: anywhere;
+/* Three tracks: a leading flank, the heading, and the sort slot at the inline
+   end. The column reserves one mark's width and no more; which flank holds it
+   is what changes. Idle, the two flanks split it evenly and the heading sits
+   on the cell's centre. Sorted, it gathers at the inline end for the mark and
+   the heading leans toward the leading side. Both states ask for the same
+   total, so a column never moves when it joins or leaves the order.
+
+   This grid sits on a child of the button rather than on the button itself:
+   an engine may wrap a button's contents in an anonymous block, which leaves
+   a grid declared on the button inert and its children flowing against each
+   other, separated only by whatever padding they carry. */
+.headerLayout {
+  --dsh-sort-slot: 26px;
+  display: grid;
+  grid-template-columns:
+    minmax(calc(var(--dsh-sort-slot) / 2), 1fr)
+    auto
+    minmax(calc(var(--dsh-sort-slot) / 2), 1fr);
+  align-items: center;
+  gap: 6px;
+  width: 100%;
 }
 
+.headerLayout[data-sorted] {
+  grid-template-columns:
+    minmax(0, 1fr)
+    auto
+    minmax(var(--dsh-sort-slot), 1fr);
+}
+
+/* A heading is fitted, never broken: a column is at least as wide as its own
+   label, so there is nothing to wrap. */
+.heading {
+  grid-column: 2;
+  white-space: nowrap;
+}
+
+/* The mark appears in space that was already its own, so joining the order
+   moves nothing — the slot holds its height open as well as its width, or the
+   header row would grow by the difference between the mark and the line it
+   sits on, carrying the whole table down with it. The slot is never narrower
+   than the mark it holds: a narrower one would push a flex-end mark back over
+   the heading rather than clip it. */
+.sortSlot {
+  grid-column: 3;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  min-width: var(--dsh-sort-slot);
+  height: 18px;
+}
+
+/* A ghost plate behind the mark: enough contrast that the arrow reads as a
+   control rather than as part of the heading, and a full backplate on hover,
+   the way a ghost button answers the pointer. */
 .sortMark {
-  position: absolute;
-  inset-inline-end: 0;
-  top: 4px;
   display: inline-flex;
   align-items: center;
+  justify-content: center;
   gap: 2px;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 3px;
+  box-sizing: border-box;
+  border-radius: 6px;
+  background: color-mix(in srgb, var(--dsw-alias-interactive-bg-hover) 55%, transparent);
   color: var(--dsw-alias-brand-primary);
+  border: 1px solid transparent;
+}
+
+.header:hover .sortMark {
+  background: var(--dsw-alias-interactive-bg-hover);
+}
+
+.sortMark:hover {
+  border-color: var(--dsw-alias-label-secondary);
+}
+
+.sortArrow {
+  flex: none;
 }
 
 /* Which column the order consults first, shown only when more than one does. */
