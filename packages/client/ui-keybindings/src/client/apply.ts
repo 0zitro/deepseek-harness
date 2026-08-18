@@ -54,18 +54,21 @@ function alreadyStored(override: KeybindingOverride, edit: KeybindingEdit): bool
  * from, and the write is refused rather than allowed to replace overrides it
  * never saw.
  */
-/** Apply one priority assignment to the document, dropping an override it empties. */
+/** Apply one priority assignment to the document. */
 function assign(
   overrides: readonly KeybindingOverride[],
   { ref, prio }: PrioAssignment,
 ): readonly KeybindingOverride[] {
-  return overrides.flatMap((override) => {
-    if (override.action !== ref.action || override.key !== ref.key) return [override]
-    if (prio !== undefined) return [{ ...override, prio }]
+  return overrides.map((override) => {
+    if (override.action !== ref.action || override.key !== ref.key) return override
+    if (prio !== undefined) return { ...override, prio }
 
-    // Retiring the last field an override states leaves it saying nothing.
+    // Retiring the last field an override states does not leave it saying
+    // nothing: holding the seat is itself a statement, because the binding is
+    // the user's from then on — it outranks the sources it used to follow, and
+    // it orders in the user's scope rather than theirs.
     const { prio: _retired, ...rest } = override
-    return rest.strokes === undefined && rest.when === undefined ? [] : [rest]
+    return rest
   })
 }
 
