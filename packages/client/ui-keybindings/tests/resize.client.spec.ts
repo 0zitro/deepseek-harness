@@ -1,40 +1,43 @@
 import { describe, expect, it } from 'vitest'
-import { resizeShares } from '../src/client/resize.ts'
+import { resizeWidths } from '../src/client/resize.ts'
 
-const SHARES = [2, 2, 2, 1, 1]
+const WIDTHS = [200, 200, 200, 120, 120]
 
-describe('resizeShares', () => {
+describe('resizeWidths', () => {
   it('moves what one column gains from the one beside it', () => {
-    const resized = resizeShares(SHARES, 0, 0.25)
-
-    // The pair totals 4, so a quarter of it moves one unit across.
-    expect(resized).toEqual([3, 1, 2, 1, 1])
+    expect(resizeWidths(WIDTHS, 0, 40)).toEqual([240, 160, 200, 120, 120])
   })
 
-  it('leaves every other column alone', () => {
-    const resized = resizeShares(SHARES, 2, -0.1)
+  it('leaves every other column alone and conserves the pair exactly', () => {
+    const resized = resizeWidths(WIDTHS, 2, -30)
 
-    expect(resized.slice(0, 2)).toEqual([2, 2])
-    expect(resized[4]).toBe(1)
-    // The pair it touched still totals what it did before.
-    expect((resized[2] ?? 0) + (resized[3] ?? 0)).toBeCloseTo(3)
+    expect(resized.slice(0, 2)).toEqual([200, 200])
+    expect(resized[4]).toBe(120)
+    // Conserved in pixels, so the table's own width cannot change with a drag.
+    expect((resized[2] ?? 0) + (resized[3] ?? 0)).toBe(320)
   })
 
   it('keeps a column dragged shut reachable', () => {
-    const resized = resizeShares(SHARES, 0, -1)
+    const resized = resizeWidths(WIDTHS, 0, -1000)
 
-    expect(resized[0]).toBeGreaterThan(0)
-    expect((resized[0] ?? 0) + (resized[1] ?? 0)).toBe(4)
+    expect(resized[0]).toBe(80)
+    expect((resized[0] ?? 0) + (resized[1] ?? 0)).toBe(400)
   })
 
-  it('returns the shares themselves when the drag changes nothing', () => {
-    expect(resizeShares(SHARES, 0, 0)).toBe(SHARES)
-    // A drag already at the floor cannot move further in that direction.
-    expect(resizeShares(resizeShares(SHARES, 0, -1), 0, -1)).toEqual(resizeShares(SHARES, 0, -1))
+  it('returns the widths themselves when the drag changes nothing', () => {
+    expect(resizeWidths(WIDTHS, 0, 0)).toBe(WIDTHS)
+    // Already at the floor, so there is nothing further to give in that direction.
+    expect(resizeWidths(resizeWidths(WIDTHS, 0, -1000), 0, -1000)).toEqual(resizeWidths(WIDTHS, 0, -1000))
   })
 
-  it('ignores a boundary that is not between two columns', () => {
-    expect(resizeShares(SHARES, 4, 0.2)).toBe(SHARES)
-    expect(resizeShares(SHARES, -1, 0.2)).toBe(SHARES)
+  it('keeps the split of a pair too narrow to hold both floors', () => {
+    const narrow = [100, 40, 200, 120, 120]
+
+    expect(resizeWidths(narrow, 0, 20)).toBe(narrow)
+  })
+
+  it('ignores a sash that is not between two columns', () => {
+    expect(resizeWidths(WIDTHS, 4, 20)).toBe(WIDTHS)
+    expect(resizeWidths(WIDTHS, -1, 20)).toBe(WIDTHS)
   })
 })

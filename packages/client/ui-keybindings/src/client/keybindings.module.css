@@ -13,31 +13,35 @@
    so the heading plus the room its sort mark needs is the floor. Cell content
    stays free to wrap because the inputs carry min-width: 0 and the wrapping
    text breaks anywhere, so only the heading and the widest chip raise it.
-   A panel too narrow for the floors scrolls rather than bleeding. */
+   A panel too narrow for the floors scrolls rather than bleeding. Dragging a
+   sash replaces these tracks with exact widths, which is what lets the two
+   columns either side of it conserve between themselves. */
 .table {
   display: grid;
   grid-template-columns:
-    minmax(min-content, 1.5fr)
+    minmax(min-content, 1.7fr)
     var(--dsh-sash-lane)
-    minmax(min-content, 1.4fr)
+    minmax(min-content, 1.1fr)
     var(--dsh-sash-lane)
-    minmax(min-content, 1.6fr)
+    minmax(min-content, 1.9fr)
     var(--dsh-sash-lane)
-    minmax(min-content, 0.4fr)
+    minmax(min-content, 0.5fr)
     var(--dsh-sash-lane)
-    minmax(min-content, 0.7fr);
+    minmax(min-content, 0.6fr);
   align-items: center;
   row-gap: 2px;
   overflow-x: auto;
   --dsh-sash-lane: 14px;
 }
 
-/* The heading cell holds the button and the boundary handle beside it: a
-   handle inside the button would be interactive content nested in a control. */
+/* The heading cell: a column dragged under its heading clips it rather than
+   refusing to narrow, which is what keeps a drag's two columns conserving
+   between themselves. Until a column is dragged it is at least as wide as its
+   heading, so nothing clips on its own. */
 .headerCell {
-  position: relative;
   display: flex;
   min-width: 0;
+  overflow: hidden;
 }
 
 /* The boundary itself, occupying a lane of the grid rather than hanging off
@@ -134,6 +138,8 @@
 .heading {
   grid-column: 2;
   white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 /* The mark appears in space that was already its own, so joining the order

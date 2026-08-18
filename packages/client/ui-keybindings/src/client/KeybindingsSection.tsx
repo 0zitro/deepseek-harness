@@ -10,7 +10,7 @@ import { parseWhenClause } from '../when-clause.ts'
 import type { UiActionDefinition } from './action-registry.ts'
 import { useDraft } from './draft.ts'
 import { KeybindingRecorder } from './KeybindingRecorder.tsx'
-import { resizeShares } from './resize.ts'
+import { resizeWidths } from './resize.ts'
 import { keybindingRows, type KeybindingRow } from './rows.ts'
 import {
   COLUMNS, dropSort, sortRows, toggleSort,
@@ -223,11 +223,14 @@ function SortArrow({ direction }: { direction: SortDirection }) {
 const columnLine = (index: number) => 1 + index * 2
 const sashLine = (index: number) => 2 + index * 2
 
-/** The grid's tracks for the given shares; a column still never goes under its content. */
-function tracks(shares: readonly number[]): string {
-  return shares
-    .map(share => `minmax(min-content, ${share}fr)`)
-    .join(' var(--dsh-sash-lane) ')
+/**
+ * The grid's tracks for the given widths. They are exact rather than floored
+ * at the content's width: a floor a drag cannot cross would be space one
+ * column could not give up, and the other columns would silently absorb it.
+ * A column dragged under its heading clips it instead.
+ */
+function tracks(widths: readonly number[]): string {
+  return widths.map(width => `${width}px`).join(' var(--dsh-sash-lane) ')
 }
 
 /**
@@ -236,10 +239,10 @@ function tracks(shares: readonly number[]): string {
  * the pointer does, whatever laid the columns out until then.
  */
 function useColumnResize(): {
-  shares: readonly number[] | undefined
+  widths: readonly number[] | undefined
   onResizeStart: (index: number) => (event: PointerEvent<HTMLElement>) => void
 } {
-  const [shares, setShares] = useState<readonly number[] | undefined>(undefined)
+  const [widths, setWidths] = useState<readonly number[] | undefined>(undefined)
 
   const onResizeStart = (index: number) => (event: PointerEvent<HTMLElement>) => {
     const handle = event.currentTarget
@@ -248,12 +251,11 @@ function useColumnResize(): {
     if (table === null) return
 
     // The heading cells are the table's first children, one per column.
-    const widths = [...table.children].slice(0, COLUMNS.length).map(node => node.getBoundingClientRect().width)
-    const pair = widths.slice(index, index + 2).reduce((total, width) => total + width, 0)
-    // An environment that lays nothing out offers no width to take a fraction of.
-    if (pair === 0) return
+    const measured = [...table.children].slice(0, COLUMNS.length).map(node => node.getBoundingClientRect().width)
+    // An environment that lays nothing out offers no widths to move between.
+    if (measured.every(width => width === 0)) return
 
-    const from = shares ?? widths
+    const from = widths ?? measured
     const origin = event.clientX
     // A drag toward the inline end widens the leading column, which is the
     // other direction when the writing direction is.
@@ -272,7 +274,7 @@ function useColumnResize(): {
     handle.dataset['dragging'] = 'true'
 
     const onMove = (move: globalThis.PointerEvent) => {
-      setShares(resizeShares(from, index, ((move.clientX - origin) * towardEnd) / pair))
+      setWidths(resizeWidths(from, index, (move.clientX - origin) * towardEnd))
     }
     const onEnd = () => {
       delete handle.dataset['dragging']
@@ -285,7 +287,7 @@ function useColumnResize(): {
     handle.addEventListener('pointerup', onEnd)
   }
 
-  return { shares, onResizeStart }
+  return { widths, onResizeStart }
 }
 
 /** One column heading: a click sorts by it, a double click drops it from the order. */
@@ -341,7 +343,7 @@ export function KeybindingsSection({ useActions, useBindings, setBinding, t }: K
   const actions = useActions(value => value)
   const bindings = useBindings(value => value)
   const [sorts, setSorts] = useState<readonly ColumnSort[]>([])
-  const { shares, onResizeStart } = useColumnResize()
+  const { widths, onResizeStart } = useColumnResize()
   const runs = useMemo(
     () => commandRuns(sortRows(keybindingRows(actions, bindings), sorts)),
     [actions, bindings, sorts],
@@ -354,7 +356,7 @@ export function KeybindingsSection({ useActions, useBindings, setBinding, t }: K
   // a per-row element could not stretch across its siblings. Each control
   // names its own column and command, so the columns need no header semantics.
   return (
-    <div className={css.table} style={shares === undefined ? undefined : { gridTemplateColumns: tracks(shares) }}>
+    <div className={css.table} style={widths === undefined ? undefined : { gridTemplateColumns: tracks(widths) }}>
       {COLUMNS.map((column, index) => (
         <ColumnHeader key={column.id} column={column} line={columnLine(index)} sorts={sorts} onSorts={setSorts} t={t} />
       ))}

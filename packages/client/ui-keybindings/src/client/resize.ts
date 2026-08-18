@@ -1,44 +1,48 @@
 /**
  * Resizing the table's columns.
  *
- * A drag moves one boundary, so it concerns exactly the two columns that meet
+ * A drag moves one sash, so it concerns exactly the two columns that meet
  * there: what one gains the other gives up, and every other column is left
- * alone. Widths are shares rather than pixels, so the table still answers a
- * change in the panel's width after the user has sized it.
+ * alone. Widths are pixels rather than shares, because a share only maps to a
+ * width while every column is above its content's floor — pinch one against
+ * that floor and the space it cannot give up is redistributed to every other
+ * column, which moves columns the drag never touched and changes the table's
+ * total. In pixels the pair conserves exactly, whatever the rest is doing.
  */
 
-/** The share a column keeps whatever the drag asks for, as a fraction of its pair. */
-const MINIMUM_SHARE = 0.08
+/** The width a column keeps whatever the drag asks for. */
+const MINIMUM_WIDTH = 80
 
 /**
- * The shares after dragging the boundary that follows `index`.
+ * The widths after dragging the sash that follows `index`.
  *
- * The pair's total is conserved, so the columns on either side of the drag
- * absorb it entirely and the table's own width is untouched. Neither column
- * falls below a floor, which keeps a column that was dragged shut reachable:
- * its share never reaches zero, so dragging back reopens it.
- * @param shares - the current shares, one per column.
- * @param index - the column on the leading side of the dragged boundary.
- * @param fraction - the drag, as a fraction of the two columns' width together.
- * @returns the shares after the drag, or the given ones when nothing moves.
+ * The pair's total is conserved, so the columns either side of the sash absorb
+ * the drag entirely and the table's own width never changes — a horizontal
+ * scroll neither appears nor disappears because a column was resized. Neither
+ * column falls below a floor, which keeps one dragged shut reachable.
+ * @param widths - the current widths in pixels, one per column.
+ * @param index - the column on the leading side of the dragged sash.
+ * @param delta - the drag in pixels, toward the inline end.
+ * @returns the widths after the drag, or the given ones when nothing moves.
  */
-export function resizeShares(
-  shares: readonly number[],
+export function resizeWidths(
+  widths: readonly number[],
   index: number,
-  fraction: number,
+  delta: number,
 ): readonly number[] {
-  const leading = shares[index]
-  const trailing = shares[index + 1]
-  if (leading === undefined || trailing === undefined) return shares
+  const leading = widths[index]
+  const trailing = widths[index + 1]
+  if (leading === undefined || trailing === undefined) return widths
 
   const pair = leading + trailing
-  const floor = pair * MINIMUM_SHARE
-  const wanted = leading + fraction * pair
-  const next = Math.min(Math.max(wanted, floor), pair - floor)
-  if (next === leading) return shares
+  // A pair too narrow to hold both floors keeps the split it has.
+  if (pair < MINIMUM_WIDTH * 2) return widths
 
-  return shares.map((share, at) => {
+  const next = Math.min(Math.max(leading + delta, MINIMUM_WIDTH), pair - MINIMUM_WIDTH)
+  if (next === leading) return widths
+
+  return widths.map((width, at) => {
     if (at === index) return next
-    return at === index + 1 ? pair - next : share
+    return at === index + 1 ? pair - next : width
   })
 }
