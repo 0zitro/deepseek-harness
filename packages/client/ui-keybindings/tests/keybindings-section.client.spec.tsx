@@ -128,7 +128,7 @@ describe('KeybindingsSection', () => {
 
   it('persists a recorded chord through the setter', () => {
     const { setBinding } = mount()
-    const recorder = screen.getByRole('button', { name: /Send message/ })
+    const recorder = screen.getByRole('button', { name: /^Send message/ })
     fireEvent.click(recorder)
     fireEvent.keyDown(recorder, { key: 'k', ctrlKey: true, metaKey: false, altKey: false, shiftKey: false })
     fireEvent.click(screen.getByRole('button', { name: 'Done' }))
@@ -156,10 +156,54 @@ describe('KeybindingsSection', () => {
     // shipped binding offers no recorder and holds no place to state.
     expect(screen.getByText('Enter')).toBeDefined()
     expect(screen.getByText('K')).toBeDefined()
-    expect(screen.getAllByRole('button', { name: /Send message/ })).toHaveLength(1)
+    expect(screen.getAllByRole('button', { name: /^Send message/ })).toHaveLength(1)
     expect(screen.getAllByLabelText('Priority: Send message')).toHaveLength(1)
     expect(screen.getAllByText('System')).toHaveLength(1)
     expect(screen.getByText('User')).toBeDefined()
+  })
+
+  it('adds a binding forked from the one it was added beside', () => {
+    const { setBinding, bindingsStore } = mount()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Add a keybinding: Send message' }))
+
+    // A seat of its own, forked from the base beside it, stating a gesture
+    // nothing can match: the user's from the start, and inert until recorded.
+    expect(setBinding).toHaveBeenCalledWith(
+      { action: COMPOSER_SEND_ACTION, key: keybindingKey('send#1') },
+      BASE,
+      { strokes: [] },
+    )
+    expect(bindingsStore.getSnapshot()).toEqual([
+      { action: COMPOSER_SEND_ACTION, key: keybindingKey('send#1'), base: BASE, source: 'user', strokes: [] },
+    ])
+
+    // The command now owns two bindings, and the next addition takes the next
+    // free number in the same family rather than nesting under the fork.
+    expect(screen.getAllByRole('button', { name: /^Send message/ })).toHaveLength(2)
+    fireEvent.click(screen.getByRole('button', { name: 'Add a keybinding: Send message' }))
+    expect(setBinding).toHaveBeenLastCalledWith(
+      { action: COMPOSER_SEND_ACTION, key: keybindingKey('send#2') },
+      BASE,
+      { strokes: [] },
+    )
+  })
+
+  it('offers one place to add per command, under the last binding it owns', () => {
+    mount([
+      { id: COMPOSER_SEND_ACTION, label: 'Send message', defaultKeybindings: [{ key: KEY, ...ENTER }], run: () => {} },
+      { id: PREVIEW_ACTION, label: 'Preview', run: () => {} },
+    ])
+
+    // One band per command, hanging off its own last row: the space where two
+    // commands meet belongs to the one above it and to nothing else.
+    const bands = screen.getAllByRole('button', { name: /^Add a keybinding/ })
+    expect(bands.map(band => band.getAttribute('aria-label')))
+      .toEqual(['Add a keybinding: Preview', 'Add a keybinding: Send message'])
+    // Each hangs off its own command's last binding, not off the grid row,
+    // which is taller than those cells wherever a description wraps.
+    expect(bands.map(band => (band.parentElement?.parentElement as HTMLElement).style.gridRow))
+      .toEqual(['2', '3'])
   })
 
   it('replaces an untouched draft when the stored clause changes underneath', () => {
@@ -185,7 +229,7 @@ describe('KeybindingsSection', () => {
     const input = screen.getByPlaceholderText('e.g. composerFocused && !agentBusy')
     fireEvent.change(input, { target: { value: 'agentBusy' } })
     fireEvent.blur(input)
-    const recorder = screen.getByRole('button', { name: /Send message/ })
+    const recorder = screen.getByRole('button', { name: /^Send message/ })
     fireEvent.click(recorder)
     fireEvent.keyDown(recorder, { key: 'k', ctrlKey: true, metaKey: false, altKey: false, shiftKey: false })
     fireEvent.click(screen.getByRole('button', { name: 'Done' }))
@@ -206,13 +250,14 @@ describe('KeybindingsSection', () => {
     }])
 
     // Two bindings, one command: the label is written once, spanning both.
-    expect(screen.getAllByRole('button', { name: /Send message/ })).toHaveLength(2)
+    expect(screen.getAllByRole('button', { name: /^Send message/ })).toHaveLength(2)
     const command = screen.getByText('Send message')
     // Named rows, not auto-placed ones: the headings hold the first, so the
     // first command's bindings stand on the two under it.
     expect(command.parentElement?.style.gridRow).toBe('2 / span 2')
+    // The cells of one binding are grouped, and the group names the row.
     expect(screen.getAllByLabelText(/When clause: Send message/).map(input =>
-      (input.parentElement as HTMLElement).style.gridRow)).toEqual(['2', '3'])
+      (input.parentElement?.parentElement as HTMLElement).style.gridRow)).toEqual(['2', '3'])
   })
 
   it('marks an overridden field apart from one still following its default', () => {

@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { keybindingKey, type KeyStroke, type SourcedOverride } from '../src/keybinding.ts'
 import { COMPOSER_SEND_ACTION, type UiActionId } from '../src/ui-action.ts'
 import type { UiActionDefinition } from '../src/client/action-registry.ts'
-import { compareActionIds, keybindingRows } from '../src/client/rows.ts'
+import { compareActionIds, forkedKey, keybindingRows } from '../src/client/rows.ts'
 
 const PREVIEW_ACTION = 'composer.preview' as UiActionId
 const SEND_KEY = keybindingKey('composer.send')
@@ -34,6 +34,40 @@ describe('compareActionIds', () => {
   it('sorts a bare segment before one that extends it, either way round', () => {
     expect(compareActionIds('composer', 'composer.send')).toBeLessThan(0)
     expect(compareActionIds('composer.send', 'composer')).toBeGreaterThan(0)
+  })
+})
+
+describe('forkedKey', () => {
+  const rowsOf = (...overrides: SourcedOverride[]) => keybindingRows([sendAction()], overrides)
+
+  it('takes the first free number in the seat it forks', () => {
+    const rows = rowsOf()
+    const first = rows[0]
+    if (first === undefined) throw new Error('no row')
+
+    expect(forkedKey(rows, first)).toBe(keybindingKey('composer.send#1'))
+  })
+
+  it('stays in the family when a fork is itself forked', () => {
+    const fork: SourcedOverride = { ...override(), key: keybindingKey('composer.send#1'), strokes: [] }
+    const rows = rowsOf(fork)
+    const forked = rows.find(row => row.key === fork.key)
+    if (forked === undefined) throw new Error('no forked row')
+
+    // Numbering off the family, not the fork: one seat's additions read as one
+    // series rather than nesting a suffix under a suffix.
+    expect(forkedKey(rows, forked)).toBe(keybindingKey('composer.send#2'))
+  })
+
+  it('counts the seats of one action alone', () => {
+    const other = { ...override(), action: PREVIEW_ACTION, key: keybindingKey('composer.send#1'), strokes: [] }
+    const rows = keybindingRows([sendAction()], [other])
+    const send = rows.find(row => row.action === COMPOSER_SEND_ACTION)
+    if (send === undefined) throw new Error('no row')
+
+    // Another action holding that key is another action's business: keys are
+    // unique within an action, not across the table.
+    expect(forkedKey(rows, send)).toBe(keybindingKey('composer.send#1'))
   })
 })
 

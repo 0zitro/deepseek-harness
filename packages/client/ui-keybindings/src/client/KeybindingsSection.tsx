@@ -1,5 +1,5 @@
 /** The Keybindings settings page: one table row per effective binding. */
-import { Fragment, useMemo, useState, type PointerEvent } from 'react'
+import { Fragment, useMemo, useState, type PointerEvent, type ReactNode } from 'react'
 import type { InjectFace, PropsLocale, PropsRuntime } from '@deepseek-ai/dsh-client-ui-slots'
 import type { SnapshotStore } from '@deepseek-ai/dsh-client-runtime/client'
 import {
@@ -11,7 +11,9 @@ import type { UiActionDefinition } from './action-registry.ts'
 import { useDraft } from './draft.ts'
 import { KeybindingRecorder } from './KeybindingRecorder.tsx'
 import { resizeWidths } from './resize.ts'
-import { keybindingRows, type EffectiveRow, type KeybindingRow, type SupersededRow } from './rows.ts'
+import {
+  forkedKey, keybindingRows, type EffectiveRow, type KeybindingRow, type SupersededRow,
+} from './rows.ts'
 import {
   COLUMNS, dropSort, sortRows, toggleSort,
   type ColumnSort, type SortableColumn, type SortDirection,
@@ -47,6 +49,8 @@ interface CommandRun {
   rows: readonly KeybindingRow[]
   /** Grid row its first binding stands on; the heading holds the first. */
   line: number
+  /** What a binding added to this command would be. */
+  addition: InsertPoint
 }
 
 /** The grid row the headings occupy, above every binding. */
@@ -60,11 +64,18 @@ const HEADING_LINE = 1
  */
 function commandRuns(rows: readonly KeybindingRow[]): readonly CommandRun[] {
   const runs: CommandRun[] = []
+  // A binding added to a command forks the last one it owns, so the addition
+  // is rebuilt as the run grows rather than looked up afterwards.
+  const addition = (origin: KeybindingRow, label: string): InsertPoint => ({
+    label,
+    ref: { action: origin.action, key: forkedKey(rows, origin) },
+    base: origin.base,
+  })
 
   for (const row of rows) {
     const open = runs[runs.length - 1]
     if (open !== undefined && open.rows[0]?.action === row.action) {
-      runs[runs.length - 1] = { ...open, rows: [...open.rows, row] }
+      runs[runs.length - 1] = { ...open, rows: [...open.rows, row], addition: addition(row, open.label) }
       continue
     }
     runs.push({
@@ -72,9 +83,25 @@ function commandRuns(rows: readonly KeybindingRow[]): readonly CommandRun[] {
       description: row.description,
       rows: [row],
       line: open === undefined ? HEADING_LINE + 1 : open.line + open.rows.length,
+      addition: addition(row, row.label),
     })
   }
   return runs
+}
+
+/**
+ * A binding a command would gain, and what it would fork from. One per
+ * command, drawn under the last binding it owns: the space between two
+ * commands belongs to the one above it and to nothing else, because a place
+ * whose command depended on which half of that space the pointer was in gave
+ * the reader nothing to read.
+ */
+interface InsertPoint {
+  /** The command it joins, for the control's name. */
+  label: string
+  /** The seat the new binding takes, and the snapshot it forks. */
+  ref: KeybindingOverrideRef
+  base: Keybinding
 }
 
 /**
@@ -173,12 +200,7 @@ function CellInput(
 
 /** The four editable cells of one binding: gesture, clause, prio, source. */
 function BindingCells(
-  { row, line, setBinding, t }: {
-    row: EffectiveRow
-    line: number
-    setBinding: KeybindingsSectionInjected['setBinding']
-    t: SectionT
-  },
+  { row, setBinding, t }: { row: EffectiveRow; setBinding: KeybindingsSectionInjected['setBinding']; t: SectionT },
 ) {
   const ref = { action: row.action, key: row.key } as const
 
@@ -188,7 +210,7 @@ function BindingCells(
 
   return (
     <>
-      <div className={classes(css.cell, fieldClass(row.overridden.strokes))} style={{ gridColumn: columnLine(1), gridRow: line }}>
+      <div className={classes(css.cell, fieldClass(row.overridden.strokes))} style={{ gridColumn: cellLine(1) }}>
         <KeybindingRecorder
           strokes={row.entry.strokes}
           onStrokesChange={setStrokes}
@@ -197,7 +219,7 @@ function BindingCells(
           clearLabel={t('recorder.clear')}
         />
       </div>
-      <div className={css.cell} style={{ gridColumn: columnLine(2), gridRow: line }}>
+      <div className={css.cell} style={{ gridColumn: cellLine(2) }}>
         <CellInput
           value={row.entry.when ?? ''}
           storable={storableClause}
@@ -207,7 +229,7 @@ function BindingCells(
           aria-label={`${t('column.when')}: ${row.label}`}
         />
       </div>
-      <div className={css.cell} style={{ gridColumn: columnLine(3), gridRow: line }}>
+      <div className={css.cell} style={{ gridColumn: cellLine(3) }}>
         <CellInput
           value={String(row.prio)}
           storable={storablePrio}
@@ -219,7 +241,7 @@ function BindingCells(
           aria-label={`${t('column.prio')}: ${row.label}`}
         />
       </div>
-      <div className={classes(css.cell, css.source)} style={{ gridColumn: columnLine(4), gridRow: line }}>
+      <div className={classes(css.cell, css.source)} style={{ gridColumn: cellLine(4) }}>
         {sourceLabel(row.entry.source, t)}
       </div>
     </>
@@ -232,26 +254,76 @@ function BindingCells(
  * it is inert: nothing dispatches it, so it holds no place in the order, and
  * editing it would only write the override that already took its seat.
  */
-function ShippedCells({ row, line, t }: { row: SupersededRow; line: number; t: SectionT }) {
+function ShippedCells({ row, t }: { row: SupersededRow; t: SectionT }) {
   return (
     <>
-      <div className={classes(css.cell, css.shipped)} style={{ gridColumn: columnLine(1), gridRow: line }}>
+      <div className={classes(css.cell, css.shipped)} style={{ gridColumn: cellLine(1) }}>
         <span className={classes(css.shippedBox, css.recorderLayout)}>
           <span className={css.strokes}>
             {row.entry.strokes.map((stroke, index) => <StrokeChips key={index} stroke={stroke} />)}
           </span>
         </span>
       </div>
-      <div className={classes(css.cell, css.shipped)} style={{ gridColumn: columnLine(2), gridRow: line }}>
+      <div className={classes(css.cell, css.shipped)} style={{ gridColumn: cellLine(2) }}>
         <span className={classes(css.shippedBox, css.clauseText)}>{row.entry.when ?? ''}</span>
       </div>
-      <div className={classes(css.cell, css.shipped)} style={{ gridColumn: columnLine(3), gridRow: line }}>
+      <div className={classes(css.cell, css.shipped)} style={{ gridColumn: cellLine(3) }}>
         <span className={classes(css.shippedBox, css.shippedPlace)} />
       </div>
-      <div className={classes(css.cell, css.source, css.shipped)} style={{ gridColumn: columnLine(4), gridRow: line }}>
+      <div className={classes(css.cell, css.source, css.shipped)} style={{ gridColumn: cellLine(4) }}>
         {sourceLabel(row.entry.source, t)}
       </div>
     </>
+  )
+}
+
+/** The control that adds a binding, drawn at the same weight as the others. */
+function Plus() {
+  return (
+    <svg viewBox="0 0 12 12" width="12" height="12">
+      <path d="M6 2.5v7M2.5 6h7" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" />
+    </svg>
+  )
+}
+
+/**
+ * One binding's cells, on the table's columns from the second on. A grid row
+ * is as tall as the tallest thing in it, which is the command's own cell
+ * whenever its description runs to another line — so anything drawn against
+ * the row rather than against these cells lands nowhere near them. This box is
+ * what the cells make it, and it is what the place to add a binding hangs off.
+ */
+function SubRow({ line, children }: { line: number; children: ReactNode }) {
+  return (
+    <div className={css.subRow} style={{ gridColumn: `${columnLine(1)} / -1`, gridRow: line }}>
+      {children}
+    </div>
+  )
+}
+
+/**
+ * The place a binding is added: a band of the space no box occupies, drawing
+ * the line the new binding would take once the pointer is on it. Only the
+ * control commits, never the band, so a click that lands beside it adds
+ * nothing — an addition cannot yet be taken back, and the band lies where a
+ * click meant for the box above or below it can miss.
+ */
+function InsertControl(
+  { point, onAdd, t }: { point: InsertPoint; onAdd: (point: InsertPoint) => void; t: SectionT },
+) {
+  return (
+    <div className={css.insert}>
+      <span className={css.insertRule} />
+      <button
+        type="button"
+        className={classes(css.ghost, css.insertPlus)}
+        aria-label={`${t('binding.add')}: ${point.label}`}
+        onClick={() => { onAdd(point) }}
+      >
+        <Plus />
+      </button>
+      <span className={css.insertRule} />
+    </div>
   )
 }
 
@@ -284,6 +356,12 @@ function SortArrow({ direction }: { direction: SortDirection }) {
  */
 const columnLine = (index: number) => 1 + index * 2
 const sashLine = (index: number) => 2 + index * 2
+
+/**
+ * The same column, addressed from inside a sub-row. A sub-row takes the
+ * table's tracks from the second column on, so its own lines start there.
+ */
+const cellLine = (index: number) => columnLine(index - 1)
 
 /**
  * The grid's tracks for the given widths. They are exact rather than floored
@@ -410,6 +488,11 @@ export function KeybindingsSection({ useActions, useBindings, setBinding, t }: K
     () => commandRuns(sortRows(keybindingRows(actions, bindings), sorts)),
     [actions, bindings, sorts],
   )
+
+  // A binding is added by taking a seat of its own: it forks the base of the
+  // binding it was added beside and states a gesture nothing can match, so it
+  // is the user's from the start and inert until they record one.
+  const addBinding = (point: InsertPoint) => { setBinding(point.ref, point.base, { strokes: [] }) }
   // A sash spans the heading row and every binding under it.
   const rowCount = runs.reduce((total, run) => total + run.rows.length, 0)
 
@@ -442,9 +525,13 @@ export function KeybindingsSection({ useActions, useBindings, setBinding, t }: K
             {run.description !== undefined && <div className={css.description}>{run.description}</div>}
           </div>
           {run.rows.map((row, index) => (
-            row.superseded
-              ? <ShippedCells key={contributionKey(row)} row={row} line={run.line + index} t={t} />
-              : <BindingCells key={contributionKey(row)} row={row} line={run.line + index} setBinding={setBinding} t={t} />
+            <SubRow key={contributionKey(row)} line={run.line + index}>
+              {row.superseded
+                ? <ShippedCells row={row} t={t} />
+                : <BindingCells row={row} setBinding={setBinding} t={t} />}
+              {index === run.rows.length - 1
+                && <InsertControl point={run.addition} onAdd={addBinding} t={t} />}
+            </SubRow>
           ))}
         </Fragment>
       ))}

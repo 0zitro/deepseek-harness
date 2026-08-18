@@ -59,6 +59,32 @@ export interface SupersededRow extends RowFields {
 /** One row of the keybindings table: one contribution to one seat. */
 export type KeybindingRow = EffectiveRow | SupersededRow
 
+/**
+ * What separates a forked seat's key from the seat it forked off. A registrar
+ * writes dotted identifiers, so a key carrying this could not have been
+ * shipped: the two kinds of key share one namespace and still cannot collide.
+ */
+const FORK_SIGIL = '#'
+
+/**
+ * The key a binding forked from `origin` takes: the same family as the seat it
+ * stems from, at the first number that family has free. Forking a fork stays
+ * in the family rather than nesting, so one shipped seat's additions read as
+ * one series.
+ * @param rows - every row of the table, holding the keys already in use.
+ * @param origin - the row the new binding forks from.
+ * @returns a key no seat of that action holds.
+ */
+export function forkedKey(rows: readonly KeybindingRow[], origin: KeybindingRow): KeybindingKey {
+  const forked = origin.key.indexOf(FORK_SIGIL)
+  const family = forked === -1 ? origin.key : origin.key.slice(0, forked)
+  const taken = new Set(rows.filter(row => row.action === origin.action).map(row => String(row.key)))
+
+  let ordinal = 1
+  while (taken.has(`${family}${FORK_SIGIL}${ordinal}`)) ordinal += 1
+  return keybindingKey(`${family}${FORK_SIGIL}${ordinal}`)
+}
+
 /** The seat a row stands in: one default of one action. */
 function seat(action: UiActionId, key: KeybindingKey): string {
   return `${action} ${key}`
