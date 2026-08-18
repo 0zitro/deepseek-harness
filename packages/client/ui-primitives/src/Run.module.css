@@ -1,0 +1,158 @@
+/*
+ * A run: content with room reserved at an end for an occupant that comes and
+ * goes, where the room is held whether or not the occupant is there.
+ *
+ * The room is stated as an element — the widest form the end can ever hold —
+ * rendered hidden in the same grid cell the occupant lands in. That is what
+ * lets the layout carry no lengths of its own: the reservation measures
+ * itself, so a mark that grows a rank reserves what a ranked mark needs, and
+ * an occupant appearing changes nothing, because the cell was already that
+ * wide with only the reserve in it.
+ *
+ * Grid rather than flex, for one property flex does not have. A `1fr` track is
+ * `minmax(auto, 1fr)`: its minimum comes from the reserve and its share from
+ * the coefficient, and the two are independent. A flex item's base size feeds
+ * the container's min-content, so slack there is charged to the floor —
+ * centring would cost a second reservation.
+ *
+ * What the run may not do is paint. It sets the tracks, the areas, and the
+ * overflow, and nothing about fonts, colour, borders, spacing, or size; those
+ * belong to the elements the caller passes in.
+ */
+
+/* Three tracks: a flank, the content, and the reserved end. The flanks are
+   coefficients, so they are the first thing spent; the content's track floors
+   at its own min-content, so it outlives them; the reserved track floors at
+   the reserve, so it outlives everything. That order is the run's whole
+   policy, and it holds in every alignment because no coefficient reaches a
+   track's minimum.
+
+   `min-width: 0` is what lets a run be narrower than what its tracks add up
+   to. Without it the run carries an automatic minimum of that sum into the
+   cell holding it, and a cell that cannot go below its content is, in a
+   resizable table, a column that refuses to be dragged shut. */
+.run {
+  display: grid;
+  grid-template-columns: 1fr minmax(min-content, auto) 1fr;
+  min-width: 0;
+}
+
+/* Which flank carries the slack, and nothing else. */
+.run[data-justify='start'] {
+  grid-template-columns: 0fr minmax(min-content, auto) 1fr;
+}
+
+.run[data-justify='end'] {
+  grid-template-columns: 1fr minmax(min-content, auto) 0fr;
+}
+
+/* The content takes the slack instead of the flanks: for a run whose content
+   is a box with an interior of its own, not a phrase to be placed. */
+.run[data-justify='stretch'] {
+  grid-template-columns: 0fr minmax(min-content, 1fr) 0fr;
+}
+
+.run[data-align='start'] {
+  align-items: start;
+}
+
+.run[data-align='center'] {
+  align-items: center;
+}
+
+.run[data-align='end'] {
+  align-items: end;
+}
+
+.run[data-align='stretch'] {
+  align-items: stretch;
+}
+
+.run[data-align='baseline'] {
+  align-items: baseline;
+}
+
+.content {
+  grid-area: 1 / 2;
+}
+
+/* The reserve and the occupant share one cell: the reserve states the room,
+   the occupant lands in it. Both sit at the reserved edge, so an occupant
+   narrower than its reserve stands where the reserve's edge promised.
+
+   This cell keeps its automatic minimum, which is the one place in the run
+   that must: the reserved track takes its floor from what stands here, so a
+   `min-width` of zero would reserve the room in name and nothing in layout. */
+.room {
+  grid-area: 1 / 3;
+  justify-self: end;
+}
+
+/* Present to be measured, and to nothing else: `visibility: hidden` keeps the
+   reserve out of the accessibility tree and out of the focus order while it
+   goes on holding the room open. */
+.reserve {
+  visibility: hidden;
+}
+
+/* The scrolling run reads its content by scrolling rather than by clipping.
+   Its box places the scroller; the scroller itself shrink-wraps while its
+   content fits, which is what lets the placement below centre it, and fills
+   the box once it does not, which is what lets it scroll. */
+.scrollerBox {
+  display: grid;
+  justify-items: center;
+}
+
+.scrollerBox[data-justify='start'] {
+  justify-items: start;
+}
+
+.scrollerBox[data-justify='end'] {
+  justify-items: end;
+}
+
+/* Three tracks again, and the same order, but stated the other way around.
+   The content and the room floor at their own max-content, so they are always
+   the full width they ask for; the slack alone can be grown, and it is the
+   only track free space can reach. That is the whole of the move-before-scroll
+   rule, in one template: while there is room to spare the slack takes it and
+   the content sits centred; as the spare runs out the slack gives it back a
+   pixel at a time and the content drifts toward the start; once the slack is
+   gone the run overflows and scrolls, and the leeway the content moved by was
+   exactly the reserve's width.
+
+   `auto` would not do, for a reason worth stating: an `auto` track's base size
+   is its *min*-content, and it is grown only out of free space, which is what
+   a container too narrow to fit has none of. The content would then overflow
+   its own track — leaving the room parked mid-scroll, and the end of the
+   scroll under whatever floats over the run's end.
+
+   The reserve is rendered twice here, as the slack ahead of the content and as
+   the room behind it: the first is what puts the content's own centre on the
+   box's centre, the second is what puts the room inside the scroll content,
+   where it doubles as the overscroll. */
+.scroller {
+  display: grid;
+  grid-template-columns: minmax(0, max-content) max-content max-content;
+  max-width: 100%;
+  overflow-x: auto;
+  overflow-y: hidden;
+  scrollbar-width: none;
+  overscroll-behavior-inline: contain;
+}
+
+.scroller::-webkit-scrollbar {
+  display: none;
+}
+
+/* Slack, and only slack: it holds the reserve's width where there is room for
+   it and gives all of it up before the scrolling starts, so content that
+   nearly fits moves by exactly the scroll it saves. Once the track is down to
+   nothing the copy inside goes on measuring the reserve and overflows it toward
+   the start, which is the one direction no scroll reaches and no `scrollWidth`
+   counts, in either writing direction. */
+.slack {
+  grid-area: 1 / 1;
+  visibility: hidden;
+}
