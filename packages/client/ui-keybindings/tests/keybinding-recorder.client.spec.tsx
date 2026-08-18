@@ -197,6 +197,54 @@ describe('KeybindingRecorder', () => {
     expect(screen.queryByRole('button', { name: 'Clear' })).toBeNull()
   })
 
+  it('starts recording and takes focus when it is armed', () => {
+    const onChange = vi.fn()
+    render(<KeybindingRecorder armed strokes={[]} onStrokesChange={onChange} label="Send message" doneLabel="Done" clearLabel="Clear" />)
+    const recorder = screen.getByRole('button', { name: /Send message/ })
+
+    // Already recording: the control that finishes it is offered without a click.
+    expect(screen.getByRole('button', { name: 'Done' })).toBeDefined()
+    // Focused, because recording cancels on blur and blur cannot reach
+    // something that was never focused.
+    expect(document.activeElement).toBe(recorder)
+
+    fireEvent.keyDown(recorder, { key: 'k', ctrlKey: true, metaKey: false, altKey: false, shiftKey: false })
+    const done = screen.getByRole('button', { name: 'Done' })
+    fireEvent.pointerDown(done)
+    fireEvent.click(done)
+
+    expect(onChange).toHaveBeenCalledWith([{ key: 'k', modifiers: ['ctrl'] }])
+  })
+
+  it('follows its own tail while recording, so a new stroke is visible', () => {
+    const { recorder } = mount()
+    const strip = recorder.querySelector('span > span') as HTMLElement
+    // jsdom lays nothing out, so the strip reports the width it is given.
+    Object.defineProperty(strip, 'scrollWidth', { value: 400, configurable: true })
+
+    // Not recording: a committed gesture reads from its start.
+    expect(strip.scrollLeft).toBe(0)
+
+    fireEvent.click(recorder)
+    fireEvent.keyDown(recorder, { key: 'k', ctrlKey: true, metaKey: false, altKey: false, shiftKey: false })
+
+    expect(strip.scrollLeft).toBe(400)
+  })
+
+  it('follows its tail toward the other end when the strip reads right to left', () => {
+    const { recorder } = mount()
+    const strip = recorder.querySelector('span > span') as HTMLElement
+    Object.defineProperty(strip, 'scrollWidth', { value: 400, configurable: true })
+    strip.style.direction = 'rtl'
+
+    fireEvent.click(recorder)
+    fireEvent.keyDown(recorder, { key: 'k', ctrlKey: true, metaKey: false, altKey: false, shiftKey: false })
+
+    // A scroll offset is physical: the end of the content is the negative
+    // extreme when the inline axis runs the other way.
+    expect(strip.scrollLeft).toBe(-400)
+  })
+
   it('holds room for one control, gathering it only when one is there', () => {
     const { recorder } = mount()
     const layout = recorder.firstElementChild as HTMLElement
