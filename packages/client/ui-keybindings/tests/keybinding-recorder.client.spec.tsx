@@ -9,7 +9,7 @@ afterEach(cleanup)
 const ENTER: KeyStroke = { key: 'Enter', modifiers: [] }
 
 function mount(onChange = vi.fn()) {
-  render(<KeybindingRecorder strokes={[ENTER]} onStrokesChange={onChange} label="Send message" doneLabel="Done" />)
+  render(<KeybindingRecorder strokes={[ENTER]} onStrokesChange={onChange} label="Send message" doneLabel="Done" clearLabel="Clear" />)
   return {
     onChange,
     recorder: screen.getByRole('button', { name: /Send message/ }),
@@ -24,7 +24,7 @@ function mount(onChange = vi.fn()) {
 describe('KeybindingRecorder', () => {
   it('renders the committed strokes as chips', () => {
     render(
-      <KeybindingRecorder strokes={[{ key: 'Enter', modifiers: ['ctrl'] }]} onStrokesChange={vi.fn()} label="Send message" doneLabel="Done" />,
+      <KeybindingRecorder strokes={[{ key: 'Enter', modifiers: ['ctrl'] }]} onStrokesChange={vi.fn()} label="Send message" doneLabel="Done" clearLabel="Clear" />,
     )
     expect(screen.getByText('Ctrl')).toBeDefined()
     expect(screen.getByText('Enter')).toBeDefined()
@@ -141,7 +141,7 @@ describe('KeybindingRecorder', () => {
   })
 
   it('renders the placeholder for empty strokes', () => {
-    render(<KeybindingRecorder strokes={[]} onStrokesChange={vi.fn()} label="Send message" doneLabel="Done" />)
+    render(<KeybindingRecorder strokes={[]} onStrokesChange={vi.fn()} label="Send message" doneLabel="Done" clearLabel="Clear" />)
     expect(screen.getByText('Press keys')).toBeDefined()
   })
 
@@ -163,5 +163,48 @@ describe('KeybindingRecorder', () => {
     fireEvent.keyDown(recorder, { key: 'CapsLock', ctrlKey: false, metaKey: false, altKey: false, shiftKey: false })
     done()
     expect(onChange).not.toHaveBeenCalled()
+  })
+
+  it('offers no way to unbind until the pointer is over a bound recorder', () => {
+    const { recorder } = mount()
+    expect(screen.queryByRole('button', { name: 'Clear' })).toBeNull()
+
+    fireEvent.pointerEnter(recorder.parentElement!)
+    expect(screen.getByRole('button', { name: 'Clear' })).toBeDefined()
+
+    fireEvent.pointerLeave(recorder.parentElement!)
+    expect(screen.queryByRole('button', { name: 'Clear' })).toBeNull()
+  })
+
+  it('unbinds the action with a gesture of no strokes', () => {
+    const { onChange, recorder } = mount()
+    fireEvent.pointerEnter(recorder.parentElement!)
+
+    const clear = screen.getByRole('button', { name: 'Clear' })
+    fireEvent.pointerDown(clear)
+    fireEvent.click(clear)
+
+    // Nothing can match an empty gesture, so the action is bound to nothing.
+    expect(onChange).toHaveBeenCalledWith([])
+  })
+
+  it('offers nothing to clear when the action is already unbound', () => {
+    render(<KeybindingRecorder strokes={[]} onStrokesChange={vi.fn()} label="Preview" doneLabel="Done" clearLabel="Clear" />)
+    const recorder = screen.getByRole('button', { name: /Preview/ })
+
+    fireEvent.pointerEnter(recorder.parentElement!)
+
+    expect(screen.queryByRole('button', { name: 'Clear' })).toBeNull()
+  })
+
+  it('holds room for one control, gathering it only when one is there', () => {
+    const { recorder } = mount()
+    const layout = recorder.firstElementChild as HTMLElement
+    expect(layout.dataset['control']).toBeUndefined()
+
+    fireEvent.pointerEnter(recorder.parentElement!)
+
+    // The chips ask for the same width either way; only where the room sits moves.
+    expect(layout.dataset['control']).toBe('true')
   })
 })
