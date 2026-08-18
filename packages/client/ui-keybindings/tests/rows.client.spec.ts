@@ -88,6 +88,23 @@ describe('keybindingRows', () => {
     expect(row?.entry.strokes).toEqual([])
   })
 
+  it('shows an override of an action shipping no default exactly once', () => {
+    const unbound: SourcedOverride = {
+      action: PREVIEW_ACTION,
+      key: keybindingKey(PREVIEW_ACTION),
+      source: 'user',
+      base: { strokes: [] },
+      strokes: [{ key: 'k', modifiers: ['ctrl'] }],
+    }
+    const rows = keybindingRows([{ id: PREVIEW_ACTION, label: 'Preview', run: () => {} }], [unbound])
+
+    // The action ships no default, so the row it is given is the only seat the
+    // override has; counting it as an orphan too would show it twice.
+    expect(rows).toHaveLength(1)
+    expect(rows[0]?.entry.strokes).toEqual([{ key: 'k', modifiers: ['ctrl'] }])
+    expect(rows[0]?.overridden.strokes).toBe(true)
+  })
+
   it('shows an override whose default is gone against its retained base', () => {
     const rows = keybindingRows([], [override({ strokes: [{ key: 'k', modifiers: ['ctrl'] }] })])
     expect(rows).toHaveLength(1)
