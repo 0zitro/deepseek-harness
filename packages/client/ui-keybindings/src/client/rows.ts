@@ -13,7 +13,7 @@ import {
 } from '../keybinding.ts'
 import type { UiActionId } from '../ui-action.ts'
 import type { UiActionDefinition } from './action-registry.ts'
-import { defaultEntry, findDefault, mergeOverride, seedPrios, topOverride } from './dispatch.ts'
+import { defaultEntry, mergeOverride, seedPrios, topOverride } from './dispatch.ts'
 
 /** Which of an override's fields the override states itself. */
 export interface KeybindingProvenance {
@@ -40,6 +40,11 @@ export interface KeybindingRow {
   prio: number
   /** Fields the override states; the rest follow the base. */
   overridden: KeybindingProvenance
+}
+
+/** The seat a row stands in: one default of one action. */
+function seat(action: UiActionId, key: KeybindingKey): string {
+  return `${action} ${key}`
 }
 
 /** Which fields an override states, or none at all when there is no override. */
@@ -75,6 +80,11 @@ export function keybindingRows(
   overrides: readonly SourcedOverride[],
 ): readonly KeybindingRow[] {
   const rows: KeybindingRow[] = []
+  // The seats a row already stands in. An override is an orphan when no row
+  // took it, which is not the same question as whether its action still ships
+  // a default: an action shipping none is given a seat here, and asking the
+  // registrations instead would answer no and show the override twice.
+  const taken = new Set<string>()
 
   for (const definition of actions) {
     const shipped = definition.defaultKeybindings ?? []
@@ -84,6 +94,7 @@ export function keybindingRows(
 
     for (const def of defaults) {
       const override = topOverride(overrides, definition.id, def.key)
+      taken.add(seat(definition.id, def.key))
       rows.push({
         action: definition.id,
         label: definition.label,
@@ -101,7 +112,7 @@ export function keybindingRows(
   // shows: against its retained base, and labelled by its action when one is
   // registered under a different key.
   for (const override of overrides) {
-    if (findDefault(actions, override.action, override.key) !== undefined) continue
+    if (taken.has(seat(override.action, override.key))) continue
     rows.push({
       action: override.action,
       label: actions.find(candidate => candidate.id === override.action)?.label ?? override.action,
