@@ -156,7 +156,7 @@ function BindingCells(
 
   return (
     <>
-      <div className={classes(css.cell, fieldClass(row.overridden.strokes))}>
+      <div className={classes(css.cell, fieldClass(row.overridden.strokes))} style={{ gridColumn: columnLine(1) }}>
         <KeybindingRecorder
           strokes={row.entry.strokes}
           onStrokesChange={setStrokes}
@@ -164,7 +164,7 @@ function BindingCells(
           doneLabel={t('recorder.done')}
         />
       </div>
-      <div className={css.cell}>
+      <div className={css.cell} style={{ gridColumn: columnLine(2) }}>
         <CellInput
           value={row.entry.when ?? ''}
           storable={storableClause}
@@ -174,7 +174,7 @@ function BindingCells(
           aria-label={`${t('column.when')}: ${row.label}`}
         />
       </div>
-      <div className={css.cell}>
+      <div className={css.cell} style={{ gridColumn: columnLine(3) }}>
         <CellInput
           value={String(row.prio)}
           storable={storablePrio}
@@ -186,7 +186,9 @@ function BindingCells(
           aria-label={`${t('column.prio')}: ${row.label}`}
         />
       </div>
-      <div className={classes(css.cell, css.source)}>{sourceLabel(row.entry.source, t)}</div>
+      <div className={classes(css.cell, css.source)} style={{ gridColumn: columnLine(4) }}>
+        {sourceLabel(row.entry.source, t)}
+      </div>
     </>
   )
 }
@@ -213,9 +215,19 @@ function SortArrow({ direction }: { direction: SortDirection }) {
   )
 }
 
+/**
+ * Grid lines of each column and of each sash. The sashes are lanes of the grid
+ * rather than ornaments hung inside a column, so a sash belongs to the
+ * boundary it divides and can span every row of the table.
+ */
+const columnLine = (index: number) => 1 + index * 2
+const sashLine = (index: number) => 2 + index * 2
+
 /** The grid's tracks for the given shares; a column still never goes under its content. */
 function tracks(shares: readonly number[]): string {
-  return shares.map(share => `minmax(min-content, ${share}fr)`).join(' ')
+  return shares
+    .map(share => `minmax(min-content, ${share}fr)`)
+    .join(' var(--dsh-sash-lane) ')
 }
 
 /**
@@ -231,12 +243,12 @@ function useColumnResize(): {
 
   const onResizeStart = (index: number) => (event: PointerEvent<HTMLElement>) => {
     const handle = event.currentTarget
-    const cell = handle.parentElement
-    const headers = cell?.parentElement
-    /* v8 ignore next -- the handle renders inside a header cell inside the table */
-    if (cell === null || headers === null || headers === undefined) return
+    const table = handle.parentElement
+    /* v8 ignore next -- a sash renders as a lane of the table itself */
+    if (table === null) return
 
-    const widths = [...headers.children].slice(0, COLUMNS.length).map(node => node.getBoundingClientRect().width)
+    // The heading cells are the table's first children, one per column.
+    const widths = [...table.children].slice(0, COLUMNS.length).map(node => node.getBoundingClientRect().width)
     const pair = widths.slice(index, index + 2).reduce((total, width) => total + width, 0)
     // An environment that lays nothing out offers no width to take a fraction of.
     if (pair === 0) return
@@ -245,15 +257,27 @@ function useColumnResize(): {
     const origin = event.clientX
     // A drag toward the inline end widens the leading column, which is the
     // other direction when the writing direction is.
-    const towardEnd = getComputedStyle(cell).direction === 'rtl' ? -1 : 1
+    const towardEnd = getComputedStyle(table).direction === 'rtl' ? -1 : 1
 
-    // Capture keeps the drag with the handle once the pointer leaves it.
+    // A pointer that started on a sash is dragging it, not selecting the text
+    // it crosses, and the cursor stays the drag's for as long as it lasts.
+    event.preventDefault()
+    const restore = { cursor: document.body.style.cursor, select: document.body.style.userSelect }
+    document.body.style.cursor = 'col-resize'
+    document.body.style.userSelect = 'none'
+
+    // Capture keeps the drag with the handle once the pointer leaves it, and
+    // the mark keeps the sash drawn while it is held rather than only hovered.
     handle.setPointerCapture(event.pointerId)
+    handle.dataset['dragging'] = 'true'
 
     const onMove = (move: globalThis.PointerEvent) => {
       setShares(resizeShares(from, index, ((move.clientX - origin) * towardEnd) / pair))
     }
     const onEnd = () => {
+      delete handle.dataset['dragging']
+      document.body.style.cursor = restore.cursor
+      document.body.style.userSelect = restore.select
       handle.removeEventListener('pointermove', onMove)
       handle.removeEventListener('pointerup', onEnd)
     }
@@ -266,11 +290,11 @@ function useColumnResize(): {
 
 /** One column heading: a click sorts by it, a double click drops it from the order. */
 function ColumnHeader(
-  { column, sorts, onSorts, onResizeStart, t }: {
+  { column, line, sorts, onSorts, t }: {
     column: SortableColumn
+    line: number
     sorts: readonly ColumnSort[]
     onSorts: (next: readonly ColumnSort[]) => void
-    onResizeStart: ((event: PointerEvent<HTMLElement>) => void) | undefined
     t: SectionT
   },
 ) {
@@ -281,7 +305,7 @@ function ColumnHeader(
     : t(sorted.direction === 'asc' ? 'sort.ascending' : 'sort.descending')
 
   return (
-    <div className={css.headerCell}>
+    <div className={css.headerCell} style={{ gridColumn: line }}>
       <button
         type="button"
         className={css.header}
@@ -304,15 +328,6 @@ function ColumnHeader(
           </span>
         </span>
       </button>
-      {onResizeStart !== undefined && (
-        <span
-          className={css.resizer}
-          role="separator"
-          aria-orientation="vertical"
-          aria-label={`${t(column.label)}: ${t('column.resize')}`}
-          onPointerDown={onResizeStart}
-        />
-      )}
     </div>
   )
 }
@@ -331,6 +346,9 @@ export function KeybindingsSection({ useActions, useBindings, setBinding, t }: K
     () => commandRuns(sortRows(keybindingRows(actions, bindings), sorts)),
     [actions, bindings, sorts],
   )
+  // A sash spans the heading row and every binding under it, so it needs the
+  // count: `1 / -1` would stop at the last explicit row, of which there is one.
+  const rowCount = runs.reduce((total, run) => total + run.rows.length, 0)
 
   // One grid over every row, because the command cell spans the rows it owns;
   // a per-row element could not stretch across its siblings. Each control
@@ -338,18 +356,22 @@ export function KeybindingsSection({ useActions, useBindings, setBinding, t }: K
   return (
     <div className={css.table} style={shares === undefined ? undefined : { gridTemplateColumns: tracks(shares) }}>
       {COLUMNS.map((column, index) => (
-        <ColumnHeader
+        <ColumnHeader key={column.id} column={column} line={columnLine(index)} sorts={sorts} onSorts={setSorts} t={t} />
+      ))}
+      {COLUMNS.slice(0, -1).map((column, index) => (
+        <span
           key={column.id}
-          column={column}
-          sorts={sorts}
-          onSorts={setSorts}
-          onResizeStart={index === COLUMNS.length - 1 ? undefined : onResizeStart(index)}
-          t={t}
+          className={css.sash}
+          role="separator"
+          aria-orientation="vertical"
+          aria-label={`${t(column.label)}: ${t('column.resize')}`}
+          style={{ gridColumn: sashLine(index), gridRow: `1 / span ${1 + rowCount}` }}
+          onPointerDown={onResizeStart(index)}
         />
       ))}
       {runs.map(run => (
         <Fragment key={run.rows[0]?.action}>
-          <div className={css.command} style={{ gridRow: `span ${run.rows.length}` }}>
+          <div className={css.command} style={{ gridColumn: columnLine(0), gridRow: `span ${run.rows.length}` }}>
             <div>{run.label}</div>
             {run.description !== undefined && <div className={css.description}>{run.description}</div>}
           </div>

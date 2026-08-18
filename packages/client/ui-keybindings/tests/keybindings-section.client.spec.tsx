@@ -294,11 +294,12 @@ describe('KeybindingsSection', () => {
     // One boundary per pair, so the last column has none.
     expect(handles).toHaveLength(4)
 
-    const table = handles[0]?.closest('div')?.parentElement
+    const table = handles[0]?.parentElement
     stubDragging(table)
 
     fireEvent.pointerDown(handles[0]!, { clientX: 0, pointerId: 1 })
     fireEvent.pointerMove(handles[0]!, { clientX: 40, pointerId: 1 })
+    fireEvent.pointerUp(handles[0]!, { pointerId: 1 })
 
     const tracks = weights(table)
     expect(tracks).toHaveLength(5)
@@ -318,13 +319,30 @@ describe('KeybindingsSection', () => {
     fireEvent.pointerMove(handle, { clientX: 40, pointerId: 1 })
 
     // Nothing is laid out here, so there is no width to take a fraction of.
-    expect(handle.closest('div')?.parentElement?.getAttribute('style')).toBeNull()
+    expect(handle.parentElement?.getAttribute('style')).toBeNull()
+  })
+
+  it('holds the drag cursor while a sash is held, and gives it back', () => {
+    mount()
+    const handles = screen.getAllByRole('separator')
+    stubDragging(handles[0]?.parentElement)
+
+    fireEvent.pointerDown(handles[0]!, { clientX: 0, pointerId: 1 })
+    expect(document.body.style.cursor).toBe('col-resize')
+    expect(document.body.style.userSelect).toBe('none')
+    expect(handles[0]?.dataset['dragging']).toBe('true')
+
+    fireEvent.pointerUp(handles[0]!, { pointerId: 1 })
+
+    expect(document.body.style.cursor).toBe('')
+    expect(document.body.style.userSelect).toBe('')
+    expect(handles[0]?.dataset['dragging']).toBeUndefined()
   })
 
   it('lets go of the boundary when the pointer does', () => {
     mount()
     const handles = screen.getAllByRole('separator')
-    const table = handles[0]?.closest('div')?.parentElement
+    const table = handles[0]?.parentElement
     stubDragging(table)
 
     fireEvent.pointerDown(handles[0]!, { clientX: 0, pointerId: 1 })
@@ -342,11 +360,12 @@ describe('KeybindingsSection', () => {
     try {
       mount()
       const handles = screen.getAllByRole('separator')
-      const table = handles[0]?.closest('div')?.parentElement
+      const table = handles[0]?.parentElement
       stubDragging(table)
 
       fireEvent.pointerDown(handles[0]!, { clientX: 0, pointerId: 1 })
       fireEvent.pointerMove(handles[0]!, { clientX: 40, pointerId: 1 })
+      fireEvent.pointerUp(handles[0]!, { pointerId: 1 })
 
       // The same motion widens the other column, because the inline end moved.
       expect(weights(table)[0]).toBeLessThan(100)
