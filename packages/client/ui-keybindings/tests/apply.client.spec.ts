@@ -256,7 +256,7 @@ describe('ui-keybindings apply', () => {
     ])
   })
 
-  it('drops an override left stating nothing after its prio retires', async () => {
+  it('keeps an override that states nothing once its prio retires', async () => {
     const { ctx, face, set, publish } = await mount()
     const gone = 'composer.gone' as UiActionId
     ctx.uiActions.register({ id: COMPOSER_SEND_ACTION, label: 'Send', defaultKeybindings: [{ key: KEY, ...ENTER }], run: () => {} })
@@ -267,9 +267,13 @@ describe('ui-keybindings apply', () => {
 
     face.setBinding(REF, BASE, { prio: 1 })
 
-    // The unregistered command cannot use a place, and its override said
-    // nothing else, so it leaves rather than holding a priority it cannot use.
-    expect(set).toHaveBeenCalledWith('bindings', [{ ...REF, base: BASE, prio: 1 }])
+    // The unregistered command cannot use a place, so it gives the priority
+    // up — but not the seat: an override stating no field at all still makes
+    // the binding the user's, which is a rank and a scope of its own.
+    expect(set).toHaveBeenCalledWith('bindings', [
+      { ...REF, base: BASE, prio: 1 },
+      { action: gone, key: KEY, base: BASE },
+    ])
   })
 
   it('keeps an override that still states something after its prio retires', async () => {
