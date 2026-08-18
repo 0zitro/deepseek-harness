@@ -19,8 +19,13 @@ afterEach(cleanup)
 /** jsdom lays nothing out and captures no pointer, so a drag needs both supplied. */
 function stubDragging(table: Element | null | undefined) {
   for (const cell of [...(table?.children ?? [])]) {
-    cell.getBoundingClientRect = () =>
-      ({ width: 100, height: 20, x: 0, y: 0, top: 0, left: 0, right: 100, bottom: 20, toJSON: () => ({}) })
+    // The drag measures twice: once for the width as laid out, and once with
+    // the heading asked for its narrowest. jsdom resolves neither, so the stub
+    // answers by which question was asked.
+    cell.getBoundingClientRect = () => {
+      const width = (cell as HTMLElement).style.width === 'min-content' ? 30 : 100
+      return { width, height: 20, x: 0, y: 0, top: 0, left: 0, right: width, bottom: 20, toJSON: () => ({}) }
+    }
   }
   for (const handle of [...(table?.querySelectorAll('[role="separator"]') ?? [])]) {
     handle.setPointerCapture = () => {}

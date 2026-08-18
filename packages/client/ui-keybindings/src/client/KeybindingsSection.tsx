@@ -459,15 +459,37 @@ const sashLine = (index: number) => 2 + index * 2
 const cellLine = (index: number) => columnLine(index - 1)
 
 /**
- * The grid's tracks for the given widths. They are exact rather than floored
- * at the content's width: a floor a drag cannot cross would be space one
- * column could not give up, and the other columns would silently absorb it.
- * A column dragged under its heading clips it instead.
+ * The grid's tracks for the given column sizes, with the lanes between them.
+ * The sizes are exact rather than floored: a floor a drag cannot cross would
+ * be space one column could not give up, and the other columns would silently
+ * absorb it. What a drag may not cross is measured instead — see `floorsOf`.
  */
-function tracks(widths: readonly number[]): string {
-  return widths
-    .map((width, index) => index === 0 ? `${width}px` : `${lane(index - 1)} ${width}px`)
+function tracks(columns: readonly string[]): string {
+  return columns
+    .map((column, index) => index === 0 ? column : `${lane(index - 1)} ${column}`)
     .join(' ')
+}
+
+/**
+ * What each column may not be dragged below: what its own heading measures,
+ * which is the label plus the mark's reserved room where one is shown. The
+ * rows have no say — their fields clip and their gestures scroll, so letting
+ * a clause decide a column's floor would hold a column open for content that
+ * has somewhere else to go.
+ *
+ * It is measured rather than computed from the stylesheet's own numbers: each
+ * heading is asked for its narrowest width and restored within the frame, so
+ * nothing is painted in between and no constant here can drift from the CSS.
+ */
+function floorsOf(cells: readonly Element[]): readonly number[] {
+  return cells.map((cell) => {
+    const styled = (cell as HTMLElement).style
+    const restore = styled.width
+    styled.width = 'min-content'
+    const floor = cell.getBoundingClientRect().width
+    styled.width = restore
+    return floor
+  })
 }
 
 /** The lane between two columns; the first one carries the row's gutter too. */
@@ -491,9 +513,12 @@ function useColumnResize(): {
     if (table === null) return
 
     // The heading cells are the table's first children, one per column.
-    const measured = [...table.children].slice(0, COLUMNS.length).map(node => node.getBoundingClientRect().width)
+    const cells = [...table.children].slice(0, COLUMNS.length)
+    const measured = cells.map(node => node.getBoundingClientRect().width)
     // An environment that lays nothing out offers no widths to move between.
     if (measured.every(width => width === 0)) return
+
+    const floors = floorsOf(cells)
 
     const from = widths ?? measured
     const origin = event.clientX
@@ -514,7 +539,7 @@ function useColumnResize(): {
     handle.dataset['dragging'] = 'true'
 
     const onMove = (move: globalThis.PointerEvent) => {
-      setWidths(resizeWidths(from, index, (move.clientX - origin) * towardEnd))
+      setWidths(resizeWidths(from, floors, index, (move.clientX - origin) * towardEnd))
     }
     const onEnd = () => {
       delete handle.dataset['dragging']
@@ -610,7 +635,10 @@ export function KeybindingsSection(
   // a per-row element could not stretch across its siblings. Each control
   // names its own column and command, so the columns need no header semantics.
   return (
-    <div className={css.table} style={widths === undefined ? undefined : { gridTemplateColumns: tracks(widths) }}>
+    <div
+      className={css.table}
+      style={widths === undefined ? undefined : { gridTemplateColumns: tracks(widths.map(width => `${width}px`)) }}
+    >
       {COLUMNS.map((column, index) => (
         <ColumnHeader key={column.id} column={column} line={columnLine(index)} sorts={sorts} onSorts={setSorts} t={t} />
       ))}

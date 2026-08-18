@@ -107,7 +107,11 @@
 .header {
   flex: 1;
   min-width: 0;
-  padding: 4px 6px;
+  /* No inline padding: the flanks either side of the heading are free space
+     and give the same room back wherever there is any, but unlike padding
+     they yield it when the column has none to spare. Fixed chrome would be
+     spent before the label, which is the one thing here worth the width. */
+  padding: 4px 0;
   margin-block-end: 4px;
   border: none;
   background: transparent;
@@ -124,32 +128,51 @@
 }
 
 /* Three tracks: a leading flank, the heading, and the sort slot at the inline
-   end. The column reserves one mark's width and no more; which flank holds it
-   is what changes. Idle, the two flanks split it evenly and the heading sits
-   on the cell's centre. Sorted, it gathers at the inline end for the mark and
-   the heading leans toward the leading side. Both states ask for the same
-   total, so a column never moves when it joins or leaves the order.
+   end. What the column gives up as it narrows is ordered — the heading must
+   read before it is centred, and it must be clear of the mark before it is
+   centred too — so the flanks are free space and collapse first, while the
+   heading's track floors at the label itself.
+
+   The mark's room is reserved whether or not a mark is drawn, split between
+   the flanks while none is and gathered at the inline end when one is. Both
+   states therefore ask for the same total, which is what keeps a column from
+   changing width as it joins or leaves the sort order. Reserving only where
+   a mark is drawn looks like the thriftier rule and is not: a column already
+   at its floor has nowhere to find the mark's room, so it takes it from its
+   neighbours the moment it is sorted. What starved the label was never this
+   reservation but the padding and the gaps beside it, which could not be
+   spent at all.
 
    This grid sits on a child of the button rather than on the button itself:
    an engine may wrap a button's contents in an anonymous block, which leaves
    a grid declared on the button inert and its children flowing against each
    other, separated only by whatever padding they carry. */
 .headerLayout {
-  --dsh-sort-slot: 26px;
+  /* The mark's own room, the room the heading keeps clear of it, and the two
+     together — which is what a sorted column reserves. The gap sits inside
+     that reservation rather than beside it, so it is held where the flanks
+     have already collapsed: a narrow column moves its heading off centre
+     rather than letting it meet the mark. */
+  --dsh-sort-mark: 26px;
+  --dsh-heading-gap: 6px;
+  --dsh-sort-slot: calc(var(--dsh-sort-mark) + var(--dsh-heading-gap));
   display: grid;
+  /* `min-content` of a heading is the whole label, since it never wraps. */
   grid-template-columns:
     minmax(calc(var(--dsh-sort-slot) / 2), 1fr)
-    auto
+    minmax(min-content, auto)
     minmax(calc(var(--dsh-sort-slot) / 2), 1fr);
   align-items: center;
-  gap: 6px;
+  /* No gap between the tracks either: what separates the heading from the
+     mark is reserved with the mark, so it is held where a gap would have been
+     spent along with everything else. */
   width: 100%;
 }
 
 .headerLayout[data-sorted] {
   grid-template-columns:
     minmax(0, 1fr)
-    auto
+    minmax(min-content, auto)
     minmax(var(--dsh-sort-slot), 1fr);
 }
 
@@ -173,7 +196,12 @@
   display: flex;
   align-items: center;
   justify-content: flex-end;
-  min-width: var(--dsh-sort-slot);
+  /* The mark's room, and before it the gap the heading keeps. The mark sits
+     at the end of that room, so what stands between the two is the gap plus
+     whatever the mark leaves of its own — least when a rank is shown beside
+     the arrow, which is the case the gap is here for. */
+  min-width: var(--dsh-sort-mark);
+  padding-inline-start: var(--dsh-heading-gap);
   height: 18px;
 }
 
@@ -447,12 +475,16 @@
   color: var(--dsw-alias-label-secondary);
 }
 
-/* Each cell draws its own span of that line, reaching half a sash lane either
-   side, so the spans meet across the lanes that hold the columns apart. */
+/* Each cell draws its own span of that line, reaching back across the lane
+   before it so the spans meet where the columns are held apart. It reaches
+   backward only: a cell that also reached forward would carry the line past
+   the last column and out of the table, which is a scrollbar rather than a
+   line. */
 .shipped::after {
   content: '';
   position: absolute;
-  inset-inline: calc(var(--dsh-sash-lane) / -2);
+  inset-inline-start: calc(-1 * var(--dsh-sash-lane));
+  inset-inline-end: 0;
   top: 50%;
   height: 1px;
   background: currentColor;
