@@ -196,7 +196,6 @@ export function KeybindingRecorder({ strokes, onStrokesChange, label, doneLabel,
                   : strokes.map((stroke, index) => <StrokeChips key={index} stroke={stroke} />)
               )}
           </span>
-          <span className={css.controlSlot} aria-hidden="true" />
         </span>
       </button>
       {control && (

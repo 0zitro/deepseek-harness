@@ -220,7 +220,6 @@ function ShippedCells({ row, t }: { row: SupersededRow; t: SectionT }) {
           <span className={css.strokes}>
             {row.entry.strokes.map((stroke, index) => <StrokeChips key={index} stroke={stroke} />)}
           </span>
-          <span className={css.controlSlot} aria-hidden="true" />
         </span>
       </div>
       <div className={classes(css.cell, css.shipped)} style={{ gridColumn: columnLine(2) }}>
