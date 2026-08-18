@@ -39,10 +39,20 @@ const identifier: Ordering<string> = {
   natural: 'asc',
 }
 
-/** A place in an order counts from the binding that wins, so ascending is toward it. */
-const place: Ordering<number> = {
-  compare: (left, right) => left - right,
+/**
+ * A place in an order counts from the binding that wins, so ascending is toward
+ * it. A superseded binding holds no place, and reads after every binding that
+ * holds one — a sentinel rather than an infinity, which would compare as NaN
+ * against itself and leave two placeless rows unordered.
+ */
+const place: Ordering<number | undefined> = {
+  compare: (left, right) => placeOf(left) - placeOf(right),
   natural: 'asc',
+}
+
+/** Where a row reads when it holds no place. */
+function placeOf(prio: number | undefined): number {
+  return prio ?? Number.MAX_SAFE_INTEGER
 }
 
 /**

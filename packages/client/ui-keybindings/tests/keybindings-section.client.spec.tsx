@@ -146,6 +146,22 @@ describe('KeybindingsSection', () => {
     expect(setBinding).toHaveBeenLastCalledWith(REF, BASE, { when: '' })
   })
 
+  it('keeps the binding a seat ships on the page, inert, once an override takes it', () => {
+    const { bindingsStore } = mount()
+    act(() => {
+      bindingsStore.set([{ ...REF, source: 'user', base: BASE, strokes: [{ key: 'k', modifiers: ['ctrl'] }] }])
+    })
+
+    // Both gestures read, but only the one that dispatches can be edited: the
+    // shipped binding offers no recorder and holds no place to state.
+    expect(screen.getByText('Enter')).toBeDefined()
+    expect(screen.getByText('K')).toBeDefined()
+    expect(screen.getAllByRole('button', { name: /Send message/ })).toHaveLength(1)
+    expect(screen.getAllByLabelText('Priority: Send message')).toHaveLength(1)
+    expect(screen.getAllByText('System')).toHaveLength(1)
+    expect(screen.getByText('User')).toBeDefined()
+  })
+
   it('replaces an untouched draft when the stored clause changes underneath', () => {
     const { bindingsStore } = mount()
     const input = screen.getByPlaceholderText('e.g. composerFocused && !agentBusy')

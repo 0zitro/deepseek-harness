@@ -18,7 +18,7 @@ import {
 import { UiActionRegistry } from './action-registry.ts'
 import { createKeybindingDispatcher, reconcileBases } from './dispatch.ts'
 import { insertPrio, type PrioAssignment } from './reorder.ts'
-import { keybindingRows } from './rows.ts'
+import { keybindingRows, type EffectiveRow } from './rows.ts'
 import { KeybindingsSection, type KeybindingsSectionInjected } from './KeybindingsSection.tsx'
 import { UiWhenContext } from './when-context.ts'
 import { en, NS, zh } from './locales.ts'
@@ -116,7 +116,10 @@ function bindBindings(host: SettingsScope<KeybindingsSettings>, ctx: Context): B
   ): readonly KeybindingOverride[] => {
     const registered = ctx.uiActions.actions.getSnapshot()
     const rows = keybindingRows(registered, overrides.map(o => ({ ...o, source: USER_SOURCE })))
-    const candidate = rows.find(row => row.action === ref.action && row.key === ref.key)
+    // The seat's own binding, not the one an override took it from: only a
+    // binding that dispatches holds a place for a stated priority to move.
+    const candidate = rows.find((row): row is EffectiveRow =>
+      !row.superseded && row.action === ref.action && row.key === ref.key)
     /* v8 ignore next -- every override yields a row, against its default or as an orphan */
     if (candidate === undefined) return overrides
 

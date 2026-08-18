@@ -268,6 +268,59 @@
   line-height: 18px;
 }
 
+/* A binding an override took the seat from. It keeps the seat's shapes, so the
+   two rows read against each other, and says it is inert by receding and by
+   one line across the row: what is superseded is the binding, not the values
+   written in it. */
+.shipped {
+  position: relative;
+  opacity: 0.55;
+  color: var(--dsw-alias-label-secondary);
+}
+
+/* Each cell draws its own span of that line, reaching half a sash lane either
+   side, so the spans meet across the lanes that hold the columns apart. */
+.shipped::after {
+  content: '';
+  position: absolute;
+  inset-inline: calc(var(--dsh-sash-lane) / -2);
+  top: 50%;
+  height: 1px;
+  background: currentColor;
+  pointer-events: none;
+}
+
+/* The boxes the row would offer if it were editable, drawn rather than
+   offered: the recorder's and the input's metrics, without the pointer. */
+.shippedBox {
+  min-width: 0;
+  padding: 3px 8px;
+  border-radius: 6px;
+  border: 1px solid var(--dsw-alias-border-l1);
+  background: var(--dsw-alias-bg-base);
+}
+
+/* The place column keeps its shape while the row states no place. */
+.shippedPlace {
+  display: block;
+  width: 100%;
+  min-height: 18px;
+}
+
+/* A clause the page shows but does not offer to edit, in the input's face and
+   metrics so a column of clauses reads as one column — including the one line
+   it keeps: a clause that wrapped would deepen its row past the seat's other
+   binding, and the two are meant to read against each other. */
+.clauseText {
+  display: block;
+  width: 100%;
+  overflow: hidden;
+  white-space: nowrap;
+  font-family: var(--ds-font-family-code);
+  font-size: 13px;
+  line-height: 18px;
+}
+
 /* The recorder only paints; the layout that holds room for its control lives
    one level down, where a grid takes effect. */
 .recorder {

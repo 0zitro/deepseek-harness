@@ -15,7 +15,7 @@
 import type { KeybindingOverrideRef } from '../keybinding.ts'
 import type { UiActionId } from '../ui-action.ts'
 import { collisionScope } from './dispatch.ts'
-import type { KeybindingRow } from './rows.ts'
+import type { EffectiveRow, KeybindingRow } from './rows.ts'
 
 /** What one override's priority becomes; `undefined` retires it. */
 export interface PrioAssignment {
@@ -37,13 +37,15 @@ export interface PrioAssignment {
  */
 export function insertPrio(
   rows: readonly KeybindingRow[],
-  candidate: KeybindingRow,
+  candidate: EffectiveRow,
   target: number,
   achievable: (action: UiActionId) => boolean,
 ): readonly PrioAssignment[] {
   const scope = collisionScope(candidate.entry)
-  const displaced = rows.filter(row =>
-    row !== candidate && row.prio >= target && collisionScope(row.entry) === scope)
+  // A superseded binding cannot fire, so it holds no place to be moved out of.
+  const displaced = rows.filter((row): row is EffectiveRow =>
+    row !== candidate && !row.superseded && row.prio >= target
+    && collisionScope(row.entry) === scope)
 
   return [
     { ref: { action: candidate.action, key: candidate.key }, prio: target },

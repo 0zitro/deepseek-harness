@@ -11,11 +11,12 @@ import type { UiActionDefinition } from './action-registry.ts'
 import { useDraft } from './draft.ts'
 import { KeybindingRecorder } from './KeybindingRecorder.tsx'
 import { resizeWidths } from './resize.ts'
-import { keybindingRows, type KeybindingRow } from './rows.ts'
+import { keybindingRows, type EffectiveRow, type KeybindingRow, type SupersededRow } from './rows.ts'
 import {
   COLUMNS, dropSort, sortRows, toggleSort,
   type ColumnSort, type SortableColumn, type SortDirection,
 } from './sorting.ts'
+import { StrokeChips } from './StrokeChips.tsx'
 import css from './keybindings.module.css'
 
 /** Registration-side preference face. */
@@ -59,6 +60,17 @@ function commandRuns(rows: readonly KeybindingRow[]): readonly CommandRun[] {
     runs.push({ label: row.label, description: row.description, rows: [row] })
   }
   return runs
+}
+
+/**
+ * What tells one row of a seat from another: a seat shows the binding it ships
+ * and the one that dispatches, and each is a row of its own. The dispatching
+ * row keeps this identity when the user takes the seat over — a key that
+ * changed with the source would remount the row mid-edit, losing the focus and
+ * the draft of the very field that caused the change.
+ */
+function contributionKey(row: KeybindingRow): string {
+  return `${row.action}:${row.key}:${row.superseded ? 'shipped' : 'bound'}`
 }
 
 /** Join the defined names; a css-module lookup is optional by type. */
@@ -146,7 +158,7 @@ function CellInput(
 
 /** The four editable cells of one binding: gesture, clause, prio, source. */
 function BindingCells(
-  { row, setBinding, t }: { row: KeybindingRow; setBinding: KeybindingsSectionInjected['setBinding']; t: SectionT },
+  { row, setBinding, t }: { row: EffectiveRow; setBinding: KeybindingsSectionInjected['setBinding']; t: SectionT },
 ) {
   const ref = { action: row.action, key: row.key } as const
 
@@ -188,6 +200,36 @@ function BindingCells(
         />
       </div>
       <div className={classes(css.cell, css.source)} style={{ gridColumn: columnLine(4) }}>
+        {sourceLabel(row.entry.source, t)}
+      </div>
+    </>
+  )
+}
+
+/**
+ * The four cells of a binding an override supersedes. It is shown because it
+ * is what the override departs from and what returns if the override goes, and
+ * it is inert: nothing dispatches it, so it holds no place in the order, and
+ * editing it would only write the override that already took its seat.
+ */
+function ShippedCells({ row, t }: { row: SupersededRow; t: SectionT }) {
+  return (
+    <>
+      <div className={classes(css.cell, css.shipped)} style={{ gridColumn: columnLine(1) }}>
+        <span className={classes(css.shippedBox, css.recorderLayout)}>
+          <span className={css.strokes}>
+            {row.entry.strokes.map((stroke, index) => <StrokeChips key={index} stroke={stroke} />)}
+          </span>
+          <span className={css.controlSlot} aria-hidden="true" />
+        </span>
+      </div>
+      <div className={classes(css.cell, css.shipped)} style={{ gridColumn: columnLine(2) }}>
+        <span className={classes(css.shippedBox, css.clauseText)}>{row.entry.when ?? ''}</span>
+      </div>
+      <div className={classes(css.cell, css.shipped)} style={{ gridColumn: columnLine(3) }}>
+        <span className={classes(css.shippedBox, css.shippedPlace)} />
+      </div>
+      <div className={classes(css.cell, css.source, css.shipped)} style={{ gridColumn: columnLine(4) }}>
         {sourceLabel(row.entry.source, t)}
       </div>
     </>
@@ -379,7 +421,9 @@ export function KeybindingsSection({ useActions, useBindings, setBinding, t }: K
             {run.description !== undefined && <div className={css.description}>{run.description}</div>}
           </div>
           {run.rows.map(row => (
-            <BindingCells key={`${row.action}:${row.key}`} row={row} setBinding={setBinding} t={t} />
+            row.superseded
+              ? <ShippedCells key={contributionKey(row)} row={row} t={t} />
+              : <BindingCells key={contributionKey(row)} row={row} setBinding={setBinding} t={t} />
           ))}
         </Fragment>
       ))}
