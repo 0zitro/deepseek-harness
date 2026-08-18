@@ -46,7 +46,12 @@ export interface Keybinding {
 /** A plugin's stable identifier. */
 export type PluginId = Branded<'PluginId'>
 
-/** Cast a plugin's stable identifier to the branded PluginId. */
+/**
+ * Cast a plugin's stable identifier to its brand. The brand is a claim about
+ * which namespace a string belongs to, not a validation of it.
+ * @param id - the plugin's own identifier.
+ * @returns the same string, branded.
+ */
 export function pluginId(id: string): PluginId {
   return id as PluginId
 }
@@ -67,7 +72,13 @@ export interface KeybindingEntry extends Keybinding {
 /** A default binding's stable identity, independent of its mutable gesture. */
 export type KeybindingKey = Branded<'KeybindingKey'>
 
-/** Cast a stable identifier to the branded KeybindingKey. */
+/**
+ * Cast a default binding's stable identifier to its brand. The key outlives
+ * the gesture it names, which is what lets an override survive a default whose
+ * strokes move.
+ * @param id - the identifier the registrar chose for that default.
+ * @returns the same string, branded.
+ */
 export function keybindingKey(id: string): KeybindingKey {
   return id as KeybindingKey
 }
@@ -129,6 +140,8 @@ export function canonicalModifiers(stroke: KeyStroke): KeybindingModifier[] {
  * Canonical identity of a gesture. Modifiers are read in the canonical order
  * rather than the order they were written in, so a stroke set by hand in a
  * settings document identifies with the same gesture the recorder produces.
+ * @param strokes - the gesture's strokes.
+ * @returns a string equal for gestures that are the same.
  */
 export function strokesKey(strokes: readonly KeyStroke[]): string {
   return strokes
@@ -136,22 +149,43 @@ export function strokesKey(strokes: readonly KeyStroke[]): string {
     .join(' ')
 }
 
-/** Whether two stroke sequences are the same gesture, modifier order aside. */
+/**
+ * Whether two stroke sequences are the same gesture, modifier order aside.
+ * @param left - the first gesture.
+ * @param right - the second gesture.
+ * @returns true when both identify alike.
+ */
 export function sameStrokes(left: readonly KeyStroke[], right: readonly KeyStroke[]): boolean {
   return strokesKey(left) === strokesKey(right)
 }
 
-/** Whether two bindings state the same gesture under the same predicate. */
+/**
+ * Whether two bindings state the same gesture under the same predicate. A
+ * clause is compared verbatim, since two clauses that imply one another are
+ * not statically decidable to be the same.
+ * @param left - the first binding.
+ * @param right - the second binding.
+ * @returns true when both state alike.
+ */
 export function sameKeybinding(left: Keybinding, right: Keybinding): boolean {
   return left.when === right.when && sameStrokes(left.strokes, right.strokes)
 }
 
-/** The gesture of a shipped default, without the identity an override merges into. */
+/**
+ * The gesture of a shipped default, without the identity an override merges
+ * into — the snapshot an override stores as the base it departs from.
+ * @param def - the shipped default.
+ * @returns its strokes and clause alone.
+ */
 export function keybindingOfDefault(def: KeybindingDefault): Keybinding {
   return { strokes: def.strokes, ...(def.when === undefined ? {} : { when: def.when }) }
 }
 
-/** The gesture (strokes and when) of an entry, without its action. */
+/**
+ * The gesture of an effective entry, without the action it invokes.
+ * @param entry - the merged entry.
+ * @returns its strokes and clause alone.
+ */
 export function keybindingOfEntry(entry: KeybindingEntry): Keybinding {
   return { strokes: entry.strokes, ...(entry.when === undefined ? {} : { when: entry.when }) }
 }
@@ -173,7 +207,13 @@ function modifierActive(event: KeyGesture, modifier: string, flag: boolean): boo
   return event.getModifierState?.(modifier) ?? false
 }
 
-/** Held modifiers of a live keyboard event, in canonical order. */
+/**
+ * Held modifiers of a live keyboard event, in canonical order. Each is read
+ * from `getModifierState` where the event offers it, since the boolean flags
+ * are unreliable on the keydown of the modifier itself.
+ * @param event - the live event.
+ * @returns the modifiers held, ordered as this module spells them.
+ */
 export function modifiersOf(event: KeyGesture): KeybindingModifier[] {
   const result: KeybindingModifier[] = []
   if (modifierActive(event, 'Control', event.ctrlKey)) result.push('ctrl')
@@ -183,7 +223,12 @@ export function modifiersOf(event: KeyGesture): KeybindingModifier[] {
   return result
 }
 
-/** Whether a keydown is a recording target (a single real key, not a lone modifier). */
+/**
+ * Whether a keydown is a recording target rather than a lone modifier or a
+ * lock key, neither of which is a stroke on its own.
+ * @param key - the event's `key` value.
+ * @returns true when a stroke may be built from it.
+ */
 export function isRecordableKey(key: string): boolean {
   return !IGNORED_KEYS.has(key)
 }
@@ -192,18 +237,31 @@ export function isRecordableKey(key: string): boolean {
  * Canonical persisted key value. Single printable characters normalize to
  * lowercase so a letter records the same way whether Shift was held during
  * capture; named keys keep their `KeyboardEvent.key` spelling verbatim.
+ * @param key - the event's `key` value.
+ * @returns the value as it is persisted.
  */
 export function normalizeEventKey(key: string): string {
   return key.length === 1 ? key.toLowerCase() : key
 }
 
-/** Build a stroke from a live keyboard event, or null when it is not recordable. */
+/**
+ * Build a stroke from a live keyboard event.
+ * @param event - the live event.
+ * @returns the stroke, or null when the event carries no recordable key.
+ */
 export function strokeFromEvent(event: KeyGesture): KeyStroke | null {
   if (!isRecordableKey(event.key)) return null
   return { key: normalizeEventKey(event.key), modifiers: modifiersOf(event) }
 }
 
-/** Whether a live keyboard event matches a stroke exactly (modifier-exact, no chords). */
+/**
+ * Whether a live keyboard event matches one stroke. Matching is
+ * modifier-exact, so a bound `Ctrl+Enter` does not fire while `Alt` is also
+ * held — a binding never claims a gesture the user did not make.
+ * @param event - the live event.
+ * @param stroke - the stroke to match against.
+ * @returns true when the event is that stroke.
+ */
 export function strokeMatches(event: KeyGesture, stroke: KeyStroke): boolean {
   if (event.key.toLowerCase() !== stroke.key.toLowerCase()) return false
   const held = modifiersOf(event)
@@ -219,14 +277,23 @@ export const KEYBINDING_MODIFIER_LABELS: Record<KeybindingModifier, string> = {
   shift: 'Shift',
 }
 
-/** Human label for a stroke's key chip. */
+/**
+ * Human label for a stroke's key chip.
+ * @param key - the persisted key value.
+ * @returns the text a chip shows; a space reads as a word, since it cannot be
+ * read as itself.
+ */
 export function keybindingKeyLabel(key: string): string {
   if (key === ' ') return 'Space'
   if (key.length === 1) return key.toUpperCase()
   return key
 }
 
-/** Ordered chip labels for one stroke. */
+/**
+ * Ordered chip labels for one stroke, modifiers first.
+ * @param stroke - the stroke to spell.
+ * @returns one label per chip.
+ */
 export function strokeLabels(stroke: KeyStroke): string[] {
   return [
     ...stroke.modifiers.map(modifier => KEYBINDING_MODIFIER_LABELS[modifier]),
@@ -234,7 +301,12 @@ export function strokeLabels(stroke: KeyStroke): string[] {
   ]
 }
 
-/** Chip-label rows for a binding: one row per stroke. */
+/**
+ * Chip-label rows for a binding, one row per stroke, which is how a chord
+ * reads as several groups rather than one run of chips.
+ * @param binding - the binding to spell.
+ * @returns one row of labels per stroke.
+ */
 export function keybindingLabels(binding: Keybinding): string[][] {
   return binding.strokes.map(strokeLabels)
 }

@@ -50,7 +50,12 @@ export class UiActionRegistry extends Service {
     return this.store
   }
 
-  /** Register one action; returns a disposer that removes it. */
+  /**
+   * Register one action. An id already registered is replaced, so a reload
+   * of the registrar leaves one definition rather than two.
+   * @param definition - the action, its label, its defaults, and its handler.
+   * @returns a disposer that removes the registration.
+   */
   register(definition: UiActionDefinition): () => void {
     this.definitions.set(definition.id, definition)
     this.publish()

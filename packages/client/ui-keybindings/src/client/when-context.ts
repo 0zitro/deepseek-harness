@@ -56,7 +56,12 @@ export class UiWhenContext extends Service {
     return this.store
   }
 
-  /** Set one explicit state key; the returned disposer clears it. */
+  /**
+   * Set one explicit state key, which `when` clauses then resolve against.
+   * @param key - the identifier a clause names.
+   * @param value - what the clause reads; anything falsy fails a bare name.
+   * @returns a disposer that clears the key again.
+   */
   set(key: string, value: unknown): () => void {
     this.state.set(key, value)
     this.publish(this.scopes, this.controlActive)

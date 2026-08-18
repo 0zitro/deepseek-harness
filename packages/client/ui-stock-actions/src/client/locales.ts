@@ -28,8 +28,10 @@ export const zh = {
   'overlayClose.description': '关闭最上层的浮层（菜单、对话框、弹窗等）。',
 } satisfies Record<string, string>
 
+/** Every copy key the stock actions register themselves with. */
 export type StockActionsKey = keyof typeof zh
 
+/** English dictionary, complete against the key-set source of truth. */
 export const en = {
   'composerSend.label': 'Send message',
   'composerSend.description': 'Keyboard chord that submits the composer.',
