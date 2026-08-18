@@ -45,9 +45,19 @@ interface CommandRun {
   label: string
   description?: string | undefined
   rows: readonly KeybindingRow[]
+  /** Grid row its first binding stands on; the heading holds the first. */
+  line: number
 }
 
-/** Group the ordered rows into runs of one command. */
+/** The grid row the headings occupy, above every binding. */
+const HEADING_LINE = 1
+
+/**
+ * Group the ordered rows into runs of one command, each knowing where it
+ * stands. Every cell names its own row rather than taking one from
+ * auto-placement, because auto-placement steps over whatever is already there:
+ * one definitely placed item spanning a row would push that row's cells down.
+ */
 function commandRuns(rows: readonly KeybindingRow[]): readonly CommandRun[] {
   const runs: CommandRun[] = []
 
@@ -57,7 +67,12 @@ function commandRuns(rows: readonly KeybindingRow[]): readonly CommandRun[] {
       runs[runs.length - 1] = { ...open, rows: [...open.rows, row] }
       continue
     }
-    runs.push({ label: row.label, description: row.description, rows: [row] })
+    runs.push({
+      label: row.label,
+      description: row.description,
+      rows: [row],
+      line: open === undefined ? HEADING_LINE + 1 : open.line + open.rows.length,
+    })
   }
   return runs
 }
@@ -158,7 +173,12 @@ function CellInput(
 
 /** The four editable cells of one binding: gesture, clause, prio, source. */
 function BindingCells(
-  { row, setBinding, t }: { row: EffectiveRow; setBinding: KeybindingsSectionInjected['setBinding']; t: SectionT },
+  { row, line, setBinding, t }: {
+    row: EffectiveRow
+    line: number
+    setBinding: KeybindingsSectionInjected['setBinding']
+    t: SectionT
+  },
 ) {
   const ref = { action: row.action, key: row.key } as const
 
@@ -168,7 +188,7 @@ function BindingCells(
 
   return (
     <>
-      <div className={classes(css.cell, fieldClass(row.overridden.strokes))} style={{ gridColumn: columnLine(1) }}>
+      <div className={classes(css.cell, fieldClass(row.overridden.strokes))} style={{ gridColumn: columnLine(1), gridRow: line }}>
         <KeybindingRecorder
           strokes={row.entry.strokes}
           onStrokesChange={setStrokes}
@@ -177,7 +197,7 @@ function BindingCells(
           clearLabel={t('recorder.clear')}
         />
       </div>
-      <div className={css.cell} style={{ gridColumn: columnLine(2) }}>
+      <div className={css.cell} style={{ gridColumn: columnLine(2), gridRow: line }}>
         <CellInput
           value={row.entry.when ?? ''}
           storable={storableClause}
@@ -187,7 +207,7 @@ function BindingCells(
           aria-label={`${t('column.when')}: ${row.label}`}
         />
       </div>
-      <div className={css.cell} style={{ gridColumn: columnLine(3) }}>
+      <div className={css.cell} style={{ gridColumn: columnLine(3), gridRow: line }}>
         <CellInput
           value={String(row.prio)}
           storable={storablePrio}
@@ -199,7 +219,7 @@ function BindingCells(
           aria-label={`${t('column.prio')}: ${row.label}`}
         />
       </div>
-      <div className={classes(css.cell, css.source)} style={{ gridColumn: columnLine(4) }}>
+      <div className={classes(css.cell, css.source)} style={{ gridColumn: columnLine(4), gridRow: line }}>
         {sourceLabel(row.entry.source, t)}
       </div>
     </>
@@ -212,23 +232,23 @@ function BindingCells(
  * it is inert: nothing dispatches it, so it holds no place in the order, and
  * editing it would only write the override that already took its seat.
  */
-function ShippedCells({ row, t }: { row: SupersededRow; t: SectionT }) {
+function ShippedCells({ row, line, t }: { row: SupersededRow; line: number; t: SectionT }) {
   return (
     <>
-      <div className={classes(css.cell, css.shipped)} style={{ gridColumn: columnLine(1) }}>
+      <div className={classes(css.cell, css.shipped)} style={{ gridColumn: columnLine(1), gridRow: line }}>
         <span className={classes(css.shippedBox, css.recorderLayout)}>
           <span className={css.strokes}>
             {row.entry.strokes.map((stroke, index) => <StrokeChips key={index} stroke={stroke} />)}
           </span>
         </span>
       </div>
-      <div className={classes(css.cell, css.shipped)} style={{ gridColumn: columnLine(2) }}>
+      <div className={classes(css.cell, css.shipped)} style={{ gridColumn: columnLine(2), gridRow: line }}>
         <span className={classes(css.shippedBox, css.clauseText)}>{row.entry.when ?? ''}</span>
       </div>
-      <div className={classes(css.cell, css.shipped)} style={{ gridColumn: columnLine(3) }}>
+      <div className={classes(css.cell, css.shipped)} style={{ gridColumn: columnLine(3), gridRow: line }}>
         <span className={classes(css.shippedBox, css.shippedPlace)} />
       </div>
-      <div className={classes(css.cell, css.source, css.shipped)} style={{ gridColumn: columnLine(4) }}>
+      <div className={classes(css.cell, css.source, css.shipped)} style={{ gridColumn: columnLine(4), gridRow: line }}>
         {sourceLabel(row.entry.source, t)}
       </div>
     </>
@@ -390,8 +410,7 @@ export function KeybindingsSection({ useActions, useBindings, setBinding, t }: K
     () => commandRuns(sortRows(keybindingRows(actions, bindings), sorts)),
     [actions, bindings, sorts],
   )
-  // A sash spans the heading row and every binding under it, so it needs the
-  // count: `1 / -1` would stop at the last explicit row, of which there is one.
+  // A sash spans the heading row and every binding under it.
   const rowCount = runs.reduce((total, run) => total + run.rows.length, 0)
 
   // One grid over every row, because the command cell spans the rows it owns;
@@ -409,20 +428,23 @@ export function KeybindingsSection({ useActions, useBindings, setBinding, t }: K
           role="separator"
           aria-orientation="vertical"
           aria-label={`${t(column.label)}: ${t('column.resize')}`}
-          style={{ gridColumn: sashLine(index), gridRow: `1 / span ${1 + rowCount}` }}
+          style={{ gridColumn: sashLine(index), gridRow: `${HEADING_LINE} / span ${1 + rowCount}` }}
           onPointerDown={onResizeStart(index)}
         />
       ))}
       {runs.map(run => (
         <Fragment key={run.rows[0]?.action}>
-          <div className={css.command} style={{ gridColumn: columnLine(0), gridRow: `span ${run.rows.length}` }}>
+          <div
+            className={css.command}
+            style={{ gridColumn: columnLine(0), gridRow: `${run.line} / span ${run.rows.length}` }}
+          >
             <div>{run.label}</div>
             {run.description !== undefined && <div className={css.description}>{run.description}</div>}
           </div>
-          {run.rows.map(row => (
+          {run.rows.map((row, index) => (
             row.superseded
-              ? <ShippedCells key={contributionKey(row)} row={row} t={t} />
-              : <BindingCells key={contributionKey(row)} row={row} setBinding={setBinding} t={t} />
+              ? <ShippedCells key={contributionKey(row)} row={row} line={run.line + index} t={t} />
+              : <BindingCells key={contributionKey(row)} row={row} line={run.line + index} setBinding={setBinding} t={t} />
           ))}
         </Fragment>
       ))}

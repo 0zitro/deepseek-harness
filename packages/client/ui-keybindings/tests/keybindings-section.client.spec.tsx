@@ -208,7 +208,11 @@ describe('KeybindingsSection', () => {
     // Two bindings, one command: the label is written once, spanning both.
     expect(screen.getAllByRole('button', { name: /Send message/ })).toHaveLength(2)
     const command = screen.getByText('Send message')
-    expect(command.parentElement?.style.gridRow).toBe('span 2')
+    // Named rows, not auto-placed ones: the headings hold the first, so the
+    // first command's bindings stand on the two under it.
+    expect(command.parentElement?.style.gridRow).toBe('2 / span 2')
+    expect(screen.getAllByLabelText(/When clause: Send message/).map(input =>
+      (input.parentElement as HTMLElement).style.gridRow)).toEqual(['2', '3'])
   })
 
   it('marks an overridden field apart from one still following its default', () => {
