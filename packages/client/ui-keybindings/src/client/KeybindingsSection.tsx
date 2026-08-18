@@ -162,6 +162,7 @@ function BindingCells(
           onStrokesChange={setStrokes}
           label={row.label}
           doneLabel={t('recorder.done')}
+          clearLabel={t('recorder.clear')}
         />
       </div>
       <div className={css.cell} style={{ gridColumn: columnLine(2) }}>
@@ -322,7 +323,7 @@ function ColumnHeader(
           <span className={css.heading}>{t(column.label)}</span>
           <span className={css.sortSlot} aria-hidden="true">
             {sorted !== undefined && (
-              <span className={css.sortMark}>
+              <span className={classes(css.ghost, css.sortMark)}>
                 {sorts.length > 1 && <span className={css.sortRank}>{at + 1}</span>}
                 <SortArrow direction={sorted.direction} />
               </span>

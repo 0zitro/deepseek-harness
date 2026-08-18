@@ -157,10 +157,10 @@
   height: 18px;
 }
 
-/* A ghost plate behind the mark: enough contrast that the arrow reads as a
-   control rather than as part of the heading, and a full backplate on hover,
-   the way a ghost button answers the pointer. */
-.sortMark {
+/* A ghost plate behind a small drawn control: enough contrast that it reads as
+   something to press rather than as part of the text beside it, and a full
+   backplate under the pointer, the way a ghost button answers. */
+.ghost {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -170,17 +170,20 @@
   padding: 0 3px;
   box-sizing: border-box;
   border-radius: 6px;
+  font: inherit;
   background: color-mix(in srgb, var(--dsw-alias-interactive-bg-hover) 55%, transparent);
   color: var(--dsw-alias-brand-primary);
   border: 1px solid transparent;
+  cursor: pointer;
 }
 
-.header:hover .sortMark {
-  background: var(--dsw-alias-interactive-bg-hover);
-}
-
-.sortMark:hover {
+.ghost:hover {
   border-color: var(--dsw-alias-label-secondary);
+}
+
+.header:hover .ghost,
+.recorderRow:hover .ghost {
+  background: var(--dsw-alias-interactive-bg-hover);
 }
 
 .sortArrow {
@@ -265,14 +268,11 @@
   line-height: 18px;
 }
 
-/* Chips and the empty-state placeholder are the same children, so centering
-   holds the gesture in the middle of its cell in every state. */
+/* The recorder only paints; the layout that holds room for its control lives
+   one level down, where a grid takes effect. */
 .recorder {
-  display: inline-flex;
+  display: flex;
   align-items: center;
-  justify-content: center;
-  flex-wrap: wrap;
-  gap: 4px;
   width: 100%;
   min-width: 0;
   padding: 3px 8px;
@@ -289,26 +289,60 @@
   border-color: var(--dsw-alias-brand-primary);
 }
 
+/* The control sits inside the recorder's box while staying its sibling: a
+   control nested in a control is not valid content. */
 .recorderRow {
+  position: relative;
   display: inline-flex;
   align-items: center;
-  gap: 6px;
   width: 100%;
   min-width: 0;
 }
 
-.done {
-  flex: none;
-  padding: 3px 8px;
-  border-radius: 6px;
-  border: 1px solid var(--dsw-alias-brand-primary);
-  background: var(--dsw-alias-bg-base);
-  color: var(--dsw-alias-brand-primary);
-  cursor: pointer;
-  font: inherit;
-  font-size: 12px;
-  line-height: 16px;
+.recorderControl {
+  position: absolute;
+  inset-inline-end: 5px;
+  padding: 0;
 }
+
+/* The same reservation the headings use: the recorder holds room for one
+   control, split either side of the chips while none is shown so they stay
+   centred, and gathered at the inline end when one is. Either way the chips
+   ask for the same width, so nothing shifts as a control comes and goes. */
+.recorderLayout {
+  --dsh-recorder-control: 22px;
+  display: grid;
+  grid-template-columns:
+    minmax(calc(var(--dsh-recorder-control) / 2), 1fr)
+    auto
+    minmax(calc(var(--dsh-recorder-control) / 2), 1fr);
+  align-items: center;
+  gap: 4px;
+  width: 100%;
+}
+
+.recorderLayout[data-control] {
+  grid-template-columns:
+    minmax(0, 1fr)
+    auto
+    minmax(var(--dsh-recorder-control), 1fr);
+}
+
+.strokes {
+  grid-column: 2;
+  display: inline-flex;
+  align-items: center;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 4px;
+  min-width: 0;
+}
+
+.controlSlot {
+  grid-column: 3;
+  height: 18px;
+}
+
 
 .strokeGroup {
   display: inline-flex;
