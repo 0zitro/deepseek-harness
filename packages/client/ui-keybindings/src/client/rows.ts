@@ -22,8 +22,8 @@ export interface KeybindingProvenance {
   prio: boolean
 }
 
-/** One row of the keybindings table: an effective binding and its provenance. */
-export interface KeybindingRow {
+/** What every row of the table carries, whether or not its binding dispatches. */
+interface RowFields {
   /** The action the binding invokes. */
   action: UiActionId
   /** The action's label, or its id when no registration supplies one. */
@@ -36,11 +36,28 @@ export interface KeybindingRow {
   base: Keybinding
   /** The merged gesture, clause, and source. */
   entry: KeybindingEntry
-  /** The prio this row orders by, seeded from its position when unstated. */
-  prio: number
   /** Fields the override states; the rest follow the base. */
   overridden: KeybindingProvenance
 }
+
+/** The binding a seat dispatches, at the place it holds among its competitors. */
+export interface EffectiveRow extends RowFields {
+  superseded: false
+  prio: number
+}
+
+/**
+ * A binding an override took the seat of. It stays on the page because it is
+ * what the override departs from and what returns if the override goes, and it
+ * is inert: nothing dispatches it, so it holds no place in any order.
+ */
+export interface SupersededRow extends RowFields {
+  superseded: true
+  prio?: undefined
+}
+
+/** One row of the keybindings table: one contribution to one seat. */
+export type KeybindingRow = EffectiveRow | SupersededRow
 
 /** The seat a row stands in: one default of one action. */
 function seat(action: UiActionId, key: KeybindingKey): string {
@@ -79,7 +96,9 @@ export function keybindingRows(
   actions: readonly UiActionDefinition[],
   overrides: readonly SourcedOverride[],
 ): readonly KeybindingRow[] {
-  const rows: KeybindingRow[] = []
+  const dispatching: Omit<EffectiveRow, 'prio'>[] = []
+  // The binding each seat ships, where an override took the seat from it.
+  const shipped = new Map<string, SupersededRow>()
   // The seats a row already stands in. An override is an orphan when no row
   // took it, which is not the same question as whether its action still ships
   // a default: an action shipping none is given a seat here, and asking the
@@ -87,23 +106,37 @@ export function keybindingRows(
   const taken = new Set<string>()
 
   for (const definition of actions) {
-    const shipped = definition.defaultKeybindings ?? []
+    const declared = definition.defaultKeybindings ?? []
     // An action shipping no default still gets a row, keyed by its own id, or
     // there would be no seat in which to bind it.
-    const defaults = shipped.length > 0 ? shipped : [{ key: keybindingKey(definition.id), strokes: [] }]
+    const defaults = declared.length > 0 ? declared : [{ key: keybindingKey(definition.id), strokes: [] }]
 
     for (const def of defaults) {
       const override = topOverride(overrides, definition.id, def.key)
-      taken.add(seat(definition.id, def.key))
-      rows.push({
+      const seated = seat(definition.id, def.key)
+      taken.add(seated)
+
+      const fields = {
         action: definition.id,
         label: definition.label,
         ...definition.description === undefined ? {} : { description: definition.description },
         key: def.key,
         base: keybindingOfDefault(def),
-        entry: override === undefined ? defaultEntry(def, definition.id) : mergeOverride(def, definition.id, override),
-        prio: 0,
+        entry: defaultEntry(def, definition.id),
+      }
+
+      // An override does not replace what the seat ships; it takes the seat
+      // from it, and both are contributions the page shows. A seat that ships
+      // no gesture has nothing to show above the override: what it would draw
+      // is the seat itself, not a binding.
+      if (override !== undefined && def.strokes.length > 0) {
+        shipped.set(seated, { ...fields, overridden: provenanceOf(undefined), superseded: true })
+      }
+      dispatching.push({
+        ...fields,
+        ...override === undefined ? {} : { entry: mergeOverride(def, definition.id, override) },
         overridden: provenanceOf(override),
+        superseded: false,
       })
     }
   }
@@ -113,21 +146,26 @@ export function keybindingRows(
   // registered under a different key.
   for (const override of overrides) {
     if (taken.has(seat(override.action, override.key))) continue
-    rows.push({
+    dispatching.push({
       action: override.action,
       label: actions.find(candidate => candidate.id === override.action)?.label ?? override.action,
       key: override.key,
       base: override.base,
       entry: mergeOverride(undefined, override.action, override),
-      prio: 0,
       overridden: provenanceOf(override),
+      superseded: false,
     })
   }
 
   // Seeding reads each entry's position among the ones it can collide with, so
-  // it runs over the list in registration order; sorting after keeps one
+  // it runs over the rows in registration order; sorting after keeps one
   // command's rows together without disturbing the values.
-  return seedPrios(rows, row => row.entry)
+  return seedPrios(dispatching, row => row.entry)
     .map(({ item, prio }) => ({ ...item, prio }))
     .sort((left, right) => compareActionIds(left.action, right.action))
+    .flatMap((row) => {
+      // What a seat ships stands directly above the contribution that took it.
+      const above = shipped.get(seat(row.action, row.key))
+      return above === undefined ? [row] : [above, row]
+    })
 }

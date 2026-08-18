@@ -52,7 +52,8 @@ describe('keybindingRows', () => {
   })
 
   it('reports exactly the fields the override states', () => {
-    const [row] = keybindingRows([sendAction()], [override({ strokes: [{ key: 'Enter', modifiers: ['ctrl'] }] })])
+    // The seat shows what it ships as well, above the binding that took it.
+    const [, row] = keybindingRows([sendAction()], [override({ strokes: [{ key: 'Enter', modifiers: ['ctrl'] }] })])
     expect(row?.overridden).toEqual({ strokes: true, when: false, prio: false })
     // The clause still follows the default, which is what makes it inherited.
     expect(row?.entry).toMatchObject({ strokes: [{ key: 'Enter', modifiers: ['ctrl'] }], when: 'composerActive' })
@@ -77,7 +78,7 @@ describe('keybindingRows', () => {
   })
 
   it('keeps a stated prio and marks it overridden', () => {
-    const [row] = keybindingRows([sendAction()], [override({ prio: 7 })])
+    const [, row] = keybindingRows([sendAction()], [override({ prio: 7 })])
     expect(row?.prio).toBe(7)
     expect(row?.overridden.prio).toBe(true)
   })
@@ -103,6 +104,25 @@ describe('keybindingRows', () => {
     expect(rows).toHaveLength(1)
     expect(rows[0]?.entry.strokes).toEqual([{ key: 'k', modifiers: ['ctrl'] }])
     expect(rows[0]?.overridden.strokes).toBe(true)
+  })
+
+  it('shows what a seat ships beside the binding that took it', () => {
+    const rows = keybindingRows([sendAction()], [override({ strokes: [{ key: 'k', modifiers: ['ctrl'] }] })])
+
+    // The shipped binding is what the override departs from and what returns
+    // if the override goes, so it stays on the page — inert, holding no place.
+    expect(rows.map(row => [row.entry.strokes, row.superseded, row.prio])).toEqual([
+      [[...ENTER], true, undefined],
+      [[{ key: 'k', modifiers: ['ctrl'] }], false, 0],
+    ])
+  })
+
+  it('keeps the shipped binding when the user unbinds the seat', () => {
+    const rows = keybindingRows([sendAction()], [override({ strokes: [] })])
+
+    // Unbinding states a gesture nothing can match; it does not remove what
+    // the seat ships, which is why the page can still show it.
+    expect(rows.map(row => [row.superseded, row.entry.strokes])).toEqual([[true, [...ENTER]], [false, []]])
   })
 
   it('shows an override whose default is gone against its retained base', () => {

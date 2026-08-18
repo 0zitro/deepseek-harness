@@ -4,6 +4,7 @@ import type { KeybindingModifier, KeyStroke } from '../keybinding.ts'
 import {
   KEYBINDING_MODIFIER_LABELS, keybindingKeyLabel, modifiersOf, strokeFromEvent,
 } from '../keybinding.ts'
+import { StrokeChips } from './StrokeChips.tsx'
 import css from './keybindings.module.css'
 
 /** Modifier key names keyed by their `KeyboardEvent.key` value. */
@@ -52,18 +53,6 @@ function Cross() {
     <svg viewBox="0 0 12 12" width="12" height="12">
       <path d="M3 3l6 6M9 3l-6 6" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" />
     </svg>
-  )
-}
-
-/** One stroke rendered as its modifier and key chips. */
-function StrokeChips({ stroke }: { stroke: KeyStroke }) {
-  return (
-    <span className={css.strokeGroup}>
-      {stroke.modifiers.map((modifier, index) => (
-        <kbd key={`${modifier}-${index}`} className={css.chip}>{KEYBINDING_MODIFIER_LABELS[modifier]}</kbd>
-      ))}
-      <kbd className={css.chip}>{keybindingKeyLabel(stroke.key)}</kbd>
-    </span>
   )
 }
 

@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { keybindingKey, type KeyStroke, type SourcedOverride } from '../src/keybinding.ts'
 import type { UiActionId } from '../src/ui-action.ts'
 import type { UiActionDefinition } from '../src/client/action-registry.ts'
-import { keybindingRows, type KeybindingRow } from '../src/client/rows.ts'
+import { keybindingRows, type EffectiveRow, type KeybindingRow } from '../src/client/rows.ts'
 import { insertPrio } from '../src/client/reorder.ts'
 
 const ENTER: KeyStroke[] = [{ key: 'Enter', modifiers: [] }]
@@ -23,8 +23,10 @@ const override = (id: UiActionId, prio?: number, strokes: KeyStroke[] = ENTER): 
   ...(prio === undefined ? {} : { prio }),
 })
 
-const rowOf = (rows: readonly KeybindingRow[], id: UiActionId): KeybindingRow => {
-  const row = rows.find(candidate => candidate.action === id)
+/** The row that dispatches for an action, not the binding an override took the seat from. */
+const rowOf = (rows: readonly KeybindingRow[], id: UiActionId): EffectiveRow => {
+  const row = rows.find((candidate): candidate is EffectiveRow =>
+    !candidate.superseded && candidate.action === id)
   if (row === undefined) throw new Error(`no row for ${id}`)
   return row
 }

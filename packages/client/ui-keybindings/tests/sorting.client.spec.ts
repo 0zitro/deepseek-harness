@@ -55,8 +55,9 @@ describe('column orderings', () => {
     }
     const rows = keybindingRows([action('a.one', stroke('a')), action('a.two', stroke('b'))], [override])
 
-    // 'user' sorts before 'system' though it spells after it.
-    expect(ids(sortRows(rows, [{ id: 'source', direction: 'asc' }]))).toEqual(['a.two', 'a.one'])
+    // 'user' sorts before 'system' though it spells after it, and what the
+    // overridden seat ships is a system row like any other.
+    expect(ids(sortRows(rows, [{ id: 'source', direction: 'asc' }]))).toEqual(['a.two', 'a.one', 'a.two'])
     expect(COLUMNS.every(candidate => candidate.natural === 'asc')).toBe(true)
   })
 
@@ -75,7 +76,24 @@ describe('column orderings', () => {
       action('a.three', stroke('c')),
     ], [contributed, owned])
 
-    expect(ids(sortRows(rows, [{ id: 'source', direction: 'asc' }]))).toEqual(['a.three', 'a.two', 'a.one'])
+    expect(ids(sortRows(rows, [{ id: 'source', direction: 'asc' }])))
+      .toEqual(['a.three', 'a.two', 'a.one', 'a.three', 'a.two'])
+  })
+
+  it('orders a binding that holds no place after every binding that holds one', () => {
+    const override: SourcedOverride = {
+      action: 'a.one' as UiActionId,
+      key: keybindingKey('a.one'),
+      source: 'user',
+      base: { strokes: stroke('a') },
+      strokes: stroke('b'),
+    }
+    const rows = keybindingRows([action('a.one', stroke('a')), action('a.two', stroke('c'))], [override])
+
+    // The superseded row holds no place, so it reads last however the places
+    // themselves order.
+    expect(sortRows(rows, [{ id: 'prio', direction: 'asc' }]).map(row => row.superseded))
+      .toEqual([false, false, true])
   })
 })
 
