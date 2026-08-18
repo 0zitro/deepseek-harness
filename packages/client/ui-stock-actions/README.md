@@ -1,5 +1,7 @@
 # @deepseek-ai/dsh-client-ui-stock-actions
 
+English | [中文](README.zh.md)
+
 Built-in UI actions and their default keybindings. The browser half registers the composer actions — `composer.send` (default Enter, the aggregate that follows the busy-Enter preference) plus the unbound raw opt-outs `composer.queue` and `composer.steer` — against the `uiActions` registry provided by the keybindings orchestrator; the orchestrator then persists each binding and renders its settings row. Each action's `run` calls the `ctx.composer` submission service.
 
 The package is a drop-in layer: the built-in actions live here rather than in the orchestrator, so the orchestrator stays action-agnostic and the upstream fork stays cleanly mergeable — remove this package and the built-in actions go with it.
