@@ -28,9 +28,45 @@
   overflow-x: auto;
 }
 
+/* The heading cell holds the button and the boundary handle beside it: a
+   handle inside the button would be interactive content nested in a control. */
+.headerCell {
+  position: relative;
+  display: flex;
+  min-width: 0;
+}
+
+/* The boundary between two columns, straddling the gap so it can be taken
+   hold of from either side. It draws only under the pointer — a rule between
+   every pair of columns would be a border this table does not have. */
+.resizer {
+  position: absolute;
+  inset-block: 2px;
+  inset-inline-end: -9px;
+  width: 12px;
+  cursor: col-resize;
+  touch-action: none;
+}
+
+.resizer::after {
+  content: '';
+  position: absolute;
+  inset-block: 0;
+  inset-inline-start: 50%;
+  width: 1px;
+  border-radius: 1px;
+  background: transparent;
+}
+
+.resizer:hover::after {
+  background: var(--dsw-alias-border-l1);
+}
+
 /* The heading cell: a button that only paints, since its layout lives one
    level down. */
 .header {
+  flex: 1;
+  min-width: 0;
   padding: 4px 6px;
   margin-block-end: 4px;
   border: none;

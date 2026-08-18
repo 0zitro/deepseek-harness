@@ -1,5 +1,5 @@
 /** The Keybindings settings page: one table row per effective binding. */
-import { Fragment, useMemo, useState } from 'react'
+import { Fragment, useMemo, useState, type PointerEvent } from 'react'
 import type { InjectFace, PropsLocale, PropsRuntime } from '@deepseek-ai/dsh-client-ui-slots'
 import type { SnapshotStore } from '@deepseek-ai/dsh-client-runtime/client'
 import {
@@ -10,6 +10,7 @@ import { parseWhenClause } from '../when-clause.ts'
 import type { UiActionDefinition } from './action-registry.ts'
 import { useDraft } from './draft.ts'
 import { KeybindingRecorder } from './KeybindingRecorder.tsx'
+import { resizeShares } from './resize.ts'
 import { keybindingRows, type KeybindingRow } from './rows.ts'
 import {
   COLUMNS, dropSort, sortRows, toggleSort,
@@ -212,12 +213,64 @@ function SortArrow({ direction }: { direction: SortDirection }) {
   )
 }
 
+/** The grid's tracks for the given shares; a column still never goes under its content. */
+function tracks(shares: readonly number[]): string {
+  return shares.map(share => `minmax(min-content, ${share}fr)`).join(' ')
+}
+
+/**
+ * Drive one boundary between two columns. The shares start from what the
+ * columns currently measure, so taking hold of a boundary moves nothing until
+ * the pointer does, whatever laid the columns out until then.
+ */
+function useColumnResize(): {
+  shares: readonly number[] | undefined
+  onResizeStart: (index: number) => (event: PointerEvent<HTMLElement>) => void
+} {
+  const [shares, setShares] = useState<readonly number[] | undefined>(undefined)
+
+  const onResizeStart = (index: number) => (event: PointerEvent<HTMLElement>) => {
+    const handle = event.currentTarget
+    const cell = handle.parentElement
+    const headers = cell?.parentElement
+    /* v8 ignore next -- the handle renders inside a header cell inside the table */
+    if (cell === null || headers === null || headers === undefined) return
+
+    const widths = [...headers.children].slice(0, COLUMNS.length).map(node => node.getBoundingClientRect().width)
+    const pair = widths.slice(index, index + 2).reduce((total, width) => total + width, 0)
+    // An environment that lays nothing out offers no width to take a fraction of.
+    if (pair === 0) return
+
+    const from = shares ?? widths
+    const origin = event.clientX
+    // A drag toward the inline end widens the leading column, which is the
+    // other direction when the writing direction is.
+    const towardEnd = getComputedStyle(cell).direction === 'rtl' ? -1 : 1
+
+    // Capture keeps the drag with the handle once the pointer leaves it.
+    handle.setPointerCapture(event.pointerId)
+
+    const onMove = (move: globalThis.PointerEvent) => {
+      setShares(resizeShares(from, index, ((move.clientX - origin) * towardEnd) / pair))
+    }
+    const onEnd = () => {
+      handle.removeEventListener('pointermove', onMove)
+      handle.removeEventListener('pointerup', onEnd)
+    }
+    handle.addEventListener('pointermove', onMove)
+    handle.addEventListener('pointerup', onEnd)
+  }
+
+  return { shares, onResizeStart }
+}
+
 /** One column heading: a click sorts by it, a double click drops it from the order. */
 function ColumnHeader(
-  { column, sorts, onSorts, t }: {
+  { column, sorts, onSorts, onResizeStart, t }: {
     column: SortableColumn
     sorts: readonly ColumnSort[]
     onSorts: (next: readonly ColumnSort[]) => void
+    onResizeStart: ((event: PointerEvent<HTMLElement>) => void) | undefined
     t: SectionT
   },
 ) {
@@ -228,28 +281,39 @@ function ColumnHeader(
     : t(sorted.direction === 'asc' ? 'sort.ascending' : 'sort.descending')
 
   return (
-    <button
-      type="button"
-      className={css.header}
-      aria-label={direction === undefined ? t(column.label) : `${t(column.label)}: ${direction}`}
-      onClick={() => { onSorts(toggleSort(sorts, column)) }}
-      onDoubleClick={() => { onSorts(dropSort(sorts, column.id)) }}
-    >
-      {/* A button is not a layout container: an engine may wrap its contents
-          in an anonymous block, which would leave a grid declared on the
-          button inert and its children flowing against each other. */}
-      <span className={css.headerLayout} data-sorted={sorted !== undefined || undefined}>
-        <span className={css.heading}>{t(column.label)}</span>
-        <span className={css.sortSlot} aria-hidden="true">
-          {sorted !== undefined && (
-            <span className={css.sortMark}>
-              {sorts.length > 1 && <span className={css.sortRank}>{at + 1}</span>}
-              <SortArrow direction={sorted.direction} />
-            </span>
-          )}
+    <div className={css.headerCell}>
+      <button
+        type="button"
+        className={css.header}
+        aria-label={direction === undefined ? t(column.label) : `${t(column.label)}: ${direction}`}
+        onClick={() => { onSorts(toggleSort(sorts, column)) }}
+        onDoubleClick={() => { onSorts(dropSort(sorts, column.id)) }}
+      >
+        {/* A button is not a layout container: an engine may wrap its contents
+            in an anonymous block, which would leave a grid declared on the
+            button inert and its children flowing against each other. */}
+        <span className={css.headerLayout} data-sorted={sorted !== undefined || undefined}>
+          <span className={css.heading}>{t(column.label)}</span>
+          <span className={css.sortSlot} aria-hidden="true">
+            {sorted !== undefined && (
+              <span className={css.sortMark}>
+                {sorts.length > 1 && <span className={css.sortRank}>{at + 1}</span>}
+                <SortArrow direction={sorted.direction} />
+              </span>
+            )}
+          </span>
         </span>
-      </span>
-    </button>
+      </button>
+      {onResizeStart !== undefined && (
+        <span
+          className={css.resizer}
+          role="separator"
+          aria-orientation="vertical"
+          aria-label={`${t(column.label)}: ${t('column.resize')}`}
+          onPointerDown={onResizeStart}
+        />
+      )}
+    </div>
   )
 }
 
@@ -262,6 +326,7 @@ export function KeybindingsSection({ useActions, useBindings, setBinding, t }: K
   const actions = useActions(value => value)
   const bindings = useBindings(value => value)
   const [sorts, setSorts] = useState<readonly ColumnSort[]>([])
+  const { shares, onResizeStart } = useColumnResize()
   const runs = useMemo(
     () => commandRuns(sortRows(keybindingRows(actions, bindings), sorts)),
     [actions, bindings, sorts],
@@ -271,9 +336,16 @@ export function KeybindingsSection({ useActions, useBindings, setBinding, t }: K
   // a per-row element could not stretch across its siblings. Each control
   // names its own column and command, so the columns need no header semantics.
   return (
-    <div className={css.table}>
-      {COLUMNS.map(column => (
-        <ColumnHeader key={column.id} column={column} sorts={sorts} onSorts={setSorts} t={t} />
+    <div className={css.table} style={shares === undefined ? undefined : { gridTemplateColumns: tracks(shares) }}>
+      {COLUMNS.map((column, index) => (
+        <ColumnHeader
+          key={column.id}
+          column={column}
+          sorts={sorts}
+          onSorts={setSorts}
+          onResizeStart={index === COLUMNS.length - 1 ? undefined : onResizeStart(index)}
+          t={t}
+        />
       ))}
       {runs.map(run => (
         <Fragment key={run.rows[0]?.action}>
