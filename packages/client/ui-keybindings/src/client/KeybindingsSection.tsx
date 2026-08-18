@@ -295,6 +295,15 @@ function ShippedCells({ row, t }: { row: SupersededRow; t: SectionT }) {
   )
 }
 
+/** The control that drops a binding, drawn at the weight of the rest. */
+function Minus() {
+  return (
+    <svg viewBox="0 0 12 12" width="12" height="12">
+      <path d="M2.5 6h7" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" />
+    </svg>
+  )
+}
+
 /** Whether a band draws what it would add. */
 function draw(band: HTMLElement, on: boolean): void {
   if (on) band.dataset['drawn'] = 'true'
@@ -307,6 +316,41 @@ function Plus() {
     <svg viewBox="0 0 12 12" width="12" height="12">
       <path d="M6 2.5v7M2.5 6h7" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" />
     </svg>
+  )
+}
+
+/**
+ * The place a binding is dropped: the lane the row begins at, which is widened
+ * to carry this beside the sash rather than over it. The two never share a
+ * pixel, because a press meant for a column boundary must not be able to land
+ * on the one control in the table that destroys something — and for the same
+ * reason this band reaches no further than itself, unlike the one that adds.
+ */
+function RemoveControl(
+  { row, onRemove, t }: { row: EffectiveRow; onRemove: (ref: KeybindingOverrideRef) => void; t: SectionT },
+) {
+  const follow = (event: PointerEvent<HTMLButtonElement>) => {
+    const band = event.currentTarget
+    const bounds = band.getBoundingClientRect()
+    const reach = bounds.width / 2
+
+    band.style.setProperty('--dsh-remove-x', `${event.clientX - bounds.left - reach}px`)
+    draw(band, true)
+  }
+
+  return (
+    <button
+      type="button"
+      className={css.remove}
+      aria-label={`${t('binding.remove')}: ${row.label}`}
+      onClick={() => { onRemove({ action: row.action, key: row.key }) }}
+      onPointerMove={follow}
+      onPointerLeave={(event) => { draw(event.currentTarget, false) }}
+    >
+      <span className={css.removeRule} />
+      <span className={classes(css.ghost, css.removeMark)}><Minus /></span>
+      <span className={css.removeRule} />
+    </button>
   )
 }
 
@@ -410,8 +454,13 @@ const cellLine = (index: number) => columnLine(index - 1)
  * A column dragged under its heading clips it instead.
  */
 function tracks(widths: readonly number[]): string {
-  return widths.map(width => `${width}px`).join(' var(--dsh-sash-lane) ')
+  return widths
+    .map((width, index) => index === 0 ? `${width}px` : `${lane(index - 1)} ${width}px`)
+    .join(' ')
 }
+
+/** The lane between two columns; the first one carries the row's gutter too. */
+const lane = (index: number) => index === 0 ? 'var(--dsh-first-lane)' : 'var(--dsh-sash-lane)'
 
 /**
  * Drive one boundary between two columns. The shares start from what the
@@ -519,7 +568,9 @@ function ColumnHeader(
  * bindings. One command's rows are adjacent and share a single label cell
  * spanning them, so the command reads once over the bindings it owns.
  */
-export function KeybindingsSection({ useActions, useBindings, setBinding, t }: KeybindingsSectionProps) {
+export function KeybindingsSection(
+  { useActions, useBindings, setBinding, removeBinding, t }: KeybindingsSectionProps,
+) {
   const actions = useActions(value => value)
   const bindings = useBindings(value => value)
   const [sorts, setSorts] = useState<readonly ColumnSort[]>([])
@@ -551,6 +602,7 @@ export function KeybindingsSection({ useActions, useBindings, setBinding, t }: K
           role="separator"
           aria-orientation="vertical"
           aria-label={`${t(column.label)}: ${t('column.resize')}`}
+          data-gutter={index === 0 || undefined}
           style={{ gridColumn: sashLine(index), gridRow: `${HEADING_LINE} / span ${1 + rowCount}` }}
           onPointerDown={onResizeStart(index)}
         />
@@ -568,7 +620,15 @@ export function KeybindingsSection({ useActions, useBindings, setBinding, t }: K
             <SubRow key={contributionKey(row)} line={run.line + index}>
               {row.superseded
                 ? <ShippedCells row={row} t={t} />
-                : <BindingCells row={row} setBinding={setBinding} t={t} />}
+                : (
+                  <>
+                    <BindingCells row={row} setBinding={setBinding} t={t} />
+                    {/* Only what the user holds is theirs to drop: a shipped
+                        binding and a plugin's contribution are not. */}
+                    {row.entry.source === 'user'
+                      && <RemoveControl row={row} onRemove={removeBinding} t={t} />}
+                  </>
+                )}
               {index === run.rows.length - 1
                 && <InsertControl point={run.addition} onAdd={addBinding} t={t} />}
             </SubRow>
