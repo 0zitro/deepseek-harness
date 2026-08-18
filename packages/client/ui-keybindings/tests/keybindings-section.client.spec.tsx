@@ -260,6 +260,30 @@ describe('KeybindingsSection', () => {
     expect(band.dataset['drawn']).toBeUndefined()
   })
 
+  it('keeps every binding placed when a sort splits a command in two', () => {
+    const SECOND = 'composer.second' as UiActionId
+    mount([
+      {
+        id: COMPOSER_SEND_ACTION,
+        label: 'Send message',
+        defaultKeybindings: [{ key: KEY, ...ENTER }, { key: keybindingKey('send.alt'), strokes: [{ key: 'z', modifiers: [] }] }],
+        run: () => {},
+      },
+      { id: SECOND, label: 'Second', defaultKeybindings: [{ key: keybindingKey('second'), strokes: [{ key: 'm', modifiers: [] }] }], run: () => {} },
+    ])
+
+    // Enter, then m, then z: one command's bindings are no longer adjacent, so
+    // it owns two runs of the table rather than one.
+    fireEvent.click(screen.getByRole('button', { name: 'Keybinding' }))
+
+    expect(screen.getAllByText('Send message')).toHaveLength(2)
+    // Every binding still stands in a row of its own: a run that lost its
+    // place would leave its cells unplaced, on top of the rows that have one.
+    const placed = screen.getAllByRole('textbox')
+      .map(input => (input.parentElement?.parentElement as HTMLElement).style.gridRow)
+    expect(placed).toEqual(['2', '3', '4'])
+  })
+
   it('replaces an untouched draft when the stored clause changes underneath', () => {
     const { bindingsStore } = mount()
     const input = screen.getByPlaceholderText('e.g. composerFocused && !agentBusy')

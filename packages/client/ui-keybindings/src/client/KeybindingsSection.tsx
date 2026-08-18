@@ -8,6 +8,7 @@ import {
 } from '../keybinding.ts'
 import { parseWhenClause } from '../when-clause.ts'
 import type { UiActionDefinition } from './action-registry.ts'
+import type { UiActionId } from '../ui-action.ts'
 import { useDraft } from './draft.ts'
 import { KeybindingRecorder } from './KeybindingRecorder.tsx'
 import { resizeWidths } from './resize.ts'
@@ -47,6 +48,16 @@ interface CommandRun {
   label: string
   description?: string | undefined
   rows: readonly KeybindingRow[]
+  /**
+   * What tells one run from another: the command, and which of that command's
+   * runs this is. A command owns one run while its bindings are adjacent and
+   * several once an order separates them, so the command alone is not an
+   * identity — two runs answering to one collide, and a collision costs the
+   * later one its place in the grid. Naming a run by a row it holds is not one
+   * either: the rows of a run come and go as the user edits, and a run that
+   * changed identity under an edit would take the field being edited with it.
+   */
+  id: string
   /** Grid row its first binding stands on; the heading holds the first. */
   line: number
   /** What a binding added to this command would be. */
@@ -64,6 +75,8 @@ const HEADING_LINE = 1
  */
 function commandRuns(rows: readonly KeybindingRow[]): readonly CommandRun[] {
   const runs: CommandRun[] = []
+  // How many runs each command has opened so far, which is what numbers them.
+  const opened = new Map<UiActionId, number>()
   // A binding added to a command forks the last one it owns, so the addition
   // is rebuilt as the run grows rather than looked up afterwards.
   const addition = (origin: KeybindingRow, label: string): InsertPoint => ({
@@ -78,10 +91,13 @@ function commandRuns(rows: readonly KeybindingRow[]): readonly CommandRun[] {
       runs[runs.length - 1] = { ...open, rows: [...open.rows, row], addition: addition(row, open.label) }
       continue
     }
+    const ordinal = opened.get(row.action) ?? 0
+    opened.set(row.action, ordinal + 1)
     runs.push({
       label: row.label,
       description: row.description,
       rows: [row],
+      id: `${row.action}:${ordinal}`,
       line: open === undefined ? HEADING_LINE + 1 : open.line + open.rows.length,
       addition: addition(row, row.label),
     })
@@ -538,7 +554,7 @@ export function KeybindingsSection({ useActions, useBindings, setBinding, t }: K
         />
       ))}
       {runs.map(run => (
-        <Fragment key={run.rows[0]?.action}>
+        <Fragment key={run.id}>
           <div
             className={css.command}
             style={{ gridColumn: columnLine(0), gridRow: `${run.line} / span ${run.rows.length}` }}
