@@ -17,6 +17,7 @@ export const zh = {
   'recorder.done': '完成',
   'recorder.clear': '清除快捷键',
   'binding.add': '添加快捷键',
+  'binding.remove': '删除快捷键',
   'source.system': '系统',
   'source.user': '用户',
 } satisfies Record<string, string>
@@ -37,6 +38,7 @@ export const en = {
   'recorder.done': 'Done',
   'recorder.clear': 'Clear the keybinding',
   'binding.add': 'Add a keybinding',
+  'binding.remove': 'Remove the keybinding',
   'source.system': 'System',
   'source.user': 'User',
 } satisfies Record<KeybindingsKey, string>

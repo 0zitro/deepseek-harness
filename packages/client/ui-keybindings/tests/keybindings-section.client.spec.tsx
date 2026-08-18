@@ -289,6 +289,40 @@ describe('KeybindingsSection', () => {
     expect(placed).toEqual(['2', '3', '4'])
   })
 
+  it('offers to drop only what the user holds', () => {
+    const { bindingsStore } = mount()
+    const named = 'Remove the keybinding: Send message'
+
+    // A shipped binding is not the user's to drop.
+    expect(screen.queryByRole('button', { name: named })).toBeNull()
+
+    act(() => { bindingsStore.set([{ ...REF, source: 'user', base: BASE, strokes: [{ key: 'k', modifiers: ['ctrl'] }] }]) })
+
+    // One control, on the row that took the seat, not on the one it took it from.
+    expect(screen.getAllByRole('button', { name: named })).toHaveLength(1)
+  })
+
+  it('drops the binding from anywhere along the band, and draws where the pointer is', () => {
+    const { removeBinding, bindingsStore } = mount()
+    act(() => { bindingsStore.set([{ ...REF, source: 'user', base: BASE, strokes: [{ key: 'k', modifiers: ['ctrl'] }] }]) })
+
+    const band = screen.getByRole('button', { name: 'Remove the keybinding: Send message' })
+    band.getBoundingClientRect = () =>
+      ({ width: 14, height: 30, x: 100, y: 0, top: 0, left: 100, right: 114, bottom: 30, toJSON: () => ({}) })
+
+    fireEvent.pointerMove(band, { clientX: 110 })
+    expect(band.dataset['drawn']).toBe('true')
+    // Three pixels past the gutter's middle, so the line is drawn three past it.
+    expect(band.style.getPropertyValue('--dsh-remove-x')).toBe('3px')
+
+    fireEvent.pointerLeave(band)
+    expect(band.dataset['drawn']).toBeUndefined()
+
+    fireEvent.click(band)
+    expect(removeBinding).toHaveBeenCalledWith({ action: COMPOSER_SEND_ACTION, key: KEY })
+    expect(bindingsStore.getSnapshot()).toEqual([])
+  })
+
   it('replaces an untouched draft when the stored clause changes underneath', () => {
     const { bindingsStore } = mount()
     const input = screen.getByPlaceholderText('e.g. composerFocused && !agentBusy')

@@ -20,7 +20,7 @@
   display: grid;
   grid-template-columns:
     minmax(min-content, 1.7fr)
-    var(--dsh-sash-lane)
+    var(--dsh-first-lane)
     minmax(min-content, 1.1fr)
     var(--dsh-sash-lane)
     minmax(min-content, 1.9fr)
@@ -41,6 +41,11 @@
   --dsh-sash-lane: 14px;
   --dsh-cell-pad: 3px;
   --dsh-row-gap: 2px;
+  /* A row's own controls sit where the row begins, so the lane there carries
+     two things side by side: the gutter a binding is dropped from, against the
+     row, and the sash's grip beyond it. Neither ever covers the other. */
+  --dsh-row-gutter: 14px;
+  --dsh-first-lane: calc(var(--dsh-sash-lane) + var(--dsh-row-gutter));
 }
 
 /* The heading cell: a column dragged under its heading clips it rather than
@@ -58,6 +63,12 @@
    and is the whole lane wide so it can be taken hold of anywhere along it.
    The lane is also the space between the columns, which is why the grid needs
    no column gap of its own. */
+/* The first lane is wider than the sash needs, and the extra is the row's, so
+   the grip keeps its own width and stands clear of it. */
+.sash[data-gutter] {
+  margin-inline-end: var(--dsh-row-gutter);
+}
+
 .sash {
   position: relative;
   /* The table centres its cells against their row; a sash carries no content,
@@ -282,6 +293,57 @@
 .insert[data-drawn] > *,
 .insert:focus-visible > * {
   opacity: 1;
+}
+
+/* Where a binding is dropped: the gutter of the lane the row begins at, beside
+   the sash's grip and never over it. It reaches no further than itself — the
+   space either side of it is a column boundary on one hand and the row's own
+   controls on the other, and neither is a place to find a control that
+   destroys something. */
+.remove {
+  position: absolute;
+  z-index: 1;
+  inset-inline-end: 100%;
+  inset-block: 0;
+  width: var(--dsh-row-gutter);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  padding: 0;
+  border: none;
+  background: none;
+  cursor: pointer;
+}
+
+.remove > * {
+  opacity: 0;
+  pointer-events: none;
+  transform: translateX(var(--dsh-remove-x, 0));
+}
+
+.remove[data-drawn] > *,
+.remove:focus-visible > * {
+  opacity: 1;
+}
+
+/* The line runs the height of the binding it would drop, so what goes is not
+   in doubt. */
+.removeRule {
+  flex: 1;
+  border-inline-start: 1px dashed var(--dsw-alias-border-l3);
+}
+
+/* The mark of the one control that takes something away, in the colour this
+   table gives a value it will not store. It narrows to the gutter it sits in. */
+.removeMark {
+  flex: none;
+  width: var(--dsh-row-gutter);
+  min-width: 0;
+  padding: 0;
+  border: none;
+  color: var(--dsw-alias-state-error-primary);
 }
 
 /* Drawn where the pointer is rather than where the band is: the line follows
