@@ -358,42 +358,75 @@
   padding: 0;
 }
 
-/* The same reservation the headings use: the recorder holds room for one
-   control, split either side of the chips while none is shown so they stay
-   centred, and gathered at the inline end when one is. Either way the chips
-   ask for the same width, so nothing shifts as a control comes and goes. */
+/* The strip of chips, centred while it fits and scrolled when it does not:
+   a gesture too wide for its column stays on one line and is read by scrolling
+   it, since wrapping would deepen the row and clipping would hide the strokes
+   for good. The strip shrinks to the box rather than overflowing it, so the
+   centring never puts a chip out of reach. */
 .recorderLayout {
   --dsh-recorder-control: 22px;
-  display: grid;
-  grid-template-columns:
-    minmax(calc(var(--dsh-recorder-control) / 2), 1fr)
-    auto
-    minmax(calc(var(--dsh-recorder-control) / 2), 1fr);
+  display: flex;
   align-items: center;
-  gap: 4px;
-  width: 100%;
-}
-
-.recorderLayout[data-control] {
-  grid-template-columns:
-    minmax(0, 1fr)
-    auto
-    minmax(var(--dsh-recorder-control), 1fr);
-}
-
-.strokes {
-  grid-column: 2;
-  display: inline-flex;
-  align-items: center;
-  flex-wrap: wrap;
   justify-content: center;
-  gap: 4px;
+  width: 100%;
   min-width: 0;
 }
 
-.controlSlot {
-  grid-column: 3;
-  height: 18px;
+.strokes {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+  overflow-x: auto;
+  overflow-y: hidden;
+  /* The strip is one chip tall; a bar would take the chips' place. Scrolling
+     is by wheel or trackpad, and stops here rather than dragging the table
+     sideways once the strip reaches its end. */
+  scrollbar-width: none;
+  overscroll-behavior-inline: contain;
+}
+
+.strokes::-webkit-scrollbar {
+  display: none;
+}
+
+/* The control's place, carried inside the strip rather than beside it. Split
+   either side while no control is shown, so the chips stay centred, and
+   gathered at the inline end when one is. Either way the strip asks for the
+   same width, so nothing shifts as a control comes and goes. The strip spaces
+   its chips by their own margins, since these two have to measure exactly. */
+.strokes::before,
+.strokes::after {
+  content: '';
+  /* A contentless item under centred alignment has no height, and a rect with
+     no height adds nothing to the scrollable area: the room would be reserved
+     and unreachable. */
+  align-self: stretch;
+  width: calc(var(--dsh-recorder-control) / 2);
+}
+
+/* The two halves are not the same thing. The leading half is slack — what the
+   chips give up to avoid scrolling at all — so it shrinks away before the
+   strip starts to scroll, and moving is then only ever a way to prevent a
+   scroll rather than something that happens while one is already needed: a
+   gesture that cannot fit sits at the start and stays there when the control
+   appears. */
+.strokes::before {
+  flex: 0 1 auto;
+}
+
+/* The trailing half is the control's room and never shrinks, or the overscroll
+   would go with it — the control floats over the strip and occludes its end,
+   and this is the room that clears it at the end of the scroll. */
+.strokes::after {
+  flex: none;
+}
+
+.recorderLayout[data-control] .strokes::before {
+  width: 0;
+}
+
+.recorderLayout[data-control] .strokes::after {
+  width: var(--dsh-recorder-control);
 }
 
 
@@ -406,7 +439,7 @@
 .strokeGroup + .strokeGroup {
   border-left: 1px solid var(--dsw-alias-border-l1);
   padding-left: 8px;
-  margin-left: 4px;
+  margin-left: 8px;
 }
 
 .chip {
