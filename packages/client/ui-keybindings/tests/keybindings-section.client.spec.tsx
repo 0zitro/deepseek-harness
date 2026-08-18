@@ -27,9 +27,9 @@ function stubDragging(table: Element | null | undefined) {
   }
 }
 
-/** The fr weights the grid's tracks carry, in column order. */
+/** The widths the grid's column tracks carry, in column order. */
 const weights = (table: Element | null | undefined) =>
-  [...((table as HTMLElement | null)?.style.gridTemplateColumns ?? '').matchAll(/([\d.]+)fr/g)]
+  [...((table as HTMLElement | null)?.style.gridTemplateColumns ?? '').matchAll(/([\d.]+)px/g)]
     .map(match => Number(match[1]))
 
 const PREVIEW_ACTION = 'composer.preview' as UiActionId
