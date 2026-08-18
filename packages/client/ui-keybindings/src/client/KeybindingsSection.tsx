@@ -32,6 +32,8 @@ export interface KeybindingsSectionInjected {
   }
   /** Persist one field the user changed, against the default it overrides. */
   setBinding: (ref: KeybindingOverrideRef, base: Keybinding, edit: KeybindingEdit) => void
+  /** Drop the user's contribution to a seat, leaving what the seat ships. */
+  removeBinding: (ref: KeybindingOverrideRef) => void
 }
 
 /** Full Settings-page props. */
