@@ -153,6 +153,10 @@ export const SERVICE_WALK_EXEMPTIONS: Record<string, string> = {
   slots: 'client-side interface-typed browser service — packages/client/runtime/README.md owns the API',
   theme: 'client-side interface-typed browser service — packages/client/ui-theme/README.md owns the API',
   workspaces: 'client-side interface-typed browser service — packages/client/runtime/README.md owns the API',
+  composer: 'client-side slot-contract accessor (ComposerSubmission) — packages/client/ui-conversation/README.md owns the API',
+  uiActions: 'client-side interface-typed action registry — packages/client/ui-keybindings/README.md owns the API',
+  uiWhenContext: 'client-side interface-typed when-clause context — packages/client/ui-keybindings/README.md owns the API',
+  overlays: 'client-side interface-typed overlay manager — packages/client/ui-overlay/README.md owns the API',
 }
 
 /**
