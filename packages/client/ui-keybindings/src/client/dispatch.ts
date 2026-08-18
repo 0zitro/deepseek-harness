@@ -11,7 +11,13 @@ import type { UiActionId } from '../ui-action.ts'
 import type { UiActionDefinition } from './action-registry.ts'
 import type { ReadonlySnapshot } from './when-context.ts'
 
-/** Run the action a matched entry references, if it is still registered. */
+/**
+ * Run the action a matched entry references. A binding whose command is no
+ * longer registered does nothing rather than failing: a stored override
+ * outlives the registration it was made against.
+ * @param matched - the entry the gesture completed.
+ * @param actions - the actions currently registered.
+ */
 export function runMatched(matched: KeybindingEntry, actions: readonly UiActionDefinition[]): void {
   actions.find(action => action.id === matched.action)?.run()
 }
@@ -19,7 +25,12 @@ export function runMatched(matched: KeybindingEntry, actions: readonly UiActionD
 /**
  * Whether a binding's `when` clause holds against the context. A clause that
  * is absent or blank states no predicate and is always active, which is how an
- * override clears the predicate its default carries.
+ * override clears the predicate its default carries. A clause that does not
+ * parse resolves false, so a binding is never fired on a predicate no one
+ * could read.
+ * @param when - the clause, or nothing.
+ * @param context - the state keys in force.
+ * @returns whether the binding may fire.
  */
 export function resolveWhen(when: string | undefined, context: WhenContext): boolean {
   if (when === undefined || when.trim() === '') return true
@@ -30,7 +41,17 @@ export function resolveWhen(when: string | undefined, context: WhenContext): boo
   }
 }
 
-/** Feed one keydown into the matcher; run the action when a binding completes. */
+/**
+ * Feed one keydown into the matcher and run the action a binding completes on.
+ * The dispatcher claims the keystroke whenever it matched or opened a chord,
+ * so a bound gesture never also reaches the input beneath it, and it ignores
+ * composition and auto-repeat, which are not presses the user made.
+ * @param matcher - the chord matcher holding any pending chord.
+ * @param actions - the actions currently registered.
+ * @param event - the live keydown.
+ * @param composing - whether an IME composition is in flight, tracked at the
+ * window for engines that clear `isComposing` before the closing keydown.
+ */
 export function dispatchKeydown(
   matcher: ChordMatcher<KeybindingEntry>,
   actions: readonly UiActionDefinition[],
@@ -53,6 +74,10 @@ export function dispatchKeydown(
  * The top-ranked override for (action, key): user > plugin > system, then the
  * order its provider contributed it in. Only this one merges with the default
  * — overrides from different providers never roll together.
+ * @param overrides - every override in force, each stamped by its provider.
+ * @param action - the action the seat belongs to.
+ * @param key - the seat's stable key.
+ * @returns the one override that merges, or nothing when the seat is free.
  */
 export function topOverride(
   overrides: readonly SourcedOverride[],
@@ -67,7 +92,14 @@ export function topOverride(
   return best
 }
 
-/** Emit a default as a system-sourced effective entry. */
+/**
+ * Emit a shipped default as an effective entry. The source is stamped here
+ * rather than declared by the registrar, so nothing can claim a provenance it
+ * does not have.
+ * @param def - the shipped default.
+ * @param action - the action it invokes.
+ * @returns the entry dispatch resolves against.
+ */
 export function defaultEntry(def: KeybindingDefault, action: UiActionId): KeybindingEntry {
   return {
     strokes: def.strokes,
@@ -77,7 +109,16 @@ export function defaultEntry(def: KeybindingDefault, action: UiActionId): Keybin
   }
 }
 
-/** Merge one default with its top override, producing a full effective entry. */
+/**
+ * Merge one default with the override that took its seat. A field the override
+ * does not state follows the default, which is what lets a later change to
+ * that default still reach the merged binding.
+ * @param def - the current default, or nothing when it is unavailable, in
+ * which case the override's retained base snapshot stands in for it.
+ * @param action - the action the binding invokes.
+ * @param override - the override that took the seat, already stamped.
+ * @returns the entry dispatch resolves against.
+ */
 export function mergeOverride(
   def: KeybindingDefault | undefined,
   action: UiActionId,
@@ -95,7 +136,13 @@ export function mergeOverride(
   }
 }
 
-/** The current default for (action, key), or undefined when it is unavailable. */
+/**
+ * The default a seat currently ships.
+ * @param actions - the actions registered right now.
+ * @param action - the action the seat belongs to.
+ * @param key - the seat's stable key.
+ * @returns the default, or nothing when no registration ships that seat.
+ */
 export function findDefault(
   actions: readonly UiActionDefinition[],
   action: UiActionId,
@@ -135,7 +182,14 @@ export function reconcileBases(
   return reconciled.every((next, index) => next === overrides[index]) ? overrides : reconciled
 }
 
-/** The effective entries: each default merged with its override, plus orphans resolved against their retained base. */
+/**
+ * Every binding in force: each shipped seat merged with the override that took
+ * it, plus the overrides whose seat no registration ships, which still
+ * dispatch against the base they retained.
+ * @param actions - the actions registered right now.
+ * @param overrides - every override in force, each stamped by its provider.
+ * @returns one entry per seat, in registration order.
+ */
 export function effectiveEntries(
   actions: readonly UiActionDefinition[],
   overrides: readonly SourcedOverride[],
@@ -156,14 +210,24 @@ export function effectiveEntries(
   return entries
 }
 
-/** Cross-source dispatch rank: the user outranks plugins, which outrank the shipped defaults. */
+/**
+ * Cross-source rank: the user outranks plugins, which outrank what ships.
+ * @param source - where a binding came from.
+ * @returns a rank, lowest first, as the ordering consults it.
+ */
 export function sourceRank(source: KeybindingSource): number {
   if (source === 'user') return 0
   if (source === 'system') return 2
   return 1
 }
 
-/** Seed an absent prio within its collision scope and sort by source-rank → prio → registration. */
+/**
+ * The entries in the order dispatch resolves them: by source rank first, then
+ * by the priority that separates entries one rank cannot, with an absent
+ * priority seeded within the scope it would compete in.
+ * @param entries - the effective entries, in registration order.
+ * @returns the same entries, ordered, each carrying the priority it ordered by.
+ */
 export function assignOrder(entries: readonly KeybindingEntry[]): readonly KeybindingEntry[] {
   return seedPrios(entries, entry => entry)
     .map(({ item, prio }) => ({ entry: item, rank: sourceRank(item.source), prio }))
@@ -224,7 +288,17 @@ export function collisionScope(entry: KeybindingEntry): string {
   return `${strokesKey(entry.strokes)}\u0000${entry.source}`
 }
 
-/** Listen for window keydowns and dispatch them against the effective bindings. */
+/**
+ * Listen for window keydowns and dispatch them against the bindings in force.
+ * Listening at the window rather than at a focused node is what makes a
+ * binding a property of the application instead of a property of whatever
+ * happens to hold focus; where a binding should not apply, its `when` clause
+ * says so.
+ * @param bindings - the overrides in force, re-read as they change.
+ * @param actions - the registered actions, re-read as they change.
+ * @param context - the state keys `when` clauses resolve against.
+ * @returns a disposer that stops listening.
+ */
 export function createKeybindingDispatcher(
   bindings: SnapshotStore<readonly SourcedOverride[]>,
   actions: SnapshotStore<readonly UiActionDefinition[]>,

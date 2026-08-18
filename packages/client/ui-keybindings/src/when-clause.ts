@@ -151,12 +151,25 @@ class Parser {
   }
 }
 
-/** Parse a `when` clause into its node tree. */
+/**
+ * Parse a `when` clause into its node tree.
+ * @param source - the clause, in the VSCode grammar this module accepts.
+ * @returns the parsed tree.
+ * @throws when the clause does not parse; a clause that cannot be read is
+ * never treated as one that resolves true.
+ */
 export function parseWhenClause(source: string): WhenNode {
   return new Parser(source).parse()
 }
 
-/** Evaluate a parsed node against a context map. */
+/**
+ * Evaluate a parsed node against a context map. A key the context does not
+ * hold is falsy rather than an error, so a clause naming state that no feature
+ * currently publishes simply does not hold.
+ * @param node - the parsed clause.
+ * @param context - the state keys in force.
+ * @returns whether the clause holds.
+ */
 export function evaluateWhen(node: WhenNode, context: WhenContext): boolean {
   switch (node.kind) {
     case 'or': return evaluateWhen(node.left, context) || evaluateWhen(node.right, context)
@@ -173,7 +186,13 @@ export function evaluateWhen(node: WhenNode, context: WhenContext): boolean {
   }
 }
 
-/** Compile a `when` clause into a predicate over a context map. */
+/**
+ * Compile a `when` clause into a predicate, parsing it once rather than on
+ * every keystroke it gates.
+ * @param source - the clause, in the VSCode grammar this module accepts.
+ * @returns a predicate over the state keys in force.
+ * @throws when the clause does not parse.
+ */
 export function compileWhenClause(source: string): (context: WhenContext) => boolean {
   const node = parseWhenClause(source)
   return context => evaluateWhen(node, context)

@@ -22,7 +22,12 @@ export type ChordAdvance<T extends Keybinding = Keybinding> =
   | { kind: 'complete'; binding: T }
   | { kind: 'reset' }
 
-/** Advance a pending chord by one gesture. */
+/**
+ * Advance a pending chord by one gesture.
+ * @param progress - the chord in flight and the stroke it expects next.
+ * @param gesture - the gesture just pressed.
+ * @returns the chord advanced, completed, or reset by a stroke that misses.
+ */
 export function advanceChord<T extends Keybinding>(progress: ChordProgress<T>, gesture: KeyGesture): ChordAdvance<T> {
   const stroke = progress.binding.strokes[progress.next]
   if (stroke === undefined || !strokeMatches(gesture, stroke)) return { kind: 'reset' }
@@ -38,7 +43,15 @@ export type ChordStart<T extends Keybinding = Keybinding> =
   | { kind: 'chord'; progress: ChordProgress<T> }
   | { kind: 'none' }
 
-/** Resolve a gesture as the first stroke of the first active, matching binding. */
+/**
+ * Resolve a gesture as the first stroke of the first active, matching binding.
+ * The order of `bindings` is the order dispatch resolves them in, so the first
+ * match wins and nothing later is consulted.
+ * @param bindings - the candidates, in the order they are to be resolved.
+ * @param gesture - the gesture just pressed.
+ * @param active - whether a binding's own conditions currently hold.
+ * @returns a binding matched outright, a chord begun, or neither.
+ */
 export function matchStart<T extends Keybinding>(
   bindings: readonly T[],
   gesture: KeyGesture,
@@ -77,8 +90,11 @@ export class ChordMatcher<T extends Keybinding = Keybinding> {
   }
 
   /**
-   * Feed one gesture; return the binding that completed, or null. A mismatch
-   * resets any pending chord and the gesture is then tried as a fresh start.
+   * Feed one gesture. A mismatch resets any pending chord, and the gesture is
+   * then tried as a fresh start rather than being swallowed by the chord it
+   * failed to continue.
+   * @param gesture - the gesture just pressed.
+   * @returns the binding that completed, or null while none has.
    */
   feed(gesture: KeyGesture): T | null {
     if (this.pending !== null) {
@@ -108,7 +124,11 @@ export class ChordMatcher<T extends Keybinding = Keybinding> {
   }
 }
 
-/** True when a stroke list denotes a chord (more than one stroke). */
+/**
+ * Whether a stroke list denotes a chord rather than a single gesture.
+ * @param strokes - the binding's strokes.
+ * @returns true once there is more than one.
+ */
 export function isChord(strokes: readonly KeyStroke[]): boolean {
   return strokes.length > 1
 }

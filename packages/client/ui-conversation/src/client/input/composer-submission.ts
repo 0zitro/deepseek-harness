@@ -68,7 +68,10 @@ export class ComposerSubmission extends Service {
     shell.arbitrate('escape', false)
   }
 
-  /** Feed a menu-arbitration key to the shell's popup controller. */
+  /**
+   * Feed a menu-arbitration key to the shell's popup controller.
+   * @param key - which of the popup's four gestures was invoked.
+   */
   arbitrate(key: 'up' | 'down' | 'enter' | 'escape'): void {
     this.currentShell()?.arbitrate(key, false)
   }

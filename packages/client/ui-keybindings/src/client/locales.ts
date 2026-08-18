@@ -22,8 +22,10 @@ export const zh = {
   'source.user': '用户',
 } satisfies Record<string, string>
 
+/** Every copy key the Keybindings section holds. */
 export type KeybindingsKey = keyof typeof zh
 
+/** English dictionary, complete against the key-set source of truth. */
 export const en = {
   title: 'Keybindings',
   'column.command': 'Command',

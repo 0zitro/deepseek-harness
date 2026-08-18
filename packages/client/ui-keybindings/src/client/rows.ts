@@ -99,7 +99,13 @@ function provenanceOf(override: SourcedOverride | undefined): KeybindingProvenan
   }
 }
 
-/** Dot-delimited segments compare in order, so a whole segment sorts before its suffixes. */
+/**
+ * Compare two action ids segment by segment, so one namespace stays together
+ * and a whole segment sorts before the segments that extend it.
+ * @param left - the first action id.
+ * @param right - the second action id.
+ * @returns negative, zero, or positive, as `Array.prototype.sort` expects.
+ */
 export function compareActionIds(left: string, right: string): number {
   const leftParts = left.split('.')
   const rightParts = right.split('.')
