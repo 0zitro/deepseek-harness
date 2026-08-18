@@ -27,6 +27,15 @@ function stubDragging(table: Element | null | undefined) {
   }
 }
 
+/** The place a binding is added, laid out: jsdom measures nothing on its own. */
+function mountedBand() {
+  mount()
+  const band = screen.getByRole('button', { name: 'Add a keybinding: Send message' })
+  band.getBoundingClientRect = () =>
+    ({ width: 200, height: 8, x: 0, y: 40, top: 40, left: 0, right: 200, bottom: 48, toJSON: () => ({}) })
+  return band
+}
+
 /** The widths the grid's column tracks carry, in column order. */
 const weights = (table: Element | null | undefined) =>
   [...((table as HTMLElement | null)?.style.gridTemplateColumns ?? '').matchAll(/([\d.]+)px/g)]
@@ -202,8 +211,53 @@ describe('KeybindingsSection', () => {
       .toEqual(['Add a keybinding: Preview', 'Add a keybinding: Send message'])
     // Each hangs off its own command's last binding, not off the grid row,
     // which is taller than those cells wherever a description wraps.
-    expect(bands.map(band => (band.parentElement?.parentElement as HTMLElement).style.gridRow))
-      .toEqual(['2', '3'])
+    expect(bands.map(band => (band.parentElement as HTMLElement).style.gridRow)).toEqual(['2', '3'])
+  })
+
+  it('draws the place a binding would land where the pointer is', () => {
+    const band = mountedBand()
+
+    fireEvent.pointerMove(band, { clientY: 47 })
+
+    // Three pixels below the band's middle, so the line is drawn three below.
+    expect(band.style.getPropertyValue('--dsh-insert-y')).toBe('3px')
+    expect(band.dataset['drawn']).toBe('true')
+  })
+
+  it('holds the line where it was once the pointer has crossed the band', () => {
+    const band = mountedBand()
+    fireEvent.pointerMove(band, { clientY: 47 })
+
+    // Past the line it marks, but inside what a drawn band reaches: it stays,
+    // and what it stops doing is following.
+    fireEvent.pointerMove(band, { clientY: 55 })
+
+    expect(band.dataset['drawn']).toBe('true')
+    expect(band.style.getPropertyValue('--dsh-insert-y')).toBe('3px')
+  })
+
+  it('adds the binding from anywhere along the line, not only its mark', () => {
+    const { setBinding } = mount()
+    const band = screen.getByRole('button', { name: 'Add a keybinding: Send message' })
+
+    // The band is the control; the mark in the middle of it only marks.
+    fireEvent.click(band)
+
+    expect(setBinding).toHaveBeenCalledWith(
+      { action: COMPOSER_SEND_ACTION, key: keybindingKey('send#1') },
+      BASE,
+      { strokes: [] },
+    )
+  })
+
+  it('stops drawing when the pointer leaves altogether', () => {
+    const band = mountedBand()
+    fireEvent.pointerMove(band, { clientY: 44 })
+    expect(band.dataset['drawn']).toBe('true')
+
+    fireEvent.pointerLeave(band)
+
+    expect(band.dataset['drawn']).toBeUndefined()
   })
 
   it('replaces an untouched draft when the stored clause changes underneath', () => {
