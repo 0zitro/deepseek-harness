@@ -1,0 +1,97 @@
+/*
+ * A table's geometry: the tracks its columns stand on, the lanes between them,
+ * and the sashes that move a lane.
+ *
+ * Two registers, and the split is the whole styling contract.
+ *
+ * What the table *reads back* is data and arrives as props: which columns
+ * there are, what share of the width each takes, and what a column may not be
+ * dragged below. None of that can live in CSS, because the drag arithmetic has
+ * to know it — a share that only the painter knew would be a number the table
+ * converts to pixels without ever having seen.
+ *
+ * What the table *never reads* is presentation and stays in CSS: every colour,
+ * font, border, padding and background, reached through a class per part and
+ * through the state each part publishes as a `data-` attribute. Between the
+ * two sit a few lengths the table must know but has no opinion about — the
+ * lane's width, the gap between rows — and those are registered custom
+ * properties, which a consumer sets at any ancestor.
+ *
+ * Everything here is in a cascade layer, so an unlayered rule of the
+ * consumer's wins whatever its specificity: a library that guesses at
+ * specificity is a library its consumer fights. The one thing not in the layer
+ * is the track template, which the table sets inline because it is computed
+ * from the props — a stylesheet cannot state it without restating the data.
+ */
+
+/* Registered rather than merely used: a registered property has a type, so a
+   consumer that sets it to something that is not a length gets the initial
+   value instead of a rule that fails at computed-value time and takes the
+   whole track template with it. It also gives the fallbacks a home, so the
+   table works with nothing configured. */
+@property --dsh-table-lane {
+  syntax: '<length>';
+  inherits: true;
+  initial-value: 12px;
+}
+
+@property --dsh-table-row-gap {
+  syntax: '<length>';
+  inherits: true;
+  initial-value: 2px;
+}
+
+@layer dsh.table {
+  /* The tracks come from the props, so they are set inline; what is here is
+     everything about a table that does not depend on which columns it has.
+
+     A column's track floors at its own min-content, so a pane too narrow for
+     the columns scrolls rather than clipping them — that is the layout floor,
+     and it is a different question from what a *drag* may cross. A drag
+     answers to the floor policy, which may be thriftier: a table whose row
+     cells clip or scroll their own content can be dragged below them on
+     purpose, and only the heading holds it open. */
+  .table {
+    display: grid;
+    align-items: center;
+    row-gap: var(--dsh-table-row-gap);
+    /* The height belongs to whatever pane holds the table: a table is as tall
+       as its rows. Saying so is not redundant — a scroll container on one axis
+       scrolls on both unless told otherwise, so anything hanging a pixel past
+       the last row would raise a second bar. */
+    overflow-x: auto;
+    overflow-y: hidden;
+  }
+
+  /* The lane between two columns, and the whole of it is the grip: the line a
+     sash draws is thinner than the area that catches a pointer, so a boundary
+     can be taken hold of anywhere along its height. It draws nothing itself —
+     what it looks like is the consumer's, hung off `data-dragging` and the
+     usual pseudo-classes. */
+  .sash {
+    align-self: stretch;
+    justify-self: stretch;
+    cursor: col-resize;
+    /* A drag that leaves the lane must not select the text it crosses. */
+    touch-action: none;
+    -webkit-user-select: none;
+    user-select: none;
+  }
+
+  /* A row's cells as one group on the table's own tracks, which is what lets a
+     group be positioned as a unit — a band hung under it, a background drawn
+     across it — while its cells still stand in the table's columns. Subgrid
+     rather than a nested grid: a nested one would resolve its own tracks from
+     its own content and stop agreeing with the columns above it. */
+  .group {
+    display: grid;
+    grid-template-columns: subgrid;
+    /* The group is a place for its cells to stand, not a surface: it spans the
+       lanes, which stay the sashes' to take hold of. */
+    pointer-events: none;
+  }
+
+  .group > * {
+    pointer-events: auto;
+  }
+}
