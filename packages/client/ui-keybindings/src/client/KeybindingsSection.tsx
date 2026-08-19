@@ -1,6 +1,7 @@
 /** The Keybindings settings page: one table row per effective binding. */
 import { Fragment, useMemo, useState, type PointerEvent, type ReactNode } from 'react'
 import type { InjectFace, PropsLocale, PropsRuntime } from '@deepseek-ai/dsh-client-ui-slots'
+import { FittedRun } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { SnapshotStore } from '@deepseek-ai/dsh-client-runtime/client'
 import {
   type Keybinding, type KeybindingEdit, type KeybindingOverrideRef, type KeybindingSource,
@@ -555,6 +556,29 @@ function useColumnResize(): {
   return { widths, onResizeStart }
 }
 
+/**
+ * The mark a sorted column carries, and the room every column keeps for one.
+ * The gap the heading holds clear of it is the mark's own leading padding, so
+ * it is reserved along with the mark rather than beside it.
+ */
+function SortMark({ rank, direction }: { rank: number | undefined; direction: SortDirection }) {
+  return (
+    <span className={css.sortSlot}>
+      <span className={classes(css.ghost, css.sortMark)}>
+        {rank !== undefined && <span className={css.sortRank}>{rank}</span>}
+        <SortArrow direction={direction} />
+      </span>
+    </span>
+  )
+}
+
+/**
+ * The widest mark any column can carry: the rank shown when the order consults
+ * every column at once. Ranks are digits of a tabular figure, so which digit
+ * this is does not matter — only how many.
+ */
+const WIDEST_RANK = COLUMNS.length
+
 /** One column heading: a click sorts by it, a double click drops it from the order. */
 function ColumnHeader(
   { column, line, sorts, onSorts, t }: {
@@ -583,17 +607,16 @@ function ColumnHeader(
         {/* A button is not a layout container: an engine may wrap its contents
             in an anonymous block, which would leave a grid declared on the
             button inert and its children flowing against each other. */}
-        <span className={css.headerLayout} data-sorted={sorted !== undefined || undefined}>
-          <span className={css.heading}>{t(column.label)}</span>
-          <span className={css.sortSlot} aria-hidden="true">
-            {sorted !== undefined && (
-              <span className={classes(css.ghost, css.sortMark)}>
-                {sorts.length > 1 && <span className={css.sortRank}>{at + 1}</span>}
-                <SortArrow direction={sorted.direction} />
-              </span>
-            )}
-          </span>
-        </span>
+        <FittedRun
+          className={css.headerLayout}
+          contentClassName={css.heading}
+          reserve={<SortMark rank={WIDEST_RANK} direction="asc" />}
+          occupant={sorted === undefined
+            ? undefined
+            : <SortMark rank={sorts.length > 1 ? at + 1 : undefined} direction={sorted.direction} />}
+        >
+          {t(column.label)}
+        </FittedRun>
       </button>
     </div>
   )
