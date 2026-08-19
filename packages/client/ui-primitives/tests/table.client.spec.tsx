@@ -19,6 +19,11 @@ const COLUMNS = [
  * resolves to the pixels it should is measured in a browser and recorded in
  * the Agent Note.
  */
+/** A lane, as the table spells one: the grip, plus any gutter beside it. */
+const lane = (index: number) =>
+  `calc(var(--dsh-table-lane-${index}, var(--dsh-table-lane))`
+  + ` + var(--dsh-table-gutter-${index}, var(--dsh-table-gutter)))`
+
 function mount(widths?: readonly number[]) {
   const view = render(
     <Table columns={COLUMNS} className="mine" {...(widths === undefined ? {} : { widths })}>
@@ -35,21 +40,18 @@ function mount(widths?: readonly number[]) {
 describe('Table', () => {
   it('lays its columns out in shares, with a lane between each pair', () => {
     // Each lane reads its own override before the shared width, so one lane can
-    // be widened without the table growing a prop for it.
+    // differ without the table growing a prop for it; and it carries the grip
+    // plus whatever gutter stands against the next column, which is what makes
+    // the two disjoint by arithmetic rather than by care.
     expect(mount().style.gridTemplateColumns).toBe(
-      'minmax(min-content, 2fr) var(--dsh-table-lane-0, var(--dsh-table-lane))'
-      + ' minmax(min-content, 1fr) var(--dsh-table-lane-1, var(--dsh-table-lane))'
-      + ' minmax(min-content, 1fr)',
+      `minmax(min-content, 2fr) ${lane(0)} minmax(min-content, 1fr) ${lane(1)} minmax(min-content, 1fr)`,
     )
   })
 
   it('states settled widths where it was given them, and takes a class of its own', () => {
     const table = mount([230, 70, 100])
 
-    expect(table.style.gridTemplateColumns).toBe(
-      '230px var(--dsh-table-lane-0, var(--dsh-table-lane)) 70px'
-      + ' var(--dsh-table-lane-1, var(--dsh-table-lane)) 100px',
-    )
+    expect(table.style.gridTemplateColumns).toBe(`230px ${lane(0)} 70px ${lane(1)} 100px`)
     expect(table.className).toContain('mine')
   })
 

@@ -18,6 +18,8 @@ export {
 export type {
   TableColumnCells, TableColumnFloor, TableColumnLayout, TableGroupProps, TableProps,
 } from './Table.tsx'
+export { bandOffset, TableGutter, TableSeam } from './TableBand.tsx'
+export type { BandBounds, TableGutterProps, TableSeamProps } from './TableBand.tsx'
 export { runId, runsBy, runsWithin, tableRunRows } from './table-runs.ts'
 export type { TableRun } from './table-runs.ts'
 export { TableSash, useTableResize } from './TableSash.tsx'

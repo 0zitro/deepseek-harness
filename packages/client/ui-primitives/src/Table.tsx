@@ -89,9 +89,8 @@ export function tableLaneLine(index: number): number {
  * The track template for the given columns, in shares or in settled pixels.
  *
  * Each lane reads its own optional override before the shared width, so a
- * consumer that needs one lane wider — because a row's own controls sit in it,
- * say — states that lane and leaves the rest alone, without the table growing
- * a prop for it.
+ * consumer that needs one lane different states that lane and leaves the rest
+ * alone, without the table growing a prop for it.
  */
 function template(columns: readonly TableColumnLayout[], widths: readonly number[] | undefined): string {
   return columns
@@ -100,7 +99,11 @@ function template(columns: readonly TableColumnLayout[], widths: readonly number
       const track = width === undefined
         ? `minmax(min-content, ${column.share}fr)`
         : `${width}px`
-      const lane = `var(--dsh-table-lane-${index}, var(--dsh-table-lane))`
+      // A lane is the grip plus whatever gutter stands against the next
+      // column, so the two are disjoint by arithmetic. With no gutter stated
+      // the term is zero and the lane is the grip alone.
+      const lane = `calc(var(--dsh-table-lane-${index}, var(--dsh-table-lane))`
+        + ` + var(--dsh-table-gutter-${index}, var(--dsh-table-gutter)))`
       return index === columns.length - 1 ? [track] : [track, lane]
     })
     .join(' ')

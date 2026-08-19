@@ -41,6 +41,41 @@
   initial-value: 2px;
 }
 
+/* Width added to a lane for a control that stands against the row rather than
+   on the boundary. The sash keeps the rest, so the grip's pixels and the
+   gutter's are disjoint by arithmetic rather than by anyone being careful —
+   which matters most where the gutter's control is the destructive one. */
+@property --dsh-table-gutter {
+  syntax: '<length>';
+  inherits: true;
+  initial-value: 0px;
+}
+
+/* How far a seam reaches into the groups either side of the gap it stands in.
+   At nothing it is the gap exactly: thin, but valid, so a table works with
+   none of this stated. */
+@property --dsh-table-seam-inset {
+  syntax: '<length>';
+  inherits: true;
+  initial-value: 0px;
+}
+
+/* How far past itself a seam still answers, once it is drawn. The rows either
+   side keep every pixel until the pointer has asked for the seam. */
+@property --dsh-table-seam-reach {
+  syntax: '<length>';
+  inherits: true;
+  initial-value: 10px;
+}
+
+/* Room below the last row for a seam to stand in. The table clips its own
+   cross axis, so without this the last seam would die against that edge. */
+@property --dsh-table-overhang {
+  syntax: '<length>';
+  inherits: true;
+  initial-value: 0px;
+}
+
 @layer dsh.table {
   /* The tracks come from the props, so they are set inline; what is here is
      everything about a table that does not depend on which columns it has.
@@ -61,6 +96,7 @@
        the last row would raise a second bar. */
     overflow-x: auto;
     overflow-y: hidden;
+    padding-block-end: var(--dsh-table-overhang);
   }
 
   /* The lane between two columns, and the whole of it is the grip: the line a
@@ -84,6 +120,8 @@
      rather than a nested grid: a nested one would resolve its own tracks from
      its own content and stop agreeing with the columns above it. */
   .group {
+    /* What the bands hanging off it are placed against. */
+    position: relative;
     display: grid;
     grid-template-columns: subgrid;
     /* The group is a place for its cells to stand, not a surface: it spans the
@@ -93,5 +131,48 @@
 
   .group > * {
     pointer-events: auto;
+  }
+
+  /* A control in the space between cells rather than in one: the seam stands
+     in the gap below its group, the gutter in the widened lane at its group's
+     edge. Both are the same family as the sash — the affordance of a boundary,
+     living in room the table already reserves — and neither takes any room of
+     its own, so a table is as tall as its rows whether it offers them or not.
+
+     What is reset here is not paint but a button's own: a consumer's class has
+     to start from nothing rather than from what a browser thought a button
+     should look like. */
+  .band {
+    position: absolute;
+    padding: 0;
+    border: 0;
+    background: none;
+    font: inherit;
+    color: inherit;
+    cursor: pointer;
+  }
+
+  .seam {
+    inset-inline: 0;
+    top: calc(100% - var(--dsh-table-seam-inset));
+    height: calc(2 * var(--dsh-table-seam-inset) + var(--dsh-table-row-gap));
+    /* Above the group that follows it, which is laid out later and would
+       otherwise paint over the line this is drawing. */
+    z-index: 1;
+  }
+
+  /* The reach exists only once the seam is drawn, so the rows either side keep
+     every pixel until the pointer has asked. Leaving the reach takes the
+     drawing away, and inside it the seam holds the position it last had —
+     which falls out of the clamp rather than being a rule of its own. */
+  .seam[data-drawn]::before {
+    content: '';
+    position: absolute;
+    inset-inline: 0;
+    inset-block: calc(-1 * var(--dsh-table-seam-reach));
+  }
+
+  .gutter {
+    inset-block: 0;
   }
 }
