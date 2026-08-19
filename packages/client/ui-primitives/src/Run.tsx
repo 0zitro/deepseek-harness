@@ -57,7 +57,10 @@ function Room({ reserve, occupant }: Pick<RunProps, 'reserve' | 'occupant'>) {
   return (
     <>
       {reserve === undefined ? null : <span className={clsx(css.room, css.reserve)} aria-hidden="true">{reserve}</span>}
-      {occupant === undefined ? null : <span className={css.room}>{occupant}</span>}
+      {/* The occupant names itself, so the stylesheet can ask whether one is
+          there. That is the only state a run has, and it is read where it is
+          written rather than mirrored into a prop, a class, or a hook. */}
+      {occupant === undefined ? null : <span className={clsx(css.room, css.occupant)}>{occupant}</span>}
     </>
   )
 }
@@ -65,11 +68,18 @@ function Room({ reserve, occupant }: Pick<RunProps, 'reserve' | 'occupant'>) {
 /**
  * Content with room reserved at one end, read where it stands.
  *
- * The content is never clipped by the reservation: its track floors at its own
- * min-content, so the flanks are spent first and the run asks for the content
- * plus the room, in every state. What that buys is that nothing moves — an
- * occupant arriving or leaving changes no track, because the room was already
- * the reserve's width with only the reserve in it.
+ * Two planes. What the run asks for is settled by hidden exemplars — a ghost
+ * of the content and the reserve — which are the only things in flow, so the
+ * ask is the content plus the room and an occupant cannot change it: it is not
+ * in that plane. Where things sit is settled by an overlay laid out at the
+ * width that ask won, which is free to place them however the alignment says
+ * because nothing it does reaches back into the sizing.
+ *
+ * With no occupant the content honours the alignment across the whole run.
+ * With one, it moves off that alignment by what the mark needs and no more —
+ * and by nothing at all once the run has the room to spare. The content is
+ * never clipped by the reservation: it is spent last, after the flanks and
+ * after the room's own share of them.
  * @param props - the content, the room it keeps, and how the slack is placed.
  * @returns the run.
  */
@@ -78,8 +88,14 @@ export function FittedRun(
 ) {
   return (
     <span className={clsx(css.run, className)} data-justify={justify} data-align={align}>
-      <span className={clsx(css.content, contentClassName)}>{children}</span>
-      <Room reserve={reserve} occupant={occupant} />
+      {/* The size plane. The ghost carries the content class so that it
+          measures the way the content the reader sees measures. */}
+      <span className={clsx(css.sizeContent, contentClassName)} aria-hidden="true">{children}</span>
+      {reserve === undefined ? null : <span className={css.sizeRoom} aria-hidden="true">{reserve}</span>}
+      <span className={css.layer} data-justify={justify} data-align={align}>
+        <span className={clsx(css.content, contentClassName)}>{children}</span>
+        <Room reserve={reserve} occupant={occupant} />
+      </span>
     </span>
   )
 }
