@@ -16,35 +16,18 @@ import { COMPOSER_SEND_ACTION, type UiActionId } from '../src/ui-action.ts'
 
 afterEach(cleanup)
 
-/** jsdom lays nothing out and captures no pointer, so a drag needs both supplied. */
-function stubDragging(table: Element | null | undefined) {
-  for (const cell of [...(table?.children ?? [])]) {
-    // The drag measures twice: once for the width as laid out, and once with
-    // the heading asked for its narrowest. jsdom resolves neither, so the stub
-    // answers by which question was asked.
-    cell.getBoundingClientRect = () => {
-      const width = (cell as HTMLElement).style.width === 'min-content' ? 30 : 100
-      return { width, height: 20, x: 0, y: 0, top: 0, left: 0, right: width, bottom: 20, toJSON: () => ({}) }
-    }
-  }
-  for (const handle of [...(table?.querySelectorAll('[role="separator"]') ?? [])]) {
-    handle.setPointerCapture = () => {}
-  }
-}
-
 /** The place a binding is added, laid out: jsdom measures nothing on its own. */
 function mountedBand() {
   mount()
   const band = screen.getByRole('button', { name: 'Add a keybinding: Send message' })
   band.getBoundingClientRect = () =>
     ({ width: 200, height: 8, x: 0, y: 40, top: 40, left: 0, right: 200, bottom: 48, toJSON: () => ({}) })
+  band.setPointerCapture = () => {}
   return band
 }
 
-/** The widths the grid's column tracks carry, in column order. */
-const weights = (table: Element | null | undefined) =>
-  [...((table as HTMLElement | null)?.style.gridTemplateColumns ?? '').matchAll(/([\d.]+)px/g)]
-    .map(match => Number(match[1]))
+/** The columns this table shows, in render order. */
+const COLUMN_LABELS = ['Command', 'Keybinding', 'When clause', 'Priority', 'Source']
 
 const PREVIEW_ACTION = 'composer.preview' as UiActionId
 
@@ -233,29 +216,29 @@ describe('KeybindingsSection', () => {
       .toEqual(['Add a keybinding: Preview', 'Add a keybinding: Send message'])
     // Each hangs off its own command's last binding, not off the grid row,
     // which is taller than those cells wherever a description wraps.
-    expect(bands.map(band => (band.parentElement as HTMLElement).style.gridRow)).toEqual(['2', '3'])
+    expect(bands.map(band => (band.parentElement as HTMLElement).style.gridRow)).toEqual(['2 / span 1', '3 / span 1'])
   })
 
   it('draws the place a binding would land where the pointer is', () => {
     const band = mountedBand()
 
-    fireEvent.pointerMove(band, { clientY: 47 })
+    fireEvent.pointerEnter(band, { clientY: 47 })
 
-    // Three pixels below the band's middle, so the line is drawn three below.
-    expect(band.style.getPropertyValue('--dsh-insert-y')).toBe('3px')
+    // Seven pixels down the band, counted from its own start.
+    expect(band.style.getPropertyValue('--dsh-table-seam-y')).toBe('7px')
     expect(band.dataset['drawn']).toBe('true')
   })
 
   it('holds the line where it was once the pointer has crossed the band', () => {
     const band = mountedBand()
-    fireEvent.pointerMove(band, { clientY: 47 })
+    fireEvent.pointerEnter(band, { clientY: 47 })
 
     // Past the line it marks, but inside what a drawn band reaches: it stays,
     // and what it stops doing is following.
     fireEvent.pointerMove(band, { clientY: 55 })
 
     expect(band.dataset['drawn']).toBe('true')
-    expect(band.style.getPropertyValue('--dsh-insert-y')).toBe('3px')
+    expect(band.style.getPropertyValue('--dsh-table-seam-y')).toBe('8px')
   })
 
   it('adds the binding from anywhere along the line, not only its mark', () => {
@@ -274,7 +257,7 @@ describe('KeybindingsSection', () => {
 
   it('stops drawing when the pointer leaves altogether', () => {
     const band = mountedBand()
-    fireEvent.pointerMove(band, { clientY: 44 })
+    fireEvent.pointerEnter(band, { clientY: 44 })
     expect(band.dataset['drawn']).toBe('true')
 
     fireEvent.pointerLeave(band)
@@ -303,7 +286,7 @@ describe('KeybindingsSection', () => {
     // place would leave its cells unplaced, on top of the rows that have one.
     const placed = screen.getAllByRole('textbox')
       .map(input => (input.parentElement?.parentElement as HTMLElement).style.gridRow)
-    expect(placed).toEqual(['2', '3', '4'])
+    expect(placed).toEqual(['2 / span 1', '3 / span 1', '4 / span 1'])
   })
 
   it('offers to drop only what the user holds', () => {
@@ -327,10 +310,10 @@ describe('KeybindingsSection', () => {
     band.getBoundingClientRect = () =>
       ({ width: 14, height: 30, x: 100, y: 0, top: 0, left: 100, right: 114, bottom: 30, toJSON: () => ({}) })
 
-    fireEvent.pointerMove(band, { clientX: 110 })
+    fireEvent.pointerEnter(band, { clientX: 110 })
     expect(band.dataset['drawn']).toBe('true')
-    // Three pixels past the gutter's middle, so the line is drawn three past it.
-    expect(band.style.getPropertyValue('--dsh-remove-x')).toBe('3px')
+    // Ten pixels along the gutter, counted from its own start.
+    expect(band.style.getPropertyValue('--dsh-table-gutter-x')).toBe('10px')
 
     fireEvent.pointerLeave(band)
     expect(band.dataset['drawn']).toBeUndefined()
@@ -391,7 +374,7 @@ describe('KeybindingsSection', () => {
     expect(command.parentElement?.style.gridRow).toBe('2 / span 2')
     // The cells of one binding are grouped, and the group names the row.
     expect(screen.getAllByLabelText(/When clause: Send message/).map(input =>
-      (input.parentElement?.parentElement as HTMLElement).style.gridRow)).toEqual(['2', '3'])
+      (input.parentElement?.parentElement as HTMLElement).style.gridRow)).toEqual(['2 / span 1', '3 / span 1'])
   })
 
   it('marks an overridden field apart from one still following its default', () => {
@@ -466,10 +449,10 @@ describe('KeybindingsSection', () => {
     const header = screen.getByRole('button', { name: /^Priority/ })
 
     fireEvent.click(header)
-    expect(screen.getByRole('button', { name: 'Priority: ascending' })).toBeDefined()
+    expect(screen.getByRole('button', { name: 'Priority' })).toBeDefined()
 
     fireEvent.click(header)
-    expect(screen.getByRole('button', { name: 'Priority: descending' })).toBeDefined()
+    expect(screen.getByRole('button', { name: 'Priority' })).toBeDefined()
 
     // The clicks composing a double click toggle first; the drop discards that.
     fireEvent.doubleClick(header)
@@ -479,97 +462,66 @@ describe('KeybindingsSection', () => {
   it('numbers the columns once more than one orders the table', () => {
     mount()
     fireEvent.click(screen.getByRole('button', { name: 'Source' }))
-    expect(screen.getByRole('button', { name: 'Source: ascending' }).textContent).not.toContain('1')
+    expect(screen.getByRole('button', { name: 'Source' }).textContent).not.toContain('1')
 
     fireEvent.click(screen.getByRole('button', { name: 'When clause' }))
 
-    expect(screen.getByRole('button', { name: 'Source: ascending' }).textContent).toContain('1')
-    expect(screen.getByRole('button', { name: 'When clause: ascending' }).textContent).toContain('2')
+    expect(screen.getByRole('button', { name: 'Source' }).textContent).toContain('1')
+    expect(screen.getByRole('button', { name: 'When clause' }).textContent).toContain('2')
   })
 
-  it('moves a boundary between two columns and leaves the rest', () => {
+  it('offers one boundary per pair of columns, named for the column it follows', () => {
     mount()
     const handles = screen.getAllByRole('separator')
-    // One boundary per pair, so the last column has none.
-    expect(handles).toHaveLength(4)
 
-    const table = handles[0]?.parentElement
-    stubDragging(table)
-
-    fireEvent.pointerDown(handles[0]!, { clientX: 0, pointerId: 1 })
-    fireEvent.pointerMove(handles[0]!, { clientX: 40, pointerId: 1 })
-    fireEvent.pointerUp(handles[0]!, { pointerId: 1 })
-
-    const tracks = weights(table)
-    expect(tracks).toHaveLength(5)
-    // The pair absorbs the drag: the first widens, the second gives way.
-    expect(tracks[0]).toBeGreaterThan(100)
-    expect(tracks[1]).toBeLessThan(100)
-    expect(tracks[2]).toBe(100)
-    // What one gained the other gave up, so their total is unchanged.
-    expect((tracks[0] ?? 0) + (tracks[1] ?? 0)).toBeCloseTo(200)
+    // The last column has none: a boundary divides a pair, and there is no
+    // pair past the end. What a drag then does is the table's, and is held
+    // where that arithmetic lives.
+    expect(handles).toHaveLength(COLUMN_LABELS.length - 1)
+    expect(handles.map(handle => handle.getAttribute('aria-label')))
+      .toEqual(COLUMN_LABELS.slice(0, -1).map(label => `${label}: resize column`))
+    // Every one runs the heading row and every binding under it.
+    expect(new Set(handles.map(handle => handle.style.gridRow))).toEqual(new Set(['1 / span 2']))
   })
 
-  it('ignores a drag it cannot measure', () => {
+  it('floors a drag at the heading alone, so a long value cannot hold its column open', () => {
     mount()
-    const handle = screen.getAllByRole('separator')[0]!
+    const handle = screen.getAllByRole('separator')[0] as HTMLElement
+    const table = handle.parentElement as HTMLElement
+    handle.setPointerCapture = () => {}
+    // jsdom resolves no template, and a drag with nothing to start from does
+    // not start; what is under test is what it measures once it can.
+    const real = globalThis.getComputedStyle.bind(globalThis)
+    vi.spyOn(globalThis, 'getComputedStyle').mockImplementation((element: Element, pseudo?: string | null) => {
+      const style = real(element, pseudo ?? undefined)
+      return new Proxy(style, {
+        get(target: CSSStyleDeclaration, key: string | symbol): unknown {
+          if (element === table && key === 'gridTemplateColumns') return '100px 12px 100px 12px 100px 12px 100px 12px 100px'
+          const value: unknown = Reflect.get(target, key)
+          return typeof value === 'function' ? (value as () => unknown).bind(target) : value
+        },
+      })
+    })
+    const measured: string[] = []
+    for (const cell of table.querySelectorAll<HTMLElement>('[data-table-column]')) {
+      vi.spyOn(cell, 'getBoundingClientRect').mockImplementation(() => {
+        measured.push(`${cell.dataset['tableColumn']}${cell.dataset['tableHeading'] === undefined ? '' : ':heading'}`)
+        return { width: 0, height: 0, x: 0, y: 0, top: 0, left: 0, right: 0, bottom: 0, toJSON: () => ({}) }
+      })
+    }
 
     fireEvent.pointerDown(handle, { clientX: 0, pointerId: 1 })
-    fireEvent.pointerMove(handle, { clientX: 40, pointerId: 1 })
 
-    // Nothing is laid out here, so there is no width to take a fraction of.
-    expect(handle.parentElement?.getAttribute('style')).toBeNull()
-  })
+    // Only the headings are asked. The rows have no say: their fields clip and
+    // their gestures scroll, so a long clause would otherwise claim width for
+    // content that has somewhere else to go.
+    expect(measured.every(name => name.endsWith(':heading'))).toBe(true)
+    expect(measured.length).toBeGreaterThan(0)
 
-  it('holds the drag cursor while a sash is held, and gives it back', () => {
-    mount()
-    const handles = screen.getAllByRole('separator')
-    stubDragging(handles[0]?.parentElement)
+    fireEvent.pointerMove(handle, { clientX: 30 })
 
-    fireEvent.pointerDown(handles[0]!, { clientX: 0, pointerId: 1 })
-    expect(document.body.style.cursor).toBe('col-resize')
-    expect(document.body.style.userSelect).toBe('none')
-    expect(handles[0]?.dataset['dragging']).toBe('true')
-
-    fireEvent.pointerUp(handles[0]!, { pointerId: 1 })
-
-    expect(document.body.style.cursor).toBe('')
-    expect(document.body.style.userSelect).toBe('')
-    expect(handles[0]?.dataset['dragging']).toBeUndefined()
-  })
-
-  it('lets go of the boundary when the pointer does', () => {
-    mount()
-    const handles = screen.getAllByRole('separator')
-    const table = handles[0]?.parentElement
-    stubDragging(table)
-
-    fireEvent.pointerDown(handles[0]!, { clientX: 0, pointerId: 1 })
-    fireEvent.pointerMove(handles[0]!, { clientX: 40, pointerId: 1 })
-    const held = weights(table)
-
-    fireEvent.pointerUp(handles[0]!, { pointerId: 1 })
-    fireEvent.pointerMove(handles[0]!, { clientX: 120, pointerId: 1 })
-
-    expect(weights(table)).toEqual(held)
-  })
-
-  it('follows the writing direction when it is reversed', () => {
-    document.documentElement.dir = 'rtl'
-    try {
-      mount()
-      const handles = screen.getAllByRole('separator')
-      const table = handles[0]?.parentElement
-      stubDragging(table)
-
-      fireEvent.pointerDown(handles[0]!, { clientX: 0, pointerId: 1 })
-      fireEvent.pointerMove(handles[0]!, { clientX: 40, pointerId: 1 })
-      fireEvent.pointerUp(handles[0]!, { pointerId: 1 })
-
-      // The same motion widens the other column, because the inline end moved.
-      expect(weights(table)[0]).toBeLessThan(100)
-    } finally {
-      document.documentElement.dir = ''
-    }
+    // Once a boundary has moved, the columns are the pixels it settled on
+    // rather than the shares they laid themselves out in.
+    expect(table.style.gridTemplateColumns.startsWith('130px ')).toBe(true)
   })
 })

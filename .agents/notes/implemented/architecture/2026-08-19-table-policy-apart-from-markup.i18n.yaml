@@ -2,5 +2,5 @@
 # side as of the last confirmed-consistent state. Both languages carry equal authority;
 # after editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write .agents/notes/implemented/architecture/2026-08-19-table-policy-apart-from-markup.md
-2026-08-19-table-policy-apart-from-markup.md: 835902e7c2f8dcf757217b1862e5470a5501816c
-2026-08-19-table-policy-apart-from-markup.zh.md: 4b5cd56a2aca25ef7e002aa87f7ec9d07cc9f9a6
+2026-08-19-table-policy-apart-from-markup.md: b902dec65459b6f2928380596a33a31cfff34349
+2026-08-19-table-policy-apart-from-markup.zh.md: cef24e854e8a30b717a3d89949c801633a422f78

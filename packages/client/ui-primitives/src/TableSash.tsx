@@ -108,6 +108,14 @@ export function useTableResize(
     const toward = getComputedStyle(handle).direction === 'rtl' ? -1 : 1
     let latest = gesture.from
 
+    // Capture keeps the gesture with the handle wherever the pointer goes, but
+    // what the pointer looks like out there is whatever it is over. A drag says
+    // so for its whole duration, and takes the text it crosses out of selection
+    // while it does.
+    const restore = { cursor: document.body.style.cursor, select: document.body.style.userSelect }
+    document.body.style.cursor = 'col-resize'
+    document.body.style.userSelect = 'none'
+
     const onMove = (moved: globalThis.PointerEvent) => {
       latest = resizeWidths(gesture.from, gesture.measured, index, (moved.clientX - origin) * toward)
       setWidths(latest)
@@ -120,6 +128,8 @@ export function useTableResize(
         handle.removeEventListener(kind, onEnd)
       }
       handle.removeEventListener('pointermove', onMove)
+      document.body.style.cursor = restore.cursor
+      document.body.style.userSelect = restore.select
       onWidthsCommit?.(latest)
     }
 
