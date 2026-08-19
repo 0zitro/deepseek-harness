@@ -8,6 +8,11 @@ import { TableSash, useTableResize, type UseTableResizeOptions } from '../src/Ta
 afterEach(() => {
   cleanup()
   vi.restoreAllMocks()
+  // Tests that deliberately leave a drag mid-flight leave the document saying
+  // so, which is the behaviour rather than a leak — but the next test starts
+  // from a document nobody has been dragging in.
+  document.body.style.cursor = ''
+  document.body.style.userSelect = ''
 })
 
 const COLUMNS = [
@@ -160,6 +165,19 @@ describe('useTableResize', () => {
       expect(columns()).toEqual(['230px', '70px', '100px'])
       cleanup()
     }
+  })
+
+  it('says a drag is happening for as long as it lasts, wherever the pointer goes', () => {
+    const { sash } = mount()
+    document.body.style.cursor = 'text'
+
+    fireEvent.pointerDown(sash, { clientX: 0, pointerId: 1 })
+    // Capture keeps the gesture with the handle, but not the pointer's own
+    // shape: what it looks like elsewhere is whatever it is over.
+    expect([document.body.style.cursor, document.body.style.userSelect]).toEqual(['col-resize', 'none'])
+
+    fireEvent.pointerUp(sash)
+    expect([document.body.style.cursor, document.body.style.userSelect]).toEqual(['text', ''])
   })
 
   it('reports the widths once a gesture is over, and not on the way', () => {

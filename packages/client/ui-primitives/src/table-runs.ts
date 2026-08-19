@@ -20,8 +20,12 @@ export interface TableRun<Row> {
   key: string
   /** Which of this key's runs this is, counted from the top of the presentation. */
   ordinal: number
-  /** The run's rows, in presented order. */
-  rows: readonly Row[]
+  /**
+   * The run's rows, in presented order, and never none of them: a run exists
+   * because a row opened it. Saying so in the type spares every reader of a
+   * run the ceremony of asking whether the first one is there.
+   */
+  rows: readonly [Row, ...Row[]]
   /** Where the run's first row sits in the presentation, counting from zero. */
   start: number
 }

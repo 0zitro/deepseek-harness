@@ -60,6 +60,12 @@ const precedence: Ordering<KeybindingSource> = {
 export interface SortableColumn extends TableColumn<KeybindingRow> {
   /** Dictionary key of the column heading. */
   label: KeybindingsKey
+  /**
+   * How wide it would like to be, relative to the rest. It is declared with
+   * the column rather than beside it, so a column cannot come into being
+   * without one and nothing has to decide what a column with none should get.
+   */
+  share: number
 }
 
 /**
@@ -67,6 +73,7 @@ export interface SortableColumn extends TableColumn<KeybindingRow> {
  * kind of value orders, and what its heading says.
  * @param id - stable column key.
  * @param label - dictionary key of the heading.
+ * @param share - how wide it would like to be, relative to the rest.
  * @param ordering - how this kind of value orders.
  * @param valueOf - where a row carries this column's value.
  * @returns the column, comparing rows by that value.
@@ -74,17 +81,18 @@ export interface SortableColumn extends TableColumn<KeybindingRow> {
 function sortable<T>(
   id: string,
   label: KeybindingsKey,
+  share: number,
   ordering: Ordering<T>,
   valueOf: (row: KeybindingRow) => T,
 ): SortableColumn {
-  return { ...orderedBy(id, ordering, valueOf), label }
+  return { ...orderedBy(id, ordering, valueOf), label, share }
 }
 
 /** The table's columns, in render order. */
 export const COLUMNS: readonly SortableColumn[] = [
-  sortable('command', 'column.command', identifier, row => row.action),
-  sortable('stroke', 'column.stroke', gesture, row => row.entry.strokes),
-  sortable('when', 'column.when', byText, row => row.entry.when ?? ''),
-  sortable('prio', 'column.prio', place, row => row.prio),
-  sortable('source', 'column.source', precedence, row => row.entry.source),
+  sortable('command', 'column.command', 1.7, identifier, row => row.action),
+  sortable('stroke', 'column.stroke', 1.1, gesture, row => row.entry.strokes),
+  sortable('when', 'column.when', 1.9, byText, row => row.entry.when ?? ''),
+  sortable('prio', 'column.prio', 0.5, place, row => row.prio),
+  sortable('source', 'column.source', 0.6, precedence, row => row.entry.source),
 ]
