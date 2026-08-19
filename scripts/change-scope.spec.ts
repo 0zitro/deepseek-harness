@@ -25,10 +25,23 @@ afterEach(() => {
   for (const root of fixtureRoots.splice(0)) rmSync(root, { recursive: true, force: true })
 })
 
+/**
+ * The fixture's git, run with the host's own configuration out of reach.
+ *
+ * A developer's global config reaches every `git` a test runs, and fencing off
+ * one setting at a time is a list with no end: signing turns `tag` into a gpg
+ * call that cannot prompt, `core.warnambiguousrefs` changes how a shortname
+ * resolves, `includeIf` swaps identities by path, and a template or hooks path
+ * seeds files the fixture never wrote. Reading no global or system config at
+ * all closes the whole class, and the fixture already states everything it
+ * needs per repository.
+ */
+const ISOLATED = { LANG: 'C', LC_ALL: 'C', GIT_CONFIG_GLOBAL: '/dev/null', GIT_CONFIG_SYSTEM: '/dev/null' }
+
 function git(cwd: string, args: string[], input?: string | Buffer): string {
   return execFileSync('git', ['-C', cwd, ...args], {
     encoding: 'utf8',
-    env: { ...process.env, LANG: 'C', LC_ALL: 'C' },
+    env: { ...process.env, ...ISOLATED },
     input,
     stdio: ['pipe', 'pipe', 'pipe'],
   }).trim()
@@ -36,7 +49,7 @@ function git(cwd: string, args: string[], input?: string | Buffer): string {
 
 function gitBytes(cwd: string, args: string[], input?: Buffer): Buffer {
   return execFileSync('git', ['-C', cwd, ...args], {
-    env: { ...process.env, LANG: 'C', LC_ALL: 'C' },
+    env: { ...process.env, ...ISOLATED },
     input,
     stdio: ['pipe', 'pipe', 'pipe'],
   })

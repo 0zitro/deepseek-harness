@@ -145,7 +145,13 @@ describe('partial Landlock runner-failure classification', () => {
     const dir = await mkdtemp(join(tmpdir(), 'dsh-malformed-sandbox-runner-'))
     tempDirs.push(dir)
     const runner = join(dir, 'malformed-runner')
-    await writeFile(runner, 'not a native executable or shebang script\n', { mode: 0o755 })
+    // The payload's first word has to be a command that cannot exist. Linux
+    // retries a no-shebang executable through /bin/sh, which reads this as a
+    // command line — prose describing the file resolved against PATH, and a
+    // host carrying a binary of that name (`/usr/bin/not` ships on some
+    // distributions) ran it and returned its exit code instead of the shell's
+    // 127 for a command it could not find.
+    await writeFile(runner, 'dsh-absent-malformed-runner-payload\n', { mode: 0o755 })
     const bash = await setupConfiguredRunner(runner)
     const request = { command: 'true' }
 
