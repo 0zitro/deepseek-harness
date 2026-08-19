@@ -1,7 +1,7 @@
 /** The Keybindings settings page: one table row per effective binding. */
 import { Fragment, useMemo, useState, type PointerEvent, type ReactNode } from 'react'
 import type { InjectFace, PropsLocale, PropsRuntime } from '@deepseek-ai/dsh-client-ui-slots'
-import { FittedRun } from '@deepseek-ai/dsh-client-ui-primitives'
+import { FittedRun, ScrollingRun } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { SnapshotStore } from '@deepseek-ai/dsh-client-runtime/client'
 import {
   type Keybinding, type KeybindingEdit, type KeybindingOverrideRef, type KeybindingSource,
@@ -11,7 +11,7 @@ import { parseWhenClause } from '../when-clause.ts'
 import type { UiActionDefinition } from './action-registry.ts'
 import type { UiActionId } from '../ui-action.ts'
 import { useDraft } from './draft.ts'
-import { KeybindingRecorder } from './KeybindingRecorder.tsx'
+import { ControlRoom, KeybindingRecorder } from './KeybindingRecorder.tsx'
 import { resizeWidths } from './resize.ts'
 import {
   forkedKey, keybindingRows, type EffectiveRow, type KeybindingRow, type SupersededRow,
@@ -288,11 +288,14 @@ function ShippedCells({ row, t }: { row: SupersededRow; t: SectionT }) {
   return (
     <>
       <div className={classes(css.cell, css.shipped)} style={{ gridColumn: cellLine(1) }}>
-        <span className={classes(css.shippedBox, css.recorderLayout)}>
-          <span className={css.strokes}>
+        {/* The same run the recorder uses, with the same room reserved, so a
+            struck strip and the live one above it hold their chips in the same
+            place — the two rows are meant to read against each other. */}
+        <ScrollingRun className={classes(css.shippedBox, css.recorderLayout)} reserve={<ControlRoom />}>
+          <span className={css.strokeStrip}>
             {row.entry.strokes.map((stroke, index) => <StrokeChips key={index} stroke={stroke} />)}
           </span>
-        </span>
+        </ScrollingRun>
       </div>
       <div className={classes(css.cell, css.shipped)} style={{ gridColumn: cellLine(2) }}>
         <span className={classes(css.shippedBox, css.clauseText)}>{row.entry.when ?? ''}</span>

@@ -47,17 +47,28 @@ describe('FittedRun', () => {
     for (const copy of copies) expect(copy.getAttribute('aria-hidden')).toBe('true')
   })
 
-  it('gives the occupant the room, and lets it name itself', () => {
+  it('gives the occupant the room and says the room is taken', () => {
     render(<FittedRun reserve={<i>MARK9</i>} occupant={<b>M9</b>}>Priority</FittedRun>)
 
     const occupant = screen.getByText('M9').parentElement as HTMLElement
 
     expect(occupant.className).toContain('room')
-    // The class is the whole of the run's state: the stylesheet reads it to
-    // decide whether there is anything to keep the content clear of.
-    expect(occupant.className).toContain('occupant')
     expect(occupant.className).not.toContain('reserve')
     expect(occupant.getAttribute('aria-hidden')).toBeNull()
+    // Whether the room is taken is the only state a run has, and it is the
+    // switch the paint plane's template hangs off.
+    expect(layerOf('Priority').dataset['occupied']).toBe('true')
+  })
+
+  it('takes the room as taken when the occupant is one it does not hold', () => {
+    const { rerender } = render(<FittedRun reserve={<i>MARK9</i>}>Priority</FittedRun>)
+    expect(layerOf('Priority').dataset['occupied']).toBeUndefined()
+
+    // A control floating over the run's end cannot nest inside it, so the
+    // caller says the room is taken and the run makes way without holding it.
+    rerender(<FittedRun reserve={<i>MARK9</i>} occupied>Priority</FittedRun>)
+    expect(layerOf('Priority').dataset['occupied']).toBe('true')
+    expect(screen.queryByText('M9')).toBeNull()
   })
 
   it('holds no room in either plane when it was given no reserve', () => {
@@ -90,45 +101,69 @@ describe('FittedRun', () => {
 })
 
 describe('ScrollingRun', () => {
-  it('names the scroller for a caller that scrolls it, inside the box that places it', () => {
+  it('names the scroller for a caller that scrolls it, inside the box that asks for the room', () => {
     const scroller = createRef<HTMLSpanElement>()
     render(<ScrollingRun ref={scroller} reserve={<i>ROOM</i>}>chips</ScrollingRun>)
 
     const scrolled = scroller.current as HTMLElement
     expect(scrolled).toBe(screen.getByText('chips').parentElement)
     expect(scrolled.className).toContain('scroller')
-    // The scroller shrink-wraps; the box around it is what places the result.
-    expect(scrolled.parentElement?.className).toContain('scrollerBox')
+    expect(scrolled.parentElement?.className).toContain('scrollBox')
   })
 
-  it('renders the reserve twice, as the slack ahead of the content and the room behind it', () => {
-    render(<ScrollingRun reserve={<i>ROOM</i>} occupant={<b>done</b>}>chips</ScrollingRun>)
+  it('asks for the room and nothing else: no ghost of content it means to scroll', () => {
+    render(<ScrollingRun reserve={<i>ROOM</i>}>chips</ScrollingRun>)
 
-    const [slack, content, room, occupant] = [...(screen.getByText('chips').parentElement?.children ?? [])]
-    expect(slack?.className).toContain('slack')
-    expect(content?.textContent).toBe('chips')
-    // Room and occupant inside the scroll content, so the scroll reaches the
-    // end of the room rather than stopping at the last chip.
-    expect(room?.className).toContain('room')
-    expect(occupant?.textContent).toBe('done')
-    // Two copies of one reserve: the slack gives its width up, the room keeps it.
+    const box = screen.getByText('chips').parentElement?.parentElement as HTMLElement
+    const room = screen.getByText('ROOM').parentElement as HTMLElement
+
+    expect(room.className).toContain('sizeRoom')
+    expect(room.getAttribute('aria-hidden')).toBe('true')
+    // The room and the scroller, and no second copy of the content: a strip
+    // that scrolls must not hand its column the width of the longest thing
+    // anyone ever put in it.
+    expect(box.children).toHaveLength(2)
+    expect(screen.getAllByText('chips')).toHaveLength(1)
+  })
+
+  it('puts the room inside the scroll content only once it is taken', () => {
+    const { rerender } = render(<ScrollingRun reserve={<i>ROOM</i>}>chips</ScrollingRun>)
+    const scroller = () => screen.getByText('chips').parentElement as HTMLElement
+
+    // Nothing floats over the end, so there is nothing to scroll clear of and
+    // both flanks stay equal: the content simply honours the alignment.
+    expect(scroller().children).toHaveLength(1)
+
+    rerender(<ScrollingRun reserve={<i>ROOM</i>} occupied>chips</ScrollingRun>)
+
+    // Now it is the overscroll that carries the content's end out from under
+    // whatever floats there, so it has to be inside what scrolls.
+    expect(scroller().children).toHaveLength(2)
     expect(screen.getAllByText('ROOM')).toHaveLength(2)
   })
 
-  it('carries no slack when it was given no reserve', () => {
+  it('holds an occupant it does hold, in the same room', () => {
+    render(<ScrollingRun reserve={<i>ROOM</i>} occupant={<b>done</b>}>chips</ScrollingRun>)
+
+    const occupant = screen.getByText('done').parentElement as HTMLElement
+    expect(occupant.className).toContain('room')
+    expect(occupant.parentElement?.className).toContain('scroller')
+  })
+
+  it('carries no room at all when it was given no reserve', () => {
     render(<ScrollingRun>chips</ScrollingRun>)
 
-    const scroller = screen.getByText('chips').parentElement as HTMLElement
-    expect(scroller.children).toHaveLength(1)
+    const box = screen.getByText('chips').parentElement?.parentElement as HTMLElement
+    expect(box.children).toHaveLength(1)
   })
 
   it('states the placement it was asked for, on the part that answers it', () => {
     render(<ScrollingRun justify="start" align="baseline">chips</ScrollingRun>)
 
     const scroller = screen.getByText('chips').parentElement as HTMLElement
-    // Where the scroller sits is the box's to answer; how its content sits
-    // across the run is the scroller's own.
-    expect(scroller.parentElement?.dataset['justify']).toBe('start')
+    expect(scroller.dataset['justify']).toBe('start')
     expect(scroller.dataset['align']).toBe('baseline')
+    // The box carries the cross axis too, since the run's height comes from it.
+    expect(scroller.parentElement?.dataset['align']).toBe('baseline')
   })
 })

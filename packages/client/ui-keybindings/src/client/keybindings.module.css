@@ -46,6 +46,12 @@
      row, and the sash's grip beyond it. Neither ever covers the other. */
   --dsh-row-gutter: 14px;
   --dsh-first-lane: calc(var(--dsh-sash-lane) + var(--dsh-row-gutter));
+  /* Where a recorder's control floats, and therefore how much room every strip
+     in the keybinding column holds open for one. It lives here rather than on
+     the recorder because the struck strip of a superseded binding reserves the
+     same room without ever drawing a control, and the two strips are meant to
+     hold their chips in the same place. */
+  --dsh-control-inset: 5px;
 }
 
 /* The heading cell: a column dragged under its heading clips it rather than
@@ -521,81 +527,37 @@
 
 .recorderControl {
   position: absolute;
-  inset-inline-end: 5px;
+  inset-inline-end: var(--dsh-control-inset);
   padding: 0;
 }
 
-/* The strip of chips, centred while it fits and scrolled when it does not:
-   a gesture too wide for its column stays on one line and is read by scrolling
-   it, since wrapping would deepen the row and clipping would hide the strokes
-   for good. The strip shrinks to the box rather than overflowing it, so the
-   centring never puts a chip out of reach. */
+/* The strip of chips is a scrolling run: centred while it fits, scrolled when
+   it does not, since wrapping would deepen the row and clipping would hide the
+   strokes for good. The run reserves the control's room at the strip's end and
+   holds it whether or not a control is drawn, so nothing shifts as one comes
+   and goes, and that same room is the overscroll that clears the control at
+   the end of a scroll. The run brings all of that; what is left here is the
+   width it fills. */
 .recorderLayout {
-  --dsh-recorder-control: 22px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
   width: 100%;
-  min-width: 0;
 }
 
-.strokes {
+/* The chips, spaced by their own margins rather than by a gap, since the run
+   measures this strip to decide when it must scroll. */
+.strokeStrip {
   display: flex;
   align-items: center;
-  min-width: 0;
-  overflow-x: auto;
-  overflow-y: hidden;
-  /* The strip is one chip tall; a bar would take the chips' place. Scrolling
-     is by wheel or trackpad, and stops here rather than dragging the table
-     sideways once the strip reaches its end. */
-  scrollbar-width: none;
-  overscroll-behavior-inline: contain;
 }
 
-.strokes::-webkit-scrollbar {
-  display: none;
+/* The room the control takes, as a box the same size as the control plus the
+   inset it sits at. The recorder passes a copy of the control's own plate, so
+   the width comes from the plate rather than from a number; only the inset is
+   stated, once, and the floating control reads the same one. */
+.controlRoom {
+  display: flex;
+  align-items: center;
+  padding-inline-end: var(--dsh-control-inset);
 }
-
-/* The control's place, carried inside the strip rather than beside it. Split
-   either side while no control is shown, so the chips stay centred, and
-   gathered at the inline end when one is. Either way the strip asks for the
-   same width, so nothing shifts as a control comes and goes. The strip spaces
-   its chips by their own margins, since these two have to measure exactly. */
-.strokes::before,
-.strokes::after {
-  content: '';
-  /* A contentless item under centred alignment has no height, and a rect with
-     no height adds nothing to the scrollable area: the room would be reserved
-     and unreachable. */
-  align-self: stretch;
-  width: calc(var(--dsh-recorder-control) / 2);
-}
-
-/* The two halves are not the same thing. The leading half is slack — what the
-   chips give up to avoid scrolling at all — so it shrinks away before the
-   strip starts to scroll, and moving is then only ever a way to prevent a
-   scroll rather than something that happens while one is already needed: a
-   gesture that cannot fit sits at the start and stays there when the control
-   appears. */
-.strokes::before {
-  flex: 0 1 auto;
-}
-
-/* The trailing half is the control's room and never shrinks, or the overscroll
-   would go with it — the control floats over the strip and occludes its end,
-   and this is the room that clears it at the end of the scroll. */
-.strokes::after {
-  flex: none;
-}
-
-.recorderLayout[data-control] .strokes::before {
-  width: 0;
-}
-
-.recorderLayout[data-control] .strokes::after {
-  width: var(--dsh-recorder-control);
-}
-
 
 .strokeGroup {
   display: inline-flex;
