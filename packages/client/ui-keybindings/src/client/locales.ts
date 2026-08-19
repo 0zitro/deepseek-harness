@@ -11,6 +11,9 @@ export const zh = {
   'column.prio': '优先级',
   'column.source': '来源',
   'when.placeholder': '例如 composerFocused && !agentBusy',
+  // 数值而非次序：0 最优先，所以调大数值反而让绑定排得更靠后。
+  'prio.increment': '增大优先级数值',
+  'prio.decrement': '减小优先级数值',
   'column.resize': '调整列宽',
   'sort.ascending': '升序',
   'sort.descending': '降序',
@@ -34,6 +37,10 @@ export const en = {
   'column.prio': 'Priority',
   'column.source': 'Source',
   'when.placeholder': 'e.g. composerFocused && !agentBusy',
+  // The value, not the rank: 0 is highest, so raising the value orders a
+  // binding later. A label promising higher priority would be backwards.
+  'prio.increment': 'Increase the priority value',
+  'prio.decrement': 'Decrease the priority value',
   'column.resize': 'resize column',
   'sort.ascending': 'ascending',
   'sort.descending': 'descending',

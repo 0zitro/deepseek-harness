@@ -331,6 +331,81 @@
   border-color: var(--dsw-alias-brand-primary);
 }
 
+/* A field whose arrows are ours rather than the engine's. The box moves out
+   here from the input, so the arrows stand inside the border beside the value
+   and the whole field answers to focus.
+
+   Both engines draw a native spinner that occupies its width whether or not it
+   paints — Chrome hides it until hover, Firefox shows it always — and the
+   value is centred in what it leaves. That is why an unmarked reservation
+   reads as a value sitting off centre: the eye takes the border box as the
+   field and has nothing telling it where the value's space ends. The rule
+   before the arrows is what says so, which is why they are drawn at rest and
+   only their weight answers to the pointer.
+
+   Declared above `.invalid` on purpose: that rule sets `border-color`, and a
+   `border` shorthand here would otherwise overwrite it and lose the red. */
+.numberField {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) max-content;
+  align-items: center;
+  width: 100%;
+  padding: 3px 6px;
+  border: 1px solid var(--dsw-alias-border-l1);
+  border-radius: 6px;
+  background: var(--dsw-alias-bg-base);
+}
+
+.numberField:focus-within {
+  border-color: var(--dsw-alias-brand-primary);
+}
+
+/* The input keeps its type face and gives up its box, which the field holds.
+   It gives up the engine's spinner too: ours are the only arrows that draw,
+   and a native one beside them would reserve a second width. */
+.numberField > .cellInput {
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: none;
+  appearance: textfield;
+}
+
+.numberField > .cellInput::-webkit-inner-spin-button,
+.numberField > .cellInput::-webkit-outer-spin-button {
+  appearance: none;
+  margin: 0;
+}
+
+.steppers {
+  display: flex;
+  flex-direction: column;
+  margin-inline-start: 4px;
+  padding-inline-start: 5px;
+  border-inline-start: 1px solid var(--dsw-alias-border-l1);
+  color: var(--dsw-alias-label-secondary);
+}
+
+.numberField:hover .steppers,
+.numberField:focus-within .steppers {
+  color: var(--dsw-alias-label-primary);
+}
+
+/* Wider than the arrow it draws: a stacked pair splits one line of text
+   between them, so the width is where a press has room to land. */
+.stepper {
+  display: flex;
+  padding: 1px 1px;
+  border: none;
+  background: none;
+  color: inherit;
+  cursor: pointer;
+}
+
+.stepper:hover {
+  color: var(--dsw-alias-brand-primary);
+}
+
 .invalid {
   border-color: var(--dsw-alias-state-error-primary);
 }

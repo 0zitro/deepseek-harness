@@ -417,6 +417,61 @@ describe('KeybindingsSection', () => {
     expect((prio as HTMLInputElement).value).toBe('0')
   })
 
+  it('steps a prio without storing anything until the field is left', () => {
+    const { setBinding } = mount()
+    const prio = screen.getByRole('spinbutton') as HTMLInputElement
+    const up = screen.getByLabelText('Increase the priority value')
+
+    fireEvent.click(up)
+    fireEvent.click(up)
+
+    // A run of presses is one edit. The values it passed through are nobody's
+    // decision, so only the one it ended on reaches the store.
+    expect(prio.value).toBe('2')
+    expect(setBinding).not.toHaveBeenCalled()
+
+    fireEvent.blur(prio)
+    expect(setBinding).toHaveBeenCalledTimes(1)
+    expect(setBinding).toHaveBeenCalledWith(REF, BASE, { prio: 2 })
+  })
+
+  it('holds a stepped prio at the floor rather than taking it below', () => {
+    mount()
+    const prio = screen.getByRole('spinbutton') as HTMLInputElement
+
+    expect(prio.value).toBe('0')
+    fireEvent.click(screen.getByLabelText('Decrease the priority value'))
+    expect(prio.value).toBe('0')
+  })
+
+  it('steps an emptied field from zero', () => {
+    mount()
+    const prio = screen.getByRole('spinbutton') as HTMLInputElement
+
+    fireEvent.change(prio, { target: { value: '' } })
+    fireEvent.click(screen.getByLabelText('Increase the priority value'))
+
+    expect(prio.value).toBe('1')
+  })
+
+  it('keeps the arrows out of the tab order and the focus in the field', () => {
+    mount()
+    const prio = screen.getByRole('spinbutton')
+    const up = screen.getByLabelText('Increase the priority value')
+
+    // The field steps on Up and Down already, so a stop per arrow would spend
+    // two keyboard positions per row on an affordance the row has.
+    expect(up.getAttribute('tabindex')).toBe('-1')
+
+    // Every field commits on blur, so an arrow that took focus for itself
+    // would store a value on each press. Refusing the press's default is what
+    // leaves the focus where it was.
+    expect(fireEvent.mouseDown(up)).toBe(false)
+
+    fireEvent.click(up)
+    expect(document.activeElement).toBe(prio)
+  })
+
   it('names the source, resolving a plugin to its own id', () => {
     const { bindingsStore } = mount()
     expect(screen.getByText('System')).toBeDefined()

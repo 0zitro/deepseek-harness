@@ -144,19 +144,79 @@ function storablePrio(prio: string): boolean {
 }
 
 /** A blur-committed cell input, flagged while its draft is unfit to store. */
+/** What a stepped field's arrows are called, and the bounds they step within. */
+interface Steppers {
+  up: string
+  down: string
+  /** The lowest value an arrow may reach. */
+  min: number
+  /** How far one press moves the value. */
+  step: number
+}
+
+/** One arrow, drawn at the weight the table's other marks are drawn at. */
+function Chevron({ up }: { up: boolean }) {
+  return (
+    <svg viewBox="0 0 12 7" width="12" height="7">
+      <path
+        d={up ? 'M2.5 5.25L6 1.75 9.5 5.25' : 'M2.5 1.75L6 5.25 9.5 1.75'}
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.75"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  )
+}
+
+/**
+ * The arrows at a number field's inline end.
+ *
+ * Drawn at rest, because being seen is their second job: the value is centred
+ * in the space they leave, so where nothing marks that space the eye takes the
+ * whole box as the field and reads a centred value as off centre.
+ *
+ * Neither is a tab stop. The field itself steps on Up and Down, so a stop per
+ * arrow would spend two keyboard positions per row on an affordance the row
+ * already has.
+ */
+function StepperPair({ up, down, onStep }: { up: string; down: string; onStep: (by: 1 | -1) => void }) {
+  return (
+    <span className={css.steppers}>
+      {([[1, up], [-1, down]] as const).map(([by, label]) => (
+        <button
+          key={by}
+          type="button"
+          tabIndex={-1}
+          aria-label={label}
+          className={css.stepper}
+          // Every field commits on blur, so an arrow that took focus for
+          // itself would store a value on each press.
+          onMouseDown={(event) => { event.preventDefault() }}
+          onClick={() => { onStep(by) }}
+        >
+          <Chevron up={by === 1} />
+        </button>
+      ))}
+    </span>
+  )
+}
+
 function CellInput(
-  { value, storable, commit, className, ...rest }: {
+  { value, storable, commit, className, steppers, ...rest }: {
     value: string
     storable: (draft: string) => boolean
     commit: (draft: string) => void
     className?: string | undefined
     placeholder?: string
     type?: 'number'
-    min?: number
-    step?: number
+    /** The arrows this field carries, if it carries any. */
+    steppers?: Steppers | undefined
     'aria-label': string
   },
 ) {
+  const field = useRef<HTMLInputElement>(null)
   const [invalid, setInvalid] = useState(false)
   const [draft, setDraft] = useDraft(value)
 
@@ -174,16 +234,43 @@ function CellInput(
     if (fit && draft !== value) commit(draft)
   }
 
-  return (
+  // A press moves the draft and nothing else, so a run of presses stores the
+  // value it ended on rather than every value it passed through — the same
+  // rule the typed path follows. The field takes focus with it, because an
+  // arrow pressed from outside has no focus to lose and the commit rides on
+  // losing it.
+  const stepBy = ({ min, step }: Steppers) => (by: 1 | -1) => {
+    const from = Number.parseInt(draft, 10)
+    const next = (Number.isNaN(from) ? 0 : from) + by * step
+    setDraft(String(Math.max(next, min)))
+    /* v8 ignore next -- the field is mounted whenever its own arrow is pressed */
+    field.current?.focus()
+  }
+
+  const input = (
     <input
       {...rest}
-      className={classes(css.cellInput, className, invalid && css.invalid)}
+      ref={field}
+      min={steppers?.min}
+      step={steppers?.step}
+      className={classes(css.cellInput, className, steppers === undefined && invalid && css.invalid)}
       value={draft}
       onChange={(event) => { setDraft(event.target.value) }}
       onBlur={onBlur}
       aria-invalid={invalid || undefined}
       spellCheck={false}
     />
+  )
+
+  if (steppers === undefined) return input
+
+  // The box moves out to the field, so the arrows stand inside the border with
+  // the value and the whole field answers to focus and to a value it refuses.
+  return (
+    <span className={classes(css.numberField, invalid && css.invalid)}>
+      {input}
+      <StepperPair up={steppers.up} down={steppers.down} onStep={stepBy(steppers)} />
+    </span>
   )
 }
 
@@ -231,8 +318,7 @@ function BindingCells(
           commit={(prio) => { setBinding(ref, row.base, { prio: Number(prio) }) }}
           className={classes(css.prioInput, fieldClass(row.overridden.prio))}
           type="number"
-          min={0}
-          step={1}
+          steppers={{ up: t('prio.increment'), down: t('prio.decrement'), min: 0, step: 1 }}
           aria-label={`${t('column.prio')}: ${row.label}`}
         />
       </div>
