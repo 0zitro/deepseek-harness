@@ -168,6 +168,36 @@ export async function disposeClaudeCodeChild(
 }
 
 /**
+ * Ambient markers stating how *this* process was entered and which session it
+ * belongs to. They describe the parent, and the SDK gives the child its own, so
+ * inheriting them tells a fresh CLI it is a continuation of a session it has
+ * nothing to do with — which matters here and nowhere else in the harness,
+ * because this is the one provider that spawns another Claude Code.
+ *
+ * `CLAUDE_CODE_ENTRYPOINT` breaks the child outright: measured against the real
+ * 2.1.220 CLI, a child inheriting it reports an error and never reaches the
+ * Messages endpoint at all. The rest are the same fact about the parent and are
+ * dropped with it rather than waiting to be measured one at a time.
+ */
+const PARENT_SESSION_MARKERS = [
+  'CLAUDE_CODE_ENTRYPOINT',
+  'CLAUDECODE',
+  'CLAUDE_CODE_SESSION_ID',
+  'CLAUDE_CODE_CHILD_SESSION',
+] as const
+
+/**
+ * The parent environment a spawned Claude Code may inherit.
+ * @returns the scrubbed parent environment without this process's own session markers.
+ */
+function hostEnv(): Record<string, string> {
+  const dropped = new Set<string>(PARENT_SESSION_MARKERS)
+  return Object.fromEntries(
+    Object.entries(scrubbedParentEnv()).filter(([name]) => !dropped.has(name)),
+  )
+}
+
+/**
  * Build the fixed official SDK options for one one-shot provider run.
  * @param spec - Workspace, environment, process service, and disposal policy.
  * @param controller - per-run cancellation owner.
@@ -183,7 +213,7 @@ export function claudeQueryOptions(
     abortController: controller,
     cwd: spec.cwd,
     pathToClaudeCodeExecutable: spec.executable,
-    env: { ...scrubbedParentEnv(), ...spec.env },
+    env: { ...hostEnv(), ...spec.env },
     persistSession: false,
     disallowedTools: ['AskUserQuestion'],
     spawnClaudeCodeProcess: (options: SpawnOptions) => {
