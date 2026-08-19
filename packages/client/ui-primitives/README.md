@@ -70,6 +70,16 @@ A table often shows one value once across the rows it belongs to — a command a
 
 Two joint columns are independent by default — two calls that know nothing of each other, whose spanning cells are rectangles in different tracks. `runsWithin` is the other relationship, where the inner value is only ever read within one outer value, and it is a second function rather than a mode because which of the two a table means is the table's to say.
 
+## Table bands
+
+A table reserves space between its cells, and a control standing in that space rather than in a cell is a *band*. `TableSash` is one already — the affordance of a column boundary — and `TableSeam` and `TableGutter` complete the family: the seam stands in the gap below a group, where the next group begins, and the gutter in the width its lane carries beyond the grip. Neither takes any room of its own, so a table is as tall as its rows whether it offers them or not, and what pressing one *means* never reaches the table: both are buttons with a `label`, an `onPress`, and whatever they draw.
+
+The lane arithmetic is what makes the gutter safe rather than careful. A lane is `calc(lane + gutter)`, the sash keeps the lane and margins off the gutter, and the gutter takes the rest — so the grip's pixels and the gutter's are disjoint by construction, which matters where the gutter's control destroys something and the grip is what a reader aims at all day. Measured with a 14px lane and a 14px gutter on the first lane: the track resolves to 28px, the grip spans 289–303 and the gutter 303–317, overlap zero.
+
+A band draws only once the pointer has asked for it, publishing `data-drawn`, and it publishes where the pointer is along it — `--dsh-table-seam-y`, `--dsh-table-gutter-x` — clamped to itself. The clamp is the whole of the hold-still rule: a drawn band answers past itself by `--dsh-table-seam-reach`, so a pointer inside the reach but outside the band lands on the nearest end and the drawing stops following rather than chasing something outside. Measured by hit-testing, an undrawn seam answers only within itself and a drawn one answers 6px past and not 14. Whether the mark follows that offset is one `transform` rule of the consumer's; the band decides where the pointer is, never what the feedback looks like.
+
+Two lengths finish it. `--dsh-table-seam-inset` is how far a seam reaches into the groups either side, so at nothing stated a seam is the row gap exactly — thin, but valid. `--dsh-table-overhang` is room below the last row for a seam to stand in, since the table clips its own cross axis and the last seam would otherwise die against that edge.
+
 ## Model Experience
 
 None, as the package renders pure React atoms in the browser; nothing here reaches a model request.

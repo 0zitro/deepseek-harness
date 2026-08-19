@@ -211,7 +211,14 @@ export function TableSash({ index, span, from = 1, label, resize, className }: T
       tabIndex={0}
       data-dragging={dragging || undefined}
       className={clsx(css.sash, className)}
-      style={{ gridColumn: tableLaneLine(index), gridRow: `${from} / span ${span}` }}
+      style={{
+        gridColumn: tableLaneLine(index),
+        gridRow: `${from} / span ${span}`,
+        // The lane carries the grip and, where one is stated, a gutter against
+        // the next column. Standing clear of it is what makes a press meant for
+        // a boundary unable to land on the control beside it.
+        marginInlineEnd: `var(--dsh-table-gutter-${index}, var(--dsh-table-gutter))`,
+      }}
       onFocus={report}
       onPointerDown={(event) => {
         setDragging(true)
