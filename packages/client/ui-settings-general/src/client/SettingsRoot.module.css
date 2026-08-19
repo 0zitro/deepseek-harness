@@ -234,12 +234,22 @@
   background: var(--dsw-alias-interactive-bg-hover);
 }
 
-/* Options area (figma Options 501:29983): pad (24,0,24,24), scrolls. */
+/* Options area (figma Options 501:29983): pad (24,0,24,24), scrolls.
+
+   The gutter is held whether or not a bar is drawn in it, so a section that
+   grows past the pane keeps the width it laid out at. Without it, a scrollbar
+   the engine draws in flow takes its width from the section the moment the
+   content crosses the pane's height, and a section wide enough to notice —
+   the keybindings table, whose sort splits a command's rows and grows the
+   table by one row — reflows every column against a change in its own height.
+   Engines that overlay their scrollbars never showed it, so the section
+   appeared to lay out differently per browser. */
 .options {
   flex: 1;
   min-height: 0;
   padding: 0 24px 24px;
   overflow-y: auto;
+  scrollbar-gutter: stable;
 }
 
 /* Visually-hidden text seat (close button accessible name from slot content). */

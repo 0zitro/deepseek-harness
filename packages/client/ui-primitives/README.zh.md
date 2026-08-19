@@ -2,7 +2,7 @@
 
 [English](README.md) | 中文
 
-纯 React 原子组件（零 cordis）：StateDot、DisclosureRow、ic_ds_* 图标、Button/Pill/Menu/Modal/Input、Toast 短时横幅、OnboardingSurface 首次使用接管层（portal 到 body 的遮罩加不透明展示层，在且仅在自身生命周期内保持 `#root` 为 `inert`）、markdown 家族（MessageText/MarkdownText/JsonBlock）、只读 JsonTree 检查器、`useAnchoredMaxHeight` 钩子（把底部锚定的浮层高度收敛到锚点上方的视口空间，并在 resize、scroll 与调用方提供的依赖变化时重新测量）、TerminalBlock、DiffBlock、ReadBlock、SearchBlock，以及 WebBlock。
+纯 React 原子组件（零 cordis）：StateDot、DisclosureRow、ic_ds_* 图标、Button/Pill/Menu/Modal/Input、Toast 短时横幅、OnboardingSurface 首次使用接管层（portal 到 body 的遮罩加不透明展示层，在且仅在自身生命周期内保持 `#root` 为 `inert`）、markdown 家族（MessageText/MarkdownText/JsonBlock）、只读 JsonTree 检查器、`useAnchoredMaxHeight` 钩子（把底部锚定的浮层高度收敛到锚点上方的视口空间，并在 resize、scroll 与调用方提供的依赖变化时重新测量）、TerminalBlock、DiffBlock、ReadBlock、SearchBlock、WebBlock、为时有时无的占位者留出空间的 FittedRun/ScrollingRun 布局，以及与之并列构建的 Table 家族。
 
 ## 悬浮卡片
 
@@ -36,6 +36,24 @@
 
 `WebBlock` 渲染一次已完成的 web 检索，用一个组件绘制 `web` 渲染意图的两种 kind（由 `kind` 判别）。`search` 在有序引用列表上方显示可选的提供方回答（通过 `MarkdownText`）：每个 source 是一个安全外链，以其标题为标签，或以其主机名为标签，当 URL 无法解析或没有主机名（`file:`/`data:` URL）时回退到原始 URL，因此标签绝不为空；其下渲染 snippet 与发布日期。只有 http(s) URL 会成为锚点（设置 `target`/`rel`）——这是 `MarkdownText` 对不受信任链接所用 allowlist 的 http(s) 子集（该 allowlist 还允许 `mailto:`，此处排除）；任何其他 URL 渲染为纯文本。整份列表渲染在一个定高滚动容器里（`max-height: 320px`、`overflow-y: auto`），因此超出该高度的列表在原地纵向滚动，而不是把卡片撑高；`<li value>` 固定每个 source 的引用编号，从 1 起连续，而不依赖 `<ol>` 的隐式计数。当一次 search 合法地返回无 answer 且无 source 时，卡片显示一个明确的空状态提示，而不是空的 `<ol>`（chat 行不呈现原始 result content）。`fetch` 显示一个紧凑摘要：带链接的最终 URL 及其 HTTP 状态。两者都会标记一次被截断的检索。原理：[Web result 卡片笔记](../../../.agents/notes/implemented/feature/2026-07-30-web-result-card-frontend.md)与[来源滚动笔记](../../../.agents/notes/implemented/feature/2026-08-03-web-search-source-scroll.md)。
 
+## 行（run）
+
+行（run）是这样一段内容：它在某一端为时有时无的占位者预留空间——列标题上的排序标记、录制条上方的确认控件。这块空间以元素而非长度表述：调用方传入该端所能容纳的最宽形态，由引擎去测量，因此这里没有任何规则携带数字，而一个多出排名的标记也就自动预留了带排名标记所需的宽度。`FittedRun` 就地阅读其内容，`ScrollingRun` 则通过滚动来阅读；两者在 RTL 下都自然镜像、不需要任何与方向相关的规则，也都能在 `align` 提供的每一种模式下守住各自的几何关系。若预留空间被行并不持有的某物占据——比如浮在行末端之上、无法嵌套进自己所浮盖内容里的控件——则由 `occupied` 说明，行只为它让路而不持有它。
+
+有两条由调用方遵守、无人核查的约定。`reserve` 必须是该端所能容纳的最大形态，因为比它更大的占位者会溢出这块空间，而不是把空间撑大。此外，fitted 行会把内容渲染两次，其中一次隐藏起来以供测量，因此该内容两次必须测得一样：应是一段短语，而不是带 `id` 的子树。滚动行两项都不付：它索要的只有预留空间——这也正是一条可以任意长的按键块条要用滚动行的原因。滚动行的预留空间还会随占位者的来去带走可滚动范围，因此在意读者所处位置的调用方应把该位置记下来并还回去。fitted 行为何需要两个平面才能做到这些：见[预留空间笔记](../../../.agents/notes/implemented/architecture/2026-08-19-reserved-room-runs.md)。
+
+## 表格
+
+一张可排序、可调宽、且单元格可跨行的表格，以若干可由消费方自行组合的部件形式提供：什么都不要的表格，什么都不用付。
+
+`Table` 持有坐标系——`tableColumnLine` 给出的列线、`tableLaneLine` 给出的通道线，以及由各列与任何已确定宽度算出的轨道模板——别无其他。单元格属于消费方，按这些线摆放；单元格用 `data-table-column` 说明自己属于哪一列，表头再加上 `data-table-heading`，调宽策略正是据此找到要测量的东西。`TableGroup` 通过 subgrid 把连续若干行立在同样的轨道上，于是任何依附于该组的东西都有一个高度合适的东西可以依附。
+
+其余部分都是在这套坐标系中指名一块区域的特性。`table-order` 负责行的排序：列通过一个 `Ordering` 声明自己持有哪种值，而这种值同时携带比较方式与首次点击所取的方向。`table-runs` 找出跨行单元格所覆盖的那些相邻行连续段——相邻是就呈现顺序而言，因此把某个键的各行拆开的排序，也会把它的连续段拆开。`table-resize` 移动一条边界，并守恒其两侧一对列所共同持有的宽度。`useTableResize` 与 `TableSash` 是调宽的交互一半；`TableSeam` 与 `TableGutter` 则是住在单元格之间空间里、而不是住在某个单元格里的控件。
+
+有两个下限，回答的是不同的问题。列的轨道以它自己的 min-content 兜底，因此容不下各列的面板会滚动，而不是把它们裁掉。而**拖动**以 `floorOf` 为下限，其默认值是该列各单元格在最窄时测得的宽度；在行内单元格会裁切或滚动自身内容的表格里，它可以更为节省。
+
+样式约定分为两个层面。表格会读回的东西是数据，经由 props 传入，因为拖动会把份额换算成像素。它永不读取的东西是呈现，留在 CSS 里，通过每个部件一个类、以及每个部件以 `data-` 属性公布的状态来触及；夹在两者之间的那几个长度是消费方可在任意祖先上设置的、注册过的自定义属性——网格用 `--dsh-table-lane` 与 `--dsh-table-row-gap`，通道中超出边界抓手的那部分宽度用 `--dsh-table-gutter`，单元格之间的控件用 `--dsh-table-seam-inset`、`--dsh-table-seam-reach` 与 `--dsh-table-overhang`——它们各自有类型，因此一个并非长度的值会回退到初始值，而不是连带把轨道模板一起拖垮。通道与 gutter 还会先读取一条带索引的覆盖值（`--dsh-table-lane-0`）再退回共享宽度，于是某一条通道可以与众不同，而无需为此加一个 prop。表格自身的规则坐落在一个级联层里，因此消费方任何未分层的规则都会获胜，无论其特异性如何。理据、实测数据以及被否决的各个替代方案：见[表格笔记](../../../.agents/notes/implemented/architecture/2026-08-19-table-policy-apart-from-markup.md)。
+
 ## 模型体验
 
 无。该包在浏览器中渲染纯 React 原子组件；这里没有任何内容进入模型请求。
@@ -51,4 +69,5 @@
 - **Pill 与 Input 没有设计来源**：两个原子组件均自行定义；与其相似的侧边栏搜索字段和视图标签条由消费方组合，不是这些原子组件。
 - **StateDot 没有 `Active` 变体**：支持的状态为 done、warning、ongoing 和 error。
 - **面向用户的文案经 label props 本地化，默认值为原中文字面量**：这些原子组件是 zero-cordis 的，拿不到 `ctx.locale`，因此 `HoverCard`（`copyLabel`/`copiedLabel`）、`TerminalBlock`（`labels`）、`JsonTree`（`labels`）、`CodeBlock`（`copyLabel`/`copiedLabel`）、`MarkdownText`（`codeLabels`）、`JsonBlock`（`truncatedLabel`）、`ConnectionBanner`（`label`）和 `Modal`（`closeLabel`）都把文案作为可选 props 接收。已本地化的插件用自己的 `t` 席位传入字典驱动的 label；什么都不传的消费方得到的就是这些默认值。`WebBlock` 尚未跟进这一模式：它的来源列表截断提示与 fetch 截断提示、以及空搜索提示仍是内联中文，待同样的 label-prop 处理。
+- **行信任其 `reserve` 就是最大形态，也信任其内容两份副本测得一致**：预留空间就是 reserve 实测的大小，因此比自己的 reserve 更大的占位者会溢出分给它的空间而不是把空间撑大；而允许内容换行的 `contentClassName` 可能让影子与可见副本在不同宽度处换行，从而使行的索要与其绘制脱节。两者都不做检测；由调用方给出最大形态并传入一段短语，或者接受由此产生的结果。
 - **`TerminalBlock` 不是终端模拟器**：它渲染已结束或仍在运行的命令输出，而不是交互式会话：SGR 颜色与属性会被遵循，进度行所用的行内光标移动同样被遵循——回车、退格、行内擦除、制表位与字符宽度。绝对光标定位、清屏与备用屏幕序列会被剥离。基础 16 色中的洋红与青色没有对应 token，保持字面 rgb。

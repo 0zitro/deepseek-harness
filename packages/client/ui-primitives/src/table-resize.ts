@@ -1,5 +1,5 @@
 /**
- * Resizing the table's columns.
+ * Resizing a table's columns.
  *
  * A drag moves one sash, so it concerns exactly the two columns that meet
  * there: what one gains the other gives up, and every other column is left

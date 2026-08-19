@@ -16,36 +16,24 @@
    A panel too narrow for the floors scrolls rather than bleeding. Dragging a
    sash replaces these tracks with exact widths, which is what lets the two
    columns either side of it conserve between themselves. */
+/* The table's own lengths, which the primitive reads and this page decides:
+   the lane a boundary is caught in, the gutter that lane carries beyond it for
+   the control that drops a binding, the gap between rows, and the room a seam
+   needs below the last one. The first lane is the only one with a gutter,
+   because the row's own controls sit where the row begins. */
 .table {
-  display: grid;
-  grid-template-columns:
-    minmax(min-content, 1.7fr)
-    var(--dsh-first-lane)
-    minmax(min-content, 1.1fr)
-    var(--dsh-sash-lane)
-    minmax(min-content, 1.9fr)
-    var(--dsh-sash-lane)
-    minmax(min-content, 0.5fr)
-    var(--dsh-sash-lane)
-    minmax(min-content, 0.6fr);
-  align-items: center;
-  row-gap: var(--dsh-row-gap);
-  overflow-x: auto;
-  /* The pane this sits in owns the vertical scroll; the table is as tall as
-     its bindings and never scrolls against them. Saying so is not redundant:
-     a scroll container on one axis scrolls on both unless told otherwise, so
-     anything hanging a pixel past the last row would raise a second bar. The
-     padding is where the band under the last binding lies. */
-  overflow-y: hidden;
-  padding-block-end: 8px;
-  --dsh-sash-lane: 14px;
+  --dsh-table-lane: 14px;
+  --dsh-table-gutter-0: 14px;
+  --dsh-table-row-gap: 2px;
+  --dsh-table-seam-inset: var(--dsh-cell-pad);
+  --dsh-table-overhang: 8px;
   --dsh-cell-pad: 3px;
-  --dsh-row-gap: 2px;
-  /* A row's own controls sit where the row begins, so the lane there carries
-     two things side by side: the gutter a binding is dropped from, against the
-     row, and the sash's grip beyond it. Neither ever covers the other. */
-  --dsh-row-gutter: 14px;
-  --dsh-first-lane: calc(var(--dsh-sash-lane) + var(--dsh-row-gutter));
+  /* Where a recorder's control floats, and therefore how much room every strip
+     in the keybinding column holds open for one. It lives here rather than on
+     the recorder because the struck strip of a superseded binding reserves the
+     same room without ever drawing a control, and the two strips are meant to
+     hold their chips in the same place. */
+  --dsh-control-inset: 5px;
 }
 
 /* The heading cell: a column dragged under its heading clips it rather than
@@ -58,25 +46,11 @@
   overflow: hidden;
 }
 
-/* The boundary itself, occupying a lane of the grid rather than hanging off
-   the column to its left: it belongs to neither neighbour, spans every row,
-   and is the whole lane wide so it can be taken hold of anywhere along it.
-   The lane is also the space between the columns, which is why the grid needs
-   no column gap of its own. */
-/* The first lane is wider than the sash needs, and the extra is the row's, so
-   the grip keeps its own width and stands clear of it. */
-.sash[data-gutter] {
-  margin-inline-end: var(--dsh-row-gutter);
-}
-
+/* Where a boundary stands, how wide its grip is and how far it keeps from the
+   control beside it are the table's; what is left here is the line it draws,
+   which needs the sash to be something an absolute box can be placed against. */
 .sash {
   position: relative;
-  /* The table centres its cells against their row; a sash carries no content,
-     so centring would collapse it to nothing and leave nothing to take hold
-     of. It fills the rows it spans instead. */
-  align-self: stretch;
-  cursor: col-resize;
-  touch-action: none;
 }
 
 /* The line it draws is thinner than the grip that catches the pointer, and
@@ -127,82 +101,45 @@
   color: var(--dsw-alias-label-primary);
 }
 
-/* Three tracks: a leading flank, the heading, and the sort slot at the inline
-   end. What the column gives up as it narrows is ordered — the heading must
-   read before it is centred, and it must be clear of the mark before it is
-   centred too — so the flanks are free space and collapse first, while the
-   heading's track floors at the label itself.
+/* The heading is a fitted run: the label is its content and the sort mark is
+   its reserve, so the mark's room is held whether or not a mark is drawn and a
+   column does not change width as it joins or leaves the sort order. The run
+   spends its flanks before anything else, which is the order this heading
+   wants — the label must read before it is centred, and it must stay clear of
+   the mark before it is centred too.
 
-   The mark's room is reserved whether or not a mark is drawn, split between
-   the flanks while none is and gathered at the inline end when one is. Both
-   states therefore ask for the same total, which is what keeps a column from
-   changing width as it joins or leaves the sort order. Reserving only where
-   a mark is drawn looks like the thriftier rule and is not: a column already
-   at its floor has nowhere to find the mark's room, so it takes it from its
-   neighbours the moment it is sorted. What starved the label was never this
-   reservation but the padding and the gaps beside it, which could not be
-   spent at all.
-
-   This grid sits on a child of the button rather than on the button itself:
-   an engine may wrap a button's contents in an anonymous block, which leaves
-   a grid declared on the button inert and its children flowing against each
+   Everything below is the button's own business rather than the run's: the run
+   sizes the tracks and paints nothing, so the width it fills, how the label
+   handles a width it cannot fit, and what the mark looks like are stated here.
+   The run sits on a child of the button rather than on the button itself: an
+   engine may wrap a button's contents in an anonymous block, which leaves a
+   grid declared on the button inert and its children flowing against each
    other, separated only by whatever padding they carry. */
 .headerLayout {
-  /* The mark's own room, the room the heading keeps clear of it, and the two
-     together — which is what a sorted column reserves. The gap sits inside
-     that reservation rather than beside it, so it is held where the flanks
-     have already collapsed: a narrow column moves its heading off centre
-     rather than letting it meet the mark. */
-  --dsh-sort-mark: 26px;
-  --dsh-heading-gap: 6px;
-  --dsh-sort-slot: calc(var(--dsh-sort-mark) + var(--dsh-heading-gap));
-  display: grid;
-  /* `min-content` of a heading is the whole label, since it never wraps. */
-  grid-template-columns:
-    minmax(calc(var(--dsh-sort-slot) / 2), 1fr)
-    minmax(min-content, auto)
-    minmax(calc(var(--dsh-sort-slot) / 2), 1fr);
-  align-items: center;
-  /* No gap between the tracks either: what separates the heading from the
-     mark is reserved with the mark, so it is held where a gap would have been
-     spent along with everything else. */
   width: 100%;
 }
 
-.headerLayout[data-sorted] {
-  grid-template-columns:
-    minmax(0, 1fr)
-    minmax(min-content, auto)
-    minmax(var(--dsh-sort-slot), 1fr);
-}
-
-/* A heading is fitted, never broken: a column is at least as wide as its own
-   label, so there is nothing to wrap. */
+/* A heading is fitted, never broken: the run's content track floors at this
+   label's min-content, and a label that never wraps has its whole self there,
+   so a column is at least as wide as its own label and the ellipsis is only
+   ever reached by a drag. */
 .heading {
-  grid-column: 2;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
 
-/* The mark appears in space that was already its own, so joining the order
-   moves nothing — the slot holds its height open as well as its width, or the
-   header row would grow by the difference between the mark and the line it
-   sits on, carrying the whole table down with it. The slot is never narrower
-   than the mark it holds: a narrower one would push a flex-end mark back over
-   the heading rather than clip it. */
+/* The mark, and before it the gap the heading keeps clear of it. The gap is
+   the mark's own leading padding rather than a track gap, so it is reserved
+   along with the mark and survives where the flanks have already collapsed: a
+   narrow column moves its heading off centre rather than letting it meet the
+   mark. This box is also what holds the header row's height open, since the
+   run reserves on both axes from the same element. */
 .sortSlot {
-  grid-column: 3;
   display: flex;
   align-items: center;
   justify-content: flex-end;
-  /* The mark's room, and before it the gap the heading keeps. The mark sits
-     at the end of that room, so what stands between the two is the gap plus
-     whatever the mark leaves of its own — least when a rank is shown beside
-     the arrow, which is the case the gap is here for. */
-  min-width: var(--dsh-sort-mark);
-  padding-inline-start: var(--dsh-heading-gap);
-  height: 18px;
+  padding-inline-start: 6px;
 }
 
 /* A ghost plate behind a small drawn control: enough contrast that it reads as
@@ -239,80 +176,49 @@
   flex: none;
 }
 
-/* Which column the order consults first, shown only when more than one does. */
+/* Which column the order consults first, shown only when more than one does.
+   Tabular figures so every rank has the same advance: the room the heading
+   reserves is measured from one rank, and must hold any of them. */
 .sortRank {
   font-size: 10px;
   line-height: 12px;
+  font-variant-numeric: tabular-nums;
 }
 
-/* One binding's cells, on the table's own tracks from the second column on.
-   They are grouped because a grid row is as tall as the tallest thing in it —
-   the command's cell, wherever its description runs to another line — and the
-   place to add a binding has to sit under these boxes rather than under a row
-   that is taller than they are. The group draws nothing and catches nothing:
-   it spans the sash lanes, which stay the sashes' to take hold of. */
+/* One binding's cells, standing on the table's own columns from the second on.
+   The table places the group and keeps its cells on those columns; what is
+   left here is how they sit against each other. */
 .subRow {
-  display: grid;
-  grid-template-columns: subgrid;
   align-items: center;
-  position: relative;
   min-width: 0;
-  pointer-events: none;
 }
 
-.subRow > * {
-  pointer-events: auto;
-}
-
-/* Where a binding can be added: the space under one command's last box, which
-   no box occupies — the padding either side of the row gap. It hangs below the
-   cells rather than below the row, and takes no room of its own, so the table
-   stays as tall as its bindings. One band per command, never one per boundary:
-   a band whose command depended on which half of it the pointer was in read as
-   neither. */
+/* Where a binding can be added: the seam under one command's last box, which
+   the table places, reaches and draws. What is left here is what it draws —
+   a rule either side of a mark — and where that sits while the pointer moves
+   across it. */
 .insert {
-  --dsh-insert-reach: 10px;
-  position: absolute;
-  /* A sub-row is positioned, so the next one is a positioned sibling that
-     comes later and would take everything this band hangs down into — the
-     reach would work upwards, over its own cells, and not downwards. It is
-     lifted clear of them all instead. */
-  z-index: 1;
-  inset-inline: 0;
-  /* The dead space itself, derived rather than guessed: the padding a cell
-     holds below its box, the row gap, and the padding the next cell holds
-     above its own. Nothing visible lies in it, whatever the rows are made of. */
-  inset-block-start: calc(100% - var(--dsh-cell-pad));
-  height: calc(2 * var(--dsh-cell-pad) + var(--dsh-row-gap));
   display: flex;
   align-items: center;
   justify-content: center;
   gap: 6px;
-  padding: 0;
-  border: none;
-  background: none;
-  cursor: pointer;
-}
-
-/* Once drawn, the band answers a wider space than the line it marks: the
-   pointer may leave that line without losing it, and press it from anywhere in
-   the wider space. It reaches nothing while the band is cold, so the boxes
-   above and below keep every pixel until the pointer has asked for the band. */
-.insert[data-drawn]::before {
-  content: '';
-  position: absolute;
-  inset-inline: 0;
-  inset-block: calc(-1 * var(--dsh-insert-reach));
 }
 
 /* Drawn only under the pointer or the focus ring, and transparent rather than
    hidden: hiding it would take it off the keyboard as well. Until then it
-   takes no pointer events either, so what it overhangs stays reachable. */
+   takes no pointer events either, so what it overhangs stays reachable.
+
+   The line follows the pointer across the band, which is what makes it read as
+   a place a binding would land. The band publishes where the pointer is from
+   its own start, so where the line rests before anything has asked is the
+   middle of the band — derived from the two lengths its height is derived
+   from, rather than stated again. */
 .insert > * {
+  --dsh-seam-middle: calc((2 * var(--dsh-table-seam-inset) + var(--dsh-table-row-gap)) / 2);
   opacity: 0;
   pointer-events: none;
+  transform: translateY(calc(var(--dsh-table-seam-y, var(--dsh-seam-middle)) - var(--dsh-seam-middle)));
 }
-
 
 /* Drawn while the pointer is anywhere the band reaches, which is wider than
    the band once it is drawn and is the band alone until then. Nothing it draws
@@ -323,32 +229,21 @@
   opacity: 1;
 }
 
-/* Where a binding is dropped: the gutter of the lane the row begins at, beside
-   the sash's grip and never over it. It reaches no further than itself — the
-   space either side of it is a column boundary on one hand and the row's own
-   controls on the other, and neither is a place to find a control that
-   destroys something. */
+/* Where a binding is dropped: the gutter of the lane the row begins at, which
+   the table places beside the sash's grip and never over it. */
 .remove {
-  position: absolute;
-  z-index: 1;
-  inset-inline-end: 100%;
-  inset-block: 0;
-  width: var(--dsh-row-gutter);
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
   gap: 4px;
-  padding: 0;
-  border: none;
-  background: none;
-  cursor: pointer;
 }
 
 .remove > * {
+  --dsh-gutter-middle: calc(var(--dsh-table-gutter-0, var(--dsh-table-gutter)) / 2);
   opacity: 0;
   pointer-events: none;
-  transform: translateX(var(--dsh-remove-x, 0));
+  transform: translateX(calc(var(--dsh-table-gutter-x, var(--dsh-gutter-middle)) - var(--dsh-gutter-middle)));
 }
 
 .remove[data-drawn] > *,
@@ -367,18 +262,11 @@
    table gives a value it will not store. It narrows to the gutter it sits in. */
 .removeMark {
   flex: none;
-  width: var(--dsh-row-gutter);
+  width: var(--dsh-table-gutter-0, var(--dsh-table-gutter));
   min-width: 0;
   padding: 0;
   border: none;
   color: var(--dsw-alias-state-error-primary);
-}
-
-/* Drawn where the pointer is rather than where the band is: the line follows
-   it across the band, which is what makes it read as a place a binding would
-   land. It cannot leave the band, since the band is what tracks the pointer. */
-.insert > * {
-  transform: translateY(var(--dsh-insert-y, 0));
 }
 
 .insertRule {
@@ -483,7 +371,7 @@
 .shipped::after {
   content: '';
   position: absolute;
-  inset-inline-start: calc(-1 * var(--dsh-sash-lane));
+  inset-inline-start: calc(-1 * var(--dsh-table-lane));
   inset-inline-end: 0;
   top: 50%;
   height: 1px;
@@ -555,81 +443,37 @@
 
 .recorderControl {
   position: absolute;
-  inset-inline-end: 5px;
+  inset-inline-end: var(--dsh-control-inset);
   padding: 0;
 }
 
-/* The strip of chips, centred while it fits and scrolled when it does not:
-   a gesture too wide for its column stays on one line and is read by scrolling
-   it, since wrapping would deepen the row and clipping would hide the strokes
-   for good. The strip shrinks to the box rather than overflowing it, so the
-   centring never puts a chip out of reach. */
+/* The strip of chips is a scrolling run: centred while it fits, scrolled when
+   it does not, since wrapping would deepen the row and clipping would hide the
+   strokes for good. The run reserves the control's room at the strip's end and
+   holds it whether or not a control is drawn, so nothing shifts as one comes
+   and goes, and that same room is the overscroll that clears the control at
+   the end of a scroll. The run brings all of that; what is left here is the
+   width it fills. */
 .recorderLayout {
-  --dsh-recorder-control: 22px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
   width: 100%;
-  min-width: 0;
 }
 
-.strokes {
+/* The chips, spaced by their own margins rather than by a gap, since the run
+   measures this strip to decide when it must scroll. */
+.strokeStrip {
   display: flex;
   align-items: center;
-  min-width: 0;
-  overflow-x: auto;
-  overflow-y: hidden;
-  /* The strip is one chip tall; a bar would take the chips' place. Scrolling
-     is by wheel or trackpad, and stops here rather than dragging the table
-     sideways once the strip reaches its end. */
-  scrollbar-width: none;
-  overscroll-behavior-inline: contain;
 }
 
-.strokes::-webkit-scrollbar {
-  display: none;
+/* The room the control takes, as a box the same size as the control plus the
+   inset it sits at. The recorder passes a copy of the control's own plate, so
+   the width comes from the plate rather than from a number; only the inset is
+   stated, once, and the floating control reads the same one. */
+.controlRoom {
+  display: flex;
+  align-items: center;
+  padding-inline-end: var(--dsh-control-inset);
 }
-
-/* The control's place, carried inside the strip rather than beside it. Split
-   either side while no control is shown, so the chips stay centred, and
-   gathered at the inline end when one is. Either way the strip asks for the
-   same width, so nothing shifts as a control comes and goes. The strip spaces
-   its chips by their own margins, since these two have to measure exactly. */
-.strokes::before,
-.strokes::after {
-  content: '';
-  /* A contentless item under centred alignment has no height, and a rect with
-     no height adds nothing to the scrollable area: the room would be reserved
-     and unreachable. */
-  align-self: stretch;
-  width: calc(var(--dsh-recorder-control) / 2);
-}
-
-/* The two halves are not the same thing. The leading half is slack — what the
-   chips give up to avoid scrolling at all — so it shrinks away before the
-   strip starts to scroll, and moving is then only ever a way to prevent a
-   scroll rather than something that happens while one is already needed: a
-   gesture that cannot fit sits at the start and stays there when the control
-   appears. */
-.strokes::before {
-  flex: 0 1 auto;
-}
-
-/* The trailing half is the control's room and never shrinks, or the overscroll
-   would go with it — the control floats over the strip and occludes its end,
-   and this is the room that clears it at the end of the scroll. */
-.strokes::after {
-  flex: none;
-}
-
-.recorderLayout[data-control] .strokes::before {
-  width: 0;
-}
-
-.recorderLayout[data-control] .strokes::after {
-  width: var(--dsh-recorder-control);
-}
-
 
 .strokeGroup {
   display: inline-flex;

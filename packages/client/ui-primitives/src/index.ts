@@ -10,6 +10,23 @@ export { FocusScope } from './FocusScope.tsx'
 export type { FocusScopeProps } from './FocusScope.tsx'
 export { OverlayScope } from './OverlayScope.tsx'
 export type { OverlayScopeProps } from './OverlayScope.tsx'
+export { FittedRun, ScrollingRun } from './Run.tsx'
+export type { FittedRunProps, ScrollingRunProps, RunAlign, RunJustify } from './Run.tsx'
+export {
+  minContentWidth, settledWidths, showsItsContent, Table, TableGroup, tableColumnLine, tableLaneLine,
+} from './Table.tsx'
+export type {
+  TableColumnCells, TableColumnFloor, TableColumnLayout, TableGroupProps, TableProps,
+} from './Table.tsx'
+export { bandOffset, TableGutter, TableSeam } from './TableBand.tsx'
+export type { BandBounds, TableGutterProps, TableSeamProps } from './TableBand.tsx'
+export { runId, runsBy, runsWithin, tableRunRows } from './table-runs.ts'
+export type { TableRun } from './table-runs.ts'
+export { TableSash, useTableResize } from './TableSash.tsx'
+export type { TableResizeController, TableSashProps, UseTableResizeOptions } from './TableSash.tsx'
+export { byText, dropSort, orderedBy, sortRows, toggleSort } from './table-order.ts'
+export type { ColumnSort, Ordering, SortDirection, TableColumn } from './table-order.ts'
+export { resizeWidths } from './table-resize.ts'
 export { Button } from './Button.tsx'
 export type { ButtonVariant } from './Button.tsx'
 export { Pill } from './Pill.tsx'

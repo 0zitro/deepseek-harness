@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { resizeWidths } from '../src/client/resize.ts'
+import { resizeWidths } from '../src/table-resize.ts'
 
 const WIDTHS = [200, 200, 200, 120, 120]
 /** What each column measures at its narrowest; the last two are narrow ones. */
