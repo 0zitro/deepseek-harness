@@ -3,13 +3,8 @@ import { keybindingKey, pluginId, type KeyStroke, type SourcedOverride } from '.
 import type { UiActionId } from '../src/ui-action.ts'
 import type { UiActionDefinition } from '../src/client/action-registry.ts'
 import { keybindingRows, type KeybindingRow } from '../src/client/rows.ts'
-import { COLUMNS, dropSort, sortRows, toggleSort, type ColumnSort } from '../src/client/sorting.ts'
-
-const column = (id: string) => {
-  const found = COLUMNS.find(candidate => candidate.id === id)
-  if (found === undefined) throw new Error(`no column ${id}`)
-  return found
-}
+import { sortRows, type ColumnSort } from '@deepseek-ai/dsh-client-ui-primitives'
+import { COLUMNS } from '../src/client/sorting.ts'
 
 const stroke = (key: string, ...modifiers: KeyStroke['modifiers']): KeyStroke[] => [{ key, modifiers }]
 
@@ -29,7 +24,7 @@ describe('column orderings', () => {
       action('commandPalette.select', stroke('Enter')),
     ], [])
 
-    expect(ids(sortRows(rows, [{ id: 'command', direction: 'asc' }])))
+    expect(ids(sortRows(rows, [{ id: 'command', direction: 'asc' }], COLUMNS)))
       .toEqual(['commandPalette.select', 'composer.send'])
   })
 
@@ -41,7 +36,7 @@ describe('column orderings', () => {
     ], [])
 
     // Both bindings on 'a' gather, whatever modifiers they hold, and 'b' follows.
-    expect(ids(sortRows(rows, [{ id: 'stroke', direction: 'asc' }])))
+    expect(ids(sortRows(rows, [{ id: 'stroke', direction: 'asc' }], COLUMNS)))
       .toEqual(['a.three', 'a.two', 'a.one'])
   })
 
@@ -57,7 +52,7 @@ describe('column orderings', () => {
 
     // 'user' sorts before 'system' though it spells after it, and what the
     // overridden seat ships is a system row like any other.
-    expect(ids(sortRows(rows, [{ id: 'source', direction: 'asc' }]))).toEqual(['a.two', 'a.one', 'a.two'])
+    expect(ids(sortRows(rows, [{ id: 'source', direction: 'asc' }], COLUMNS))).toEqual(['a.two', 'a.one', 'a.two'])
     expect(COLUMNS.every(candidate => candidate.natural === 'asc')).toBe(true)
   })
 
@@ -76,7 +71,7 @@ describe('column orderings', () => {
       action('a.three', stroke('c')),
     ], [contributed, owned])
 
-    expect(ids(sortRows(rows, [{ id: 'source', direction: 'asc' }])))
+    expect(ids(sortRows(rows, [{ id: 'source', direction: 'asc' }], COLUMNS)))
       .toEqual(['a.three', 'a.two', 'a.one', 'a.three', 'a.two'])
   })
 
@@ -92,7 +87,7 @@ describe('column orderings', () => {
 
     // The superseded row holds no place, so it reads last however the places
     // themselves order.
-    expect(sortRows(rows, [{ id: 'prio', direction: 'asc' }]).map(row => row.superseded))
+    expect(sortRows(rows, [{ id: 'prio', direction: 'asc' }], COLUMNS).map(row => row.superseded))
       .toEqual([false, false, true])
   })
 })
@@ -106,7 +101,7 @@ describe('sortRows', () => {
 
   it('returns the rows untouched when nothing is sorted', () => {
     const unsorted = rows()
-    expect(sortRows(unsorted, [])).toBe(unsorted)
+    expect(sortRows(unsorted, [], COLUMNS)).toBe(unsorted)
   })
 
   it('consults a second column only where the first ties', () => {
@@ -115,12 +110,12 @@ describe('sortRows', () => {
       { id: 'command', direction: 'desc' },
     ]
     // 'a' before 'b' by gesture; within 'a', the commands read backwards.
-    expect(ids(sortRows(rows(), order))).toEqual(['b.one', 'a.two', 'c.three'])
+    expect(ids(sortRows(rows(), order, COLUMNS))).toEqual(['b.one', 'a.two', 'c.three'])
   })
 
   it('reverses a column without disturbing the ones before it', () => {
-    const ascending = ids(sortRows(rows(), [{ id: 'when', direction: 'asc' }]))
-    const descending = ids(sortRows(rows(), [{ id: 'when', direction: 'desc' }]))
+    const ascending = ids(sortRows(rows(), [{ id: 'when', direction: 'asc' }], COLUMNS))
+    const descending = ids(sortRows(rows(), [{ id: 'when', direction: 'desc' }], COLUMNS))
     expect(descending).toEqual([...ascending].reverse())
   })
 
@@ -128,53 +123,18 @@ describe('sortRows', () => {
     const contested = keybindingRows([action('a.one', stroke('a')), action('a.two', stroke('a'))], [])
     expect(contested.map(row => row.prio)).toEqual([0, 1])
 
-    expect(ids(sortRows(contested, [{ id: 'prio', direction: 'desc' }]))).toEqual(['a.two', 'a.one'])
+    expect(ids(sortRows(contested, [{ id: 'prio', direction: 'desc' }], COLUMNS))).toEqual(['a.two', 'a.one'])
   })
 
   it('keeps the arrangement it was given where every sorted column ties', () => {
     const tied = keybindingRows([action('a.one', stroke('a')), action('a.two', stroke('a'))], [])
 
     // One gesture, so the gesture column separates nothing.
-    expect(ids(sortRows(tied, [{ id: 'stroke', direction: 'asc' }]))).toEqual(ids(tied))
+    expect(ids(sortRows(tied, [{ id: 'stroke', direction: 'asc' }], COLUMNS))).toEqual(ids(tied))
   })
 
   it('ignores a column that is no longer part of the table', () => {
     const unsorted = rows()
-    expect(sortRows(unsorted, [{ id: 'retired', direction: 'asc' }])).toBe(unsorted)
-  })
-})
-
-describe('toggleSort', () => {
-  it('adds a column in the direction its kind reads naturally', () => {
-    expect(toggleSort([], column('prio'))).toEqual([{ id: 'prio', direction: 'asc' }])
-  })
-
-  it('reverses a column already in the order, keeping its place', () => {
-    const order = toggleSort(toggleSort([], column('command')), column('prio'))
-
-    expect(toggleSort(order, column('command'))).toEqual([
-      { id: 'command', direction: 'desc' },
-      { id: 'prio', direction: 'asc' },
-    ])
-  })
-
-  it('returns to the natural direction on a third click', () => {
-    const once = toggleSort([], column('when'))
-    const twice = toggleSort(once, column('when'))
-
-    expect(toggleSort(twice, column('when'))).toEqual([{ id: 'when', direction: 'asc' }])
-  })
-
-  it('accumulates columns in click order, so the first clicked stays first', () => {
-    const order = toggleSort(toggleSort([], column('source')), column('when'))
-    expect(order.map(sort => sort.id)).toEqual(['source', 'when'])
-  })
-})
-
-describe('dropSort', () => {
-  it('removes one column and leaves the rest in order', () => {
-    const order = toggleSort(toggleSort(toggleSort([], column('command')), column('prio')), column('when'))
-
-    expect(dropSort(order, 'prio').map(sort => sort.id)).toEqual(['command', 'when'])
+    expect(sortRows(unsorted, [{ id: 'retired', direction: 'asc' }], COLUMNS)).toBe(unsorted)
   })
 })

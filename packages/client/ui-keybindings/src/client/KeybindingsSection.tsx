@@ -1,7 +1,10 @@
 /** The Keybindings settings page: one table row per effective binding. */
 import { Fragment, useMemo, useState, type PointerEvent, type ReactNode } from 'react'
 import type { InjectFace, PropsLocale, PropsRuntime } from '@deepseek-ai/dsh-client-ui-slots'
-import { FittedRun, ScrollingRun } from '@deepseek-ai/dsh-client-ui-primitives'
+import {
+  dropSort, FittedRun, resizeWidths, ScrollingRun, sortRows, toggleSort,
+  type ColumnSort, type SortDirection,
+} from '@deepseek-ai/dsh-client-ui-primitives'
 import type { SnapshotStore } from '@deepseek-ai/dsh-client-runtime/client'
 import {
   type Keybinding, type KeybindingEdit, type KeybindingOverrideRef, type KeybindingSource,
@@ -12,14 +15,10 @@ import type { UiActionDefinition } from './action-registry.ts'
 import type { UiActionId } from '../ui-action.ts'
 import { useDraft } from './draft.ts'
 import { ControlRoom, KeybindingRecorder } from './KeybindingRecorder.tsx'
-import { resizeWidths } from './resize.ts'
 import {
   forkedKey, keybindingRows, type EffectiveRow, type KeybindingRow, type SupersededRow,
 } from './rows.ts'
-import {
-  COLUMNS, dropSort, sortRows, toggleSort,
-  type ColumnSort, type SortableColumn, type SortDirection,
-} from './sorting.ts'
+import { COLUMNS, type SortableColumn } from './sorting.ts'
 import { StrokeChips } from './StrokeChips.tsx'
 import css from './keybindings.module.css'
 
@@ -638,7 +637,7 @@ export function KeybindingsSection(
   const [sorts, setSorts] = useState<readonly ColumnSort[]>([])
   const { widths, onResizeStart } = useColumnResize()
   const runs = useMemo(
-    () => commandRuns(sortRows(keybindingRows(actions, bindings), sorts)),
+    () => commandRuns(sortRows(keybindingRows(actions, bindings), sorts, COLUMNS)),
     [actions, bindings, sorts],
   )
 
