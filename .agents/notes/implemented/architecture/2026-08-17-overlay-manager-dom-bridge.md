@@ -20,15 +20,24 @@ The `overlays` service in `ui-overlay` is the other half. It tracks live scopes 
 
 The event names are the contract between the two packages. An overlay contributes by mounting the primitive, and receives commands by being the topmost contributor; neither direction requires it to reach a Cordis context or to know the manager exists.
 
+No overlay binds a key. `OverlayScope` listens for a DOM event addressed at its element and nothing else; which *gesture* produces that event is a keybinding on `overlay.close`, declared once and rebindable from the settings page. An overlay in a composition without the action is therefore not dismissed by the keyboard, and that is the intended reading rather than a gap: dismissal by key is a property of the application's key map, not of the component.
+
+This is the line the whole subsystem draws. A component that answers a key directly is unbindable, ungated by any `when` clause, and invisible to the settings page — and a second such component makes the order in which two listeners run the thing that decides behaviour. Escape is a keybinding here for the same reason Enter is.
+
 ## Alternatives considered
 
 - **A React context or hook in `ui-primitives`**: rejected — it makes every consumer of the primitives mount a provider, and the provider would have to come from somewhere with the registry, which is the Cordis dependency the package exists without.
 - **Pass a registry handle down as props**: rejected — every overlay owner would thread a handle it does not otherwise need through its own props, and a surface that forgets is silently absent from the ordering rather than failing.
 - **Put the manager in `ui-primitives` and let it hold the state**: rejected — the state is application state (what is open, in what order) and the primitives package is a component library. It would also give two packages a reason to own the same registry once anything else needed to observe overlays.
 - **Keep per-overlay Escape listeners and add only the context key**: rejected — the key would report an order the listeners do not honor, so a clause could correctly say an overlay is open while the wrong one closes.
+- **Let a scope fall back to its own Escape listener where no manager is tracking it**, detected by having the manager cancel the open event: rejected, and worth recording because it looks like a free safety net. It restores component-level key handling — unbindable, ungated, absent from the settings page — which is the arrangement this subsystem exists to remove, and it makes a component's keyboard behaviour depend on which plugins happen to be mounted, so the same `Menu` answers Escape in one application and not in another. A component library declining to bind keys is a smaller surprise than one binding them conditionally.
 
 ## Consequences
 
 Overlays are ordered by one authority, so Escape closes the topmost one and a `when` clause can name `overlayOpen` without asking any overlay. The cost is an untyped seam: DOM event names are strings shared by two packages, and a rename in one is a silent no-op in the other rather than a type error — the price of keeping the primitives free of a plugin context.
 
 The migration is incremental by design. An overlay that is not yet wrapped in `OverlayScope` keeps its own Escape handler and stays outside the ordering, so both mechanisms coexist until the last one is migrated; that remainder is the package's stated limitation rather than a hidden state.
+
+Keyboard dismissal belongs to the composition rather than to the component. A test mounting one overlay alone and pressing Escape asserts at a level that owns neither the gesture nor the ordering; what a component owns is that it dismisses when its scope is told to, and `dsh:overlay-close` asserts exactly that.
+
+Publishing a context key is a contribution to keybindings rather than a use of them, so a publisher reads `uiWhenContext` at the point of use and does not declare it. `ui-overlay` requires no services at all, and `ui-conversation` — which publishes `commandMenuOpen` and `tokenLeading` — declares everything it uses except this one. Declaring it would have made keybindings a condition of rendering a conversation at all, and would have made the manager's own optional read unreachable.

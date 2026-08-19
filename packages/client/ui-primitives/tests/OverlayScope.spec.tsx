@@ -28,6 +28,17 @@ describe('OverlayScope', () => {
     document.removeEventListener('dsh:overlay-open', onOpen)
   })
 
+  it('binds no keys of its own', () => {
+    const onClose = vi.fn()
+    render(<OverlayScope name="menu" onClose={onClose}><span>body</span></OverlayScope>)
+
+    // Which gesture dismisses an overlay is a keybinding on `overlay.close`,
+    // not a listener in here. A primitive that answered Escape directly would
+    // be unbindable, ungated, and invisible to the settings page.
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }))
+    expect(onClose).not.toHaveBeenCalled()
+  })
+
   it('forwards a ref to the scope element', () => {
     const ref = { current: null as HTMLDivElement | null }
     render(<OverlayScope ref={ref} name="modal" onClose={() => {}}><span>body</span></OverlayScope>)

@@ -22,6 +22,12 @@ function setRef(el: HTMLDivElement | null, forwarded: ForwardedRef<HTMLDivElemen
  * `dsh:overlay-closed`; and it listens for `dsh:overlay-close`, running
  * `onClose`. The overlay manager tracks these in mount order, so the
  * `overlay.close` action reaches the topmost open overlay.
+ *
+ * The scope binds no keys. Which gesture dismisses an overlay is a keybinding
+ * on the `overlay.close` action — declared once, rebindable, and gated on the
+ * `overlayOpen` clause — so an overlay in a composition without that action is
+ * not dismissed by the keyboard at all, and is dismissed by nothing this
+ * component listens for.
  */
 export const OverlayScope = forwardRef<HTMLDivElement, OverlayScopeProps>(function OverlayScope(
   { name, onClose, children, ...divProps },

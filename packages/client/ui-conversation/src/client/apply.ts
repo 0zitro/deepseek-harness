@@ -52,7 +52,7 @@ declare module '@deepseek-ai/dsh-client-ui-slots' {
 /** Services required by the conversation plugin. */
 export const inject = [
   'slots', 'layout', 'sessions', 'workspaces', 'locale', 'connection', 'remote', 'settingsScope',
-  'conversationEvents', 'conversationViews', 'uiWhenContext',
+  'conversationEvents', 'conversationViews',
 ]
 
 // Static no-session sources for the composer-bar hooks compartment: module
@@ -444,11 +444,17 @@ export function apply(ctx: Context): void {
     let clearLeading: (() => void) | undefined
     let disposeLauncher: (() => void) | undefined
     let disposeMenu: (() => void) | undefined
+    // Optional, because publishing a key is a contribution to keybindings
+    // rather than a use of them: a composition without keybindings has nobody
+    // to read `commandMenuOpen`, and the conversation is whole without it.
+    // Requiring the service here would make keybindings a condition of
+    // rendering a conversation at all.
     const publish = (open: boolean, leading: boolean): void => {
+      const when = ctx.get('uiWhenContext')
       clearOpen?.()
-      clearOpen = ctx.uiWhenContext.set('commandMenuOpen', open)
+      clearOpen = when?.set('commandMenuOpen', open)
       clearLeading?.()
-      clearLeading = ctx.uiWhenContext.set('tokenLeading', leading)
+      clearLeading = when?.set('tokenLeading', leading)
     }
     const sync = (): void => {
       disposeLauncher?.()

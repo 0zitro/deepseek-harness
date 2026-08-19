@@ -2,5 +2,5 @@
 # side as of the last confirmed-consistent state. Both languages carry equal authority;
 # after editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write .agents/notes/implemented/architecture/2026-08-17-overlay-manager-dom-bridge.md
-2026-08-17-overlay-manager-dom-bridge.md: 8e53bca79d6714ea985824dc437cbb1ffcbeb23f
-2026-08-17-overlay-manager-dom-bridge.zh.md: 7dfbf06b0b2fd886ad9507b273d8106832283f5f
+2026-08-17-overlay-manager-dom-bridge.md: 39ea9ebb65463dfe398129592fa774dcf601b30a
+2026-08-17-overlay-manager-dom-bridge.zh.md: 8b0901f39a335dab5331bc5bc686cfd17f92333a
