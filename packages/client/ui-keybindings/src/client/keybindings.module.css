@@ -127,82 +127,45 @@
   color: var(--dsw-alias-label-primary);
 }
 
-/* Three tracks: a leading flank, the heading, and the sort slot at the inline
-   end. What the column gives up as it narrows is ordered — the heading must
-   read before it is centred, and it must be clear of the mark before it is
-   centred too — so the flanks are free space and collapse first, while the
-   heading's track floors at the label itself.
+/* The heading is a fitted run: the label is its content and the sort mark is
+   its reserve, so the mark's room is held whether or not a mark is drawn and a
+   column does not change width as it joins or leaves the sort order. The run
+   spends its flanks before anything else, which is the order this heading
+   wants — the label must read before it is centred, and it must stay clear of
+   the mark before it is centred too.
 
-   The mark's room is reserved whether or not a mark is drawn, split between
-   the flanks while none is and gathered at the inline end when one is. Both
-   states therefore ask for the same total, which is what keeps a column from
-   changing width as it joins or leaves the sort order. Reserving only where
-   a mark is drawn looks like the thriftier rule and is not: a column already
-   at its floor has nowhere to find the mark's room, so it takes it from its
-   neighbours the moment it is sorted. What starved the label was never this
-   reservation but the padding and the gaps beside it, which could not be
-   spent at all.
-
-   This grid sits on a child of the button rather than on the button itself:
-   an engine may wrap a button's contents in an anonymous block, which leaves
-   a grid declared on the button inert and its children flowing against each
+   Everything below is the button's own business rather than the run's: the run
+   sizes the tracks and paints nothing, so the width it fills, how the label
+   handles a width it cannot fit, and what the mark looks like are stated here.
+   The run sits on a child of the button rather than on the button itself: an
+   engine may wrap a button's contents in an anonymous block, which leaves a
+   grid declared on the button inert and its children flowing against each
    other, separated only by whatever padding they carry. */
 .headerLayout {
-  /* The mark's own room, the room the heading keeps clear of it, and the two
-     together — which is what a sorted column reserves. The gap sits inside
-     that reservation rather than beside it, so it is held where the flanks
-     have already collapsed: a narrow column moves its heading off centre
-     rather than letting it meet the mark. */
-  --dsh-sort-mark: 26px;
-  --dsh-heading-gap: 6px;
-  --dsh-sort-slot: calc(var(--dsh-sort-mark) + var(--dsh-heading-gap));
-  display: grid;
-  /* `min-content` of a heading is the whole label, since it never wraps. */
-  grid-template-columns:
-    minmax(calc(var(--dsh-sort-slot) / 2), 1fr)
-    minmax(min-content, auto)
-    minmax(calc(var(--dsh-sort-slot) / 2), 1fr);
-  align-items: center;
-  /* No gap between the tracks either: what separates the heading from the
-     mark is reserved with the mark, so it is held where a gap would have been
-     spent along with everything else. */
   width: 100%;
 }
 
-.headerLayout[data-sorted] {
-  grid-template-columns:
-    minmax(0, 1fr)
-    minmax(min-content, auto)
-    minmax(var(--dsh-sort-slot), 1fr);
-}
-
-/* A heading is fitted, never broken: a column is at least as wide as its own
-   label, so there is nothing to wrap. */
+/* A heading is fitted, never broken: the run's content track floors at this
+   label's min-content, and a label that never wraps has its whole self there,
+   so a column is at least as wide as its own label and the ellipsis is only
+   ever reached by a drag. */
 .heading {
-  grid-column: 2;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
 
-/* The mark appears in space that was already its own, so joining the order
-   moves nothing — the slot holds its height open as well as its width, or the
-   header row would grow by the difference between the mark and the line it
-   sits on, carrying the whole table down with it. The slot is never narrower
-   than the mark it holds: a narrower one would push a flex-end mark back over
-   the heading rather than clip it. */
+/* The mark, and before it the gap the heading keeps clear of it. The gap is
+   the mark's own leading padding rather than a track gap, so it is reserved
+   along with the mark and survives where the flanks have already collapsed: a
+   narrow column moves its heading off centre rather than letting it meet the
+   mark. This box is also what holds the header row's height open, since the
+   run reserves on both axes from the same element. */
 .sortSlot {
-  grid-column: 3;
   display: flex;
   align-items: center;
   justify-content: flex-end;
-  /* The mark's room, and before it the gap the heading keeps. The mark sits
-     at the end of that room, so what stands between the two is the gap plus
-     whatever the mark leaves of its own — least when a rank is shown beside
-     the arrow, which is the case the gap is here for. */
-  min-width: var(--dsh-sort-mark);
-  padding-inline-start: var(--dsh-heading-gap);
-  height: 18px;
+  padding-inline-start: 6px;
 }
 
 /* A ghost plate behind a small drawn control: enough contrast that it reads as
@@ -239,10 +202,13 @@
   flex: none;
 }
 
-/* Which column the order consults first, shown only when more than one does. */
+/* Which column the order consults first, shown only when more than one does.
+   Tabular figures so every rank has the same advance: the room the heading
+   reserves is measured from one rank, and must hold any of them. */
 .sortRank {
   font-size: 10px;
   line-height: 12px;
+  font-variant-numeric: tabular-nums;
 }
 
 /* One binding's cells, on the table's own tracks from the second column on.
