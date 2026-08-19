@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { dismissOverlay } from '@deepseek-ai/dsh-client-test-runtime'
 import { bindSnapshotSelector } from '@deepseek-ai/dsh-client-web-react'
 import type { SettingsNamespaceView } from '@deepseek-ai/dsh-api-remotes/client'
 import { PermissionRow, type PermissionRowProps } from '../src/client/PermissionRow.tsx'
@@ -69,7 +70,9 @@ describe('PermissionRow', () => {
     expect(button.getAttribute('aria-expanded')).toBe('false')
     fireEvent.click(button)
     expect(button.getAttribute('aria-expanded')).toBe('true')
-    fireEvent.keyDown(document, { key: 'Escape' })
+    // Dismissal closes it. Which gesture does the dismissing is a keybinding
+    // on overlay.close, which this row neither holds nor can assert.
+    dismissOverlay()
     await waitFor(() => { expect(button.getAttribute('aria-expanded')).toBe('false') })
     fireEvent.click(button)
     fireEvent.click(button)

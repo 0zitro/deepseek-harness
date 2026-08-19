@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
+import { dismissOverlay } from '@deepseek-ai/dsh-client-test-runtime'
 import type { DirectoryListing } from '@deepseek-ai/dsh-client-runtime/client'
 import { DirectoryBrowseError } from '@deepseek-ai/dsh-client-runtime/client'
 import { DirectoryBrowser } from '../src/client/DirectoryBrowser.tsx'
@@ -1044,8 +1045,10 @@ describe('DirectoryBrowser', () => {
     expect(b.onClose).not.toHaveBeenCalled()
     // Focus was already on a surviving row, so nothing re-parks it.
     expect(document.activeElement).toBe(row)
-    // With no draft left, Escape falls through to the Modal and closes.
-    fireEvent.keyDown(row, { key: 'Escape' })
+    // With no draft left there is nothing local to consume the gesture, and
+    // the dialog is what a dismissal reaches. Which gesture dismisses is a
+    // keybinding on overlay.close, so this addresses the overlay directly.
+    dismissOverlay()
     expect(b.onClose).toHaveBeenCalledTimes(1)
   })
 
@@ -1226,16 +1229,18 @@ describe('DirectoryBrowser', () => {
     expect(screen.queryByRole('button', { name: 'browser.home' })).toBeNull()
   })
 
-  it('scopes Escape to the topmost dialog: the nested create closes first, the browser only after', async () => {
+  it('scopes dismissal to the topmost dialog: the nested create closes first, the browser only after', async () => {
     const b = mount()
     await waitFor(() => { expect(screen.getByRole('listitem')).toBeTruthy() })
     fireEvent.click(screen.getByRole('button', { name: 'browser.newFolder' }))
     expect(screen.getByLabelText('browser.folderName')).toBeTruthy()
-    fireEvent.keyDown(document, { key: 'Escape' })
-    // The nested dialog consumed Escape; the browser stays up.
+    // Dismissal reaches the last overlay mounted, which is the ordering the
+    // overlay manager applies to whichever gesture is bound to overlay.close.
+    dismissOverlay()
+    // The nested dialog took it; the browser stays up.
     expect(screen.queryByLabelText('browser.folderName')).toBeNull()
     expect(b.onClose).not.toHaveBeenCalled()
-    fireEvent.keyDown(document, { key: 'Escape' })
+    dismissOverlay()
     expect(b.onClose).toHaveBeenCalledOnce()
   })
 

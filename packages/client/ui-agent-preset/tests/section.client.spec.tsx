@@ -7,6 +7,7 @@
  */
 
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
+import { dismissOverlay } from '@deepseek-ai/dsh-client-test-runtime'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { bindSnapshotSelector } from '@deepseek-ai/dsh-client-web-react'
 import { createSnapshotStore } from '@deepseek-ai/dsh-client-runtime/client'
@@ -374,10 +375,10 @@ describe('the copy dialog', () => {
     expect(actions.confirmCopy).not.toHaveBeenCalled()
   })
 
-  it('dismisses on Escape', () => {
+  it('dismisses when its overlay is closed', () => {
     const actions = renderSection({ copy: draft })
 
-    fireEvent.keyDown(document, { key: 'Escape' })
+    dismissOverlay()
 
     expect(actions.cancelCopy).toHaveBeenCalledTimes(1)
   })
@@ -407,10 +408,10 @@ describe('the read-only viewer', () => {
     expect(actions.closeView).toHaveBeenCalledTimes(1)
   })
 
-  it('dismisses on Escape', () => {
+  it('dismisses when its overlay is closed', () => {
     const actions = renderSection({ view: { id: 'standard', title: '标准模式', content: '- id: x\n' } })
 
-    fireEvent.keyDown(document, { key: 'Escape' })
+    dismissOverlay()
 
     expect(actions.closeView).toHaveBeenCalledTimes(1)
   })
@@ -436,10 +437,10 @@ describe('deleting a preset', () => {
     expect(actions.confirmDelete).toHaveBeenLastCalledWith(null)
   })
 
-  it('dismisses the confirmation on Escape', () => {
+  it('dismisses the confirmation when its overlay is closed', () => {
     const actions = renderSection({ pendingDelete: 'mine' })
 
-    fireEvent.keyDown(document, { key: 'Escape' })
+    dismissOverlay()
 
     expect(actions.confirmDelete).toHaveBeenCalledWith(null)
   })
