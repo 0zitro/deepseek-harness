@@ -12,10 +12,16 @@ export { OverlayScope } from './OverlayScope.tsx'
 export type { OverlayScopeProps } from './OverlayScope.tsx'
 export { FittedRun, ScrollingRun } from './Run.tsx'
 export type { FittedRunProps, ScrollingRunProps, RunAlign, RunJustify } from './Run.tsx'
-export { minContentWidth, Table, TableGroup, tableColumnLine, tableLaneLine } from './Table.tsx'
-export type {
-  TableColumnCells, TableColumnFloor, TableColumnLayout, TableGroupProps, TablePart, TableProps,
+export {
+  minContentWidth, settledWidths, showsItsContent, Table, TableGroup, tableColumnLine, tableLaneLine,
 } from './Table.tsx'
+export type {
+  TableColumnCells, TableColumnFloor, TableColumnLayout, TableGroupProps, TableProps,
+} from './Table.tsx'
+export { runId, runsBy, runsWithin, tableRunRows } from './table-runs.ts'
+export type { TableRun } from './table-runs.ts'
+export { TableSash, useTableResize } from './TableSash.tsx'
+export type { TableResizeController, TableSashProps, UseTableResizeOptions } from './TableSash.tsx'
 export { byText, dropSort, orderedBy, sortRows, toggleSort } from './table-order.ts'
 export type { ColumnSort, Ordering, SortDirection, TableColumn } from './table-order.ts'
 export { resizeWidths } from './table-resize.ts'

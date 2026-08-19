@@ -1,6 +1,5 @@
-import { useRef, useState, type PointerEvent, type KeyboardEvent, type ReactNode } from 'react'
+import { forwardRef, type ForwardedRef, type ReactNode } from 'react'
 import clsx from 'clsx'
-import { resizeWidths } from './table-resize.ts'
 import css from './Table.module.css'
 
 /** A column, as the table's geometry needs to know it. */
@@ -32,9 +31,6 @@ export interface TableColumnCells {
  */
 export type TableColumnFloor = (column: TableColumnCells, index: number) => number
 
-/** The parts a consumer may dress. */
-export type TablePart = 'table' | 'sash' | 'group'
-
 /**
  * The width the given elements measure at their narrowest.
  *
@@ -58,7 +54,26 @@ export function minContentWidth(elements: readonly HTMLElement[]): number {
 }
 
 /** A column shows its content: the unsurprising rule, and the one to depart from knowingly. */
-const showsItsContent: TableColumnFloor = ({ cells }) => minContentWidth([...cells])
+export const showsItsContent: TableColumnFloor = ({ cells }) => minContentWidth([...cells])
+
+/**
+ * The pixel widths a resolved track template states, or nothing where it
+ * states none.
+ *
+ * A template only resolves to pixels once the table has been laid out. Before
+ * that it is still the `minmax(min-content, 2fr)` it was written as, whose own
+ * spaces make any positional read of it nonsense — so this answers with
+ * nothing rather than with a list of `NaN`, and a caller that cannot proceed
+ * without widths knows it.
+ * @param template - a computed `grid-template-columns`.
+ * @returns one width per column, or undefined where the template is unresolved.
+ */
+export function settledWidths(template: string): readonly number[] | undefined {
+  const tracks = template.split(' ')
+  const widths = tracks.filter((_, at) => at % 2 === 0).map(track => Number.parseFloat(track))
+
+  return widths.every(width => Number.isFinite(width)) ? widths : undefined
+}
 
 /** The grid line a column's cells stand on, counting the lanes between them. */
 export function tableColumnLine(index: number): number {
@@ -91,133 +106,53 @@ function template(columns: readonly TableColumnLayout[], widths: readonly number
     .join(' ')
 }
 
-/** How far one press of an arrow key moves a boundary. */
-const KEYBOARD_STEP = 8
-
 /** What a table is, apart from what stands in it. */
 export interface TableProps {
   /** The columns, in render order. */
   columns: readonly TableColumnLayout[]
   /**
-   * What a column may not be dragged below. Defaults to what the column's
-   * cells measure at their narrowest, which is a column showing its content.
+   * Settled pixel widths, one per column, from whatever moves the boundaries.
+   * Without them the columns lay themselves out in their shares, which is what
+   * a table that offers no resizing wants and all it needs.
    */
-  floorOf?: TableColumnFloor | undefined
-  /** A class per part, for everything the table does not read back. */
-  classNames?: Partial<Record<TablePart, string>> | undefined
-  /** The accessible name each sash takes, given the columns it divides. */
-  sashLabel?: ((leading: TableColumnLayout, trailing: TableColumnLayout) => string) | undefined
+  widths?: readonly number[] | undefined
+  className?: string | undefined
   /** The headings and rows, placed on the table's own lines. */
   children: ReactNode
 }
 
 /**
- * A grid of columns divided by draggable boundaries.
+ * A grid of columns with a lane between each pair.
  *
- * The table owns the tracks and the lanes and nothing else: what stands in a
- * cell, what it looks like, and what a row means are the consumer's, placed on
- * the lines `tableColumnLine` names and dressed through the class it passes
- * for each part. A cell states which column it belongs to with
- * `data-table-column`, and a heading adds `data-table-heading`, which is how a
- * floor policy finds what to measure.
+ * The table owns its coordinate system — the column lines, the lane lines, and
+ * the track template — and nothing else. What stands in a cell, what it looks
+ * like, and what a row means are the consumer's, placed on the lines
+ * `tableColumnLine` names. That coordinate system is the seam every other
+ * feature composes through: sorting is arithmetic over the consumer's own
+ * rows, resizing is a hook and an element that name a lane, and a control in
+ * the space between cells names a group. A table that wants none of them pays
+ * for none of them.
  *
- * A drag moves one boundary, so it concerns the two columns that meet there:
- * what one gains the other gives up, and the table's own width never changes.
- * The columns lay themselves out until a boundary is first taken hold of, and
- * the drag starts from what they measure at that moment, so nothing jumps.
- * @param props - the columns, the floor policy, and what stands in the table.
+ * A cell states which column it belongs to with `data-table-column`, and a
+ * heading adds `data-table-heading`, which is how a resize policy finds what to
+ * measure without the table having to be told twice.
+ * @param props - the columns, any settled widths, and what stands in the table.
  * @returns the table.
  */
-export function Table(
-  { columns, floorOf = showsItsContent, classNames, sashLabel, children }: TableProps,
+export const Table = forwardRef(function Table(
+  { columns, widths, className, children }: TableProps,
+  ref: ForwardedRef<HTMLDivElement>,
 ) {
-  const grid = useRef<HTMLDivElement>(null)
-  const [widths, setWidths] = useState<readonly number[]>()
-
-  /** What the columns measure now, which is where a drag starts from. */
-  const settled = (): readonly number[] => {
-    const table = grid.current
-    /* v8 ignore next -- a sash cannot be taken hold of before the table mounts */
-    if (table === null) return []
-    return getComputedStyle(table).gridTemplateColumns
-      .split(' ')
-      .filter((_, at) => at % 2 === 0)
-      .map(track => Number.parseFloat(track))
-  }
-
-  /** The cells of each column, which is what a floor policy is asked about. */
-  const floors = (): readonly number[] => {
-    const table = grid.current
-    /* v8 ignore next -- a sash cannot be taken hold of before the table mounts */
-    if (table === null) return []
-    return columns.map((column, index) => {
-      const cells = [...table.querySelectorAll<HTMLElement>(`[data-table-column="${column.id}"]`)]
-      const heading = cells.find(cell => cell.dataset['tableHeading'] !== undefined)
-      return heading === undefined ? 0 : floorOf({ heading, cells }, index)
-    })
-  }
-
-  /** Move one boundary, conserving what the pair either side of it holds. */
-  const resize = (index: number, from: readonly number[], measured: readonly number[], delta: number) => {
-    setWidths(resizeWidths(from, measured, index, delta))
-  }
-
-  const onPointerDown = (index: number) => (event: PointerEvent<HTMLDivElement>) => {
-    const handle = event.currentTarget
-    const origin = event.clientX
-    // Physical, because a pointer is: under RTL a drag toward the inline end
-    // moves the pointer the other way.
-    const toward = getComputedStyle(handle).direction === 'rtl' ? -1 : 1
-    const from = settled()
-    const measured = floors()
-
-    handle.setPointerCapture(event.pointerId)
-    const onMove = (moved: globalThis.PointerEvent) => {
-      resize(index, from, measured, (moved.clientX - origin) * toward)
-    }
-    const onEnd = () => {
-      handle.removeEventListener('pointermove', onMove)
-      handle.removeEventListener('pointerup', onEnd)
-    }
-    handle.addEventListener('pointermove', onMove)
-    handle.addEventListener('pointerup', onEnd)
-  }
-
-  // A boundary is a separator, and a separator that can move is one the
-  // keyboard can move: a pointer drag is not a way of stating a width that
-  // everyone has.
-  const onKeyDown = (index: number) => (event: KeyboardEvent<HTMLDivElement>) => {
-    const step = event.key === 'ArrowRight' ? 1 : event.key === 'ArrowLeft' ? -1 : 0
-    if (step === 0) return
-
-    event.preventDefault()
-    const toward = getComputedStyle(event.currentTarget).direction === 'rtl' ? -1 : 1
-    resize(index, settled(), floors(), step * toward * KEYBOARD_STEP)
-  }
-
   return (
     <div
-      ref={grid}
-      className={clsx(css.table, classNames?.table)}
+      ref={ref}
+      className={clsx(css.table, className)}
       style={{ gridTemplateColumns: template(columns, widths) }}
     >
       {children}
-      {columns.slice(0, -1).map((column, index) => (
-        <div
-          key={`sash-${column.id}`}
-          role="separator"
-          aria-orientation="vertical"
-          tabIndex={0}
-          aria-label={sashLabel?.(column, columns[index + 1] as TableColumnLayout)}
-          className={clsx(css.sash, classNames?.sash)}
-          style={{ gridColumn: tableLaneLine(index), gridRow: '1 / -1' }}
-          onPointerDown={onPointerDown(index)}
-          onKeyDown={onKeyDown(index)}
-        />
-      ))}
     </div>
   )
-}
+})
 
 /** One group of cells standing together on the table's own columns. */
 export interface TableGroupProps {
@@ -225,6 +160,20 @@ export interface TableGroupProps {
   line: number
   /** How many rows it spans. */
   rows: number
+  /**
+   * The first column the group covers, which is not always the first column of
+   * the table: a cell spanning the group's rows — one value shared by all of
+   * them — stands beside the group rather than in it, and the group starts
+   * after it. Anything hung off the group starts there too.
+   */
+  from?: number | undefined
+  /**
+   * The last column it covers, counting inclusively; the table's last by
+   * default. A group ends early where a spanning cell stands in the middle of
+   * the table rather than at its edge: a grid area is a rectangle, so the
+   * columns either side of that cell are two groups and not one.
+   */
+  to?: number | undefined
   className?: string | undefined
   children: ReactNode
 }
@@ -237,14 +186,24 @@ export interface TableGroupProps {
  * against the cells it belongs to. Grouping the cells gives those things
  * something the right height to hang from, while subgrid keeps the cells
  * standing in the table's own columns rather than in tracks of their own.
+ *
+ * A group covers a range of columns rather than all of them, because a cell
+ * spanning its rows may stand anywhere: at the table's leading edge, at its
+ * trailing edge, or in the middle, where the columns either side of it are two
+ * groups since a grid area is a rectangle.
  * @param props - where the group stands, and the cells in it.
  * @returns the group.
  */
-export function TableGroup({ line, rows, className, children }: TableGroupProps) {
+export function TableGroup({ line, rows, from = 0, to, className, children }: TableGroupProps) {
+  // A column ends at the line after the one it starts on; `-1` is the table's
+  // own last line, which is what a group running to the edge wants and the one
+  // case no column index can name.
+  const ends = to === undefined ? '-1' : `${tableColumnLine(to) + 1}`
+
   return (
     <div
       className={clsx(css.group, className)}
-      style={{ gridColumn: '1 / -1', gridRow: `${line} / span ${rows}` }}
+      style={{ gridColumn: `${tableColumnLine(from)} / ${ends}`, gridRow: `${line} / span ${rows}` }}
     >
       {children}
     </div>
