@@ -346,10 +346,10 @@
    Declared above `.invalid` on purpose: that rule sets `border-color`, and a
    `border` shorthand here would otherwise overwrite it and lose the red. */
 .numberField {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) max-content;
+  display: flex;
   align-items: center;
   width: 100%;
+  min-width: 0;
   padding: 3px 6px;
   border: 1px solid var(--dsw-alias-border-l1);
   border-radius: 6px;
@@ -360,10 +360,17 @@
   border-color: var(--dsw-alias-brand-primary);
 }
 
+/* The run inside owns the tracks: the arrows' shape is reserved at both ends,
+   so the value sits on the field's centre without this page stating a width
+   for either side. What is left here is the width the run fills. */
+.numberLayout {
+  width: 100%;
+}
+
 /* The input keeps its type face and gives up its box, which the field holds.
    It gives up the engine's spinner too: ours are the only arrows that draw,
    and a native one beside them would reserve a second width. */
-.numberField > .cellInput {
+.numberField .cellInput {
   padding: 0;
   border: 0;
   border-radius: 0;
@@ -371,8 +378,8 @@
   appearance: textfield;
 }
 
-.numberField > .cellInput::-webkit-inner-spin-button,
-.numberField > .cellInput::-webkit-outer-spin-button {
+.numberField .cellInput::-webkit-inner-spin-button,
+.numberField .cellInput::-webkit-outer-spin-button {
   appearance: none;
   margin: 0;
 }

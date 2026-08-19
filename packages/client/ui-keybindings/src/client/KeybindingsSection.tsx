@@ -152,6 +152,13 @@ interface Steppers {
   min: number
   /** How far one press moves the value. */
   step: number
+  /**
+   * The widest value the field can hold, which is what the run measures in the
+   * input's place. An input reports the width of its `size` attribute rather
+   * than of its value, so a run measuring the control itself would ask for a
+   * width nobody typed.
+   */
+  widest: string
 }
 
 /** One arrow, drawn at the weight the table's other marks are drawn at. */
@@ -171,36 +178,46 @@ function Chevron({ up }: { up: boolean }) {
 }
 
 /**
- * The arrows at a number field's inline end.
+ * The arrows at a number field's inline end, or the shape of them.
  *
  * Drawn at rest, because being seen is their second job: the value is centred
- * in the space they leave, so where nothing marks that space the eye takes the
- * whole box as the field and reads a centred value as off centre.
+ * against them, so where nothing marks the space they take the eye reads a
+ * centred value as off centre.
  *
- * Neither is a tab stop. The field itself steps on Up and Down, so a stop per
- * arrow would spend two keyboard positions per row on an affordance the row
- * already has.
+ * Without a handler this is the shape alone — spans rather than buttons, which
+ * is what a run's reserve has to be, since a run renders its reserve only to
+ * measure it and a control there would be a second control. One component so
+ * that the room and what stands in it cannot drift apart.
+ *
+ * Neither arrow is a tab stop. The field itself steps on Up and Down, so a
+ * stop per arrow would spend two keyboard positions per row on an affordance
+ * the row already has.
  */
-function StepperPair({ up, down, onStep }: { up: string; down: string; onStep: (by: 1 | -1) => void }) {
-  return (
-    <span className={css.steppers}>
-      {([[1, up], [-1, down]] as const).map(([by, label]) => (
-        <button
-          key={by}
-          type="button"
-          tabIndex={-1}
-          aria-label={label}
-          className={css.stepper}
-          // Every field commits on blur, so an arrow that took focus for
-          // itself would store a value on each press.
-          onMouseDown={(event) => { event.preventDefault() }}
-          onClick={() => { onStep(by) }}
-        >
-          <Chevron up={by === 1} />
-        </button>
-      ))}
-    </span>
-  )
+function StepperPair({ up, down, onStep }: { up: string; down: string; onStep?: ((by: 1 | -1) => void) | undefined }) {
+  const arrows = ([[1, up], [-1, down]] as const).map(([by, label]) => {
+    const mark = <Chevron up={by === 1} />
+    if (onStep === undefined) {
+      return <span key={by} className={css.stepper} aria-hidden="true">{mark}</span>
+    }
+
+    return (
+      <button
+        key={by}
+        type="button"
+        tabIndex={-1}
+        aria-label={label}
+        className={css.stepper}
+        // Every field commits on blur, so an arrow that took focus for itself
+        // would store a value on each press.
+        onMouseDown={(event) => { event.preventDefault() }}
+        onClick={() => { onStep(by) }}
+      >
+        {mark}
+      </button>
+    )
+  })
+
+  return <span className={css.steppers}>{arrows}</span>
 }
 
 function CellInput(
@@ -266,10 +283,28 @@ function CellInput(
 
   // The box moves out to the field, so the arrows stand inside the border with
   // the value and the whole field answers to focus and to a value it refuses.
+  //
+  // Both ends of the run hold the arrows' shape, and that is what centres the
+  // value: the flanks floor at equal widths, so the value sits on the field's
+  // centre while there is slack and gives ground only when there is not. The
+  // leading room is never occupied, so nothing is drawn there. Every width
+  // involved is measured from the shape, and the field states no lengths.
+  //
+  // The input cannot measure itself — a number input's intrinsic width comes
+  // from its `size` attribute, not from its value — so the run is given the
+  // widest value the field can hold instead.
+  const shape = <StepperPair up={steppers.up} down={steppers.down} />
+
   return (
     <span className={classes(css.numberField, invalid && css.invalid)}>
-      {input}
-      <StepperPair up={steppers.up} down={steppers.down} onStep={stepBy(steppers)} />
+      <FittedRun
+        className={css.numberLayout}
+        exemplar={<span>{steppers.widest}</span>}
+        start={{ reserve: shape }}
+        end={{ reserve: shape, occupant: <StepperPair up={steppers.up} down={steppers.down} onStep={stepBy(steppers)} /> }}
+      >
+        {input}
+      </FittedRun>
     </span>
   )
 }
@@ -318,7 +353,7 @@ function BindingCells(
           commit={(prio) => { setBinding(ref, row.base, { prio: Number(prio) }) }}
           className={classes(css.prioInput, fieldClass(row.overridden.prio))}
           type="number"
-          steppers={{ up: t('prio.increment'), down: t('prio.decrement'), min: 0, step: 1 }}
+          steppers={{ up: t('prio.increment'), down: t('prio.decrement'), min: 0, step: 1, widest: '999' }}
           aria-label={`${t('column.prio')}: ${row.label}`}
         />
       </div>
@@ -342,7 +377,7 @@ function ShippedCells({ row, t }: { row: SupersededRow; t: SectionT }) {
         {/* The same run the recorder uses, with the same room reserved, so a
             struck strip and the live one above it hold their chips in the same
             place — the two rows are meant to read against each other. */}
-        <ScrollingRun className={classes(css.shippedBox, css.recorderLayout)} reserve={<ControlRoom />}>
+        <ScrollingRun className={classes(css.shippedBox, css.recorderLayout)} end={{ reserve: <ControlRoom /> }}>
           <span className={css.strokeStrip}>
             {row.entry.strokes.map((stroke, index) => <StrokeChips key={index} stroke={stroke} />)}
           </span>
@@ -523,10 +558,12 @@ function ColumnHeader(
         <FittedRun
           className={css.headerLayout}
           contentClassName={css.heading}
-          reserve={<SortMark rank={WIDEST_RANK} direction="asc" />}
-          occupant={sorted === undefined
-            ? undefined
-            : <SortMark rank={sorts.length > 1 ? at + 1 : undefined} direction={sorted.direction} />}
+          end={{
+            reserve: <SortMark rank={WIDEST_RANK} direction="asc" />,
+            occupant: sorted === undefined
+              ? undefined
+              : <SortMark rank={sorts.length > 1 ? at + 1 : undefined} direction={sorted.direction} />,
+          }}
         >
           {t(column.label)}
         </FittedRun>

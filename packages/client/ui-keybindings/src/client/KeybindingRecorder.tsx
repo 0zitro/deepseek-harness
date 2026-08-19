@@ -269,8 +269,7 @@ export function KeybindingRecorder(
         <ScrollingRun
           className={css.recorderLayout}
           ref={strokeStrip}
-          reserve={<ControlRoom />}
-          occupied={control}
+          end={{ reserve: <ControlRoom />, occupied: control }}
         >
           <span className={css.strokeStrip}>
             {recording

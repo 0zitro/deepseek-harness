@@ -11,7 +11,7 @@ export type { FocusScopeProps } from './FocusScope.tsx'
 export { OverlayScope } from './OverlayScope.tsx'
 export type { OverlayScopeProps } from './OverlayScope.tsx'
 export { FittedRun, ScrollingRun } from './Run.tsx'
-export type { FittedRunProps, ScrollingRunProps, RunAlign, RunJustify } from './Run.tsx'
+export type { FittedRunProps, ScrollingRunProps, RunAlign, RunJustify, RunRoom } from './Run.tsx'
 export {
   minContentWidth, settledWidths, showsItsContent, Table, TableGroup, tableColumnLine, tableLaneLine,
 } from './Table.tsx'

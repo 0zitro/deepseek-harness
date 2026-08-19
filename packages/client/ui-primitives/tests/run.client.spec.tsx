@@ -35,39 +35,78 @@ describe('FittedRun', () => {
     expect(content.parentElement?.className).toContain('layer')
   })
 
-  it('states the room in both planes, and keeps both copies from the reader', () => {
-    render(<FittedRun reserve={<i>MARK9</i>}>Priority</FittedRun>)
+  it('asks for a room nobody is in without putting it in the paint plane', () => {
+    render(<FittedRun end={{ reserve: <i>MARK9</i> }}>Priority</FittedRun>)
 
+    // The ask stands whether or not anyone is there; the paint plane gets it
+    // only once there is something for the content to keep clear of, since a
+    // flank holding a room floors against it.
     const copies = screen.getAllByText('MARK9').map(n => n.parentElement as HTMLElement)
-    const [sizeRoom, room] = copies as [HTMLElement, HTMLElement]
-
-    expect(sizeRoom.className).toContain('sizeRoom')
-    expect(room.className).toContain('room')
-    expect(room.className).toContain('reserve')
-    for (const copy of copies) expect(copy.getAttribute('aria-hidden')).toBe('true')
+    expect(copies).toHaveLength(1)
+    expect(copies[0]?.className).toContain('sizeRoom')
+    expect(copies[0]?.dataset['at']).toBe('end')
+    expect(copies[0]?.getAttribute('aria-hidden')).toBe('true')
+    expect(layerOf('Priority').dataset['held']).toBeUndefined()
   })
 
-  it('gives the occupant the room and says the room is taken', () => {
-    render(<FittedRun reserve={<i>MARK9</i>} occupant={<b>M9</b>}>Priority</FittedRun>)
+  it('gives the occupant the room and says the room is held', () => {
+    render(<FittedRun end={{ reserve: <i>MARK9</i>, occupant: <b>M9</b> }}>Priority</FittedRun>)
 
     const occupant = screen.getByText('M9').parentElement as HTMLElement
 
     expect(occupant.className).toContain('room')
     expect(occupant.className).not.toContain('reserve')
     expect(occupant.getAttribute('aria-hidden')).toBeNull()
-    // Whether the room is taken is the only state a run has, and it is the
-    // switch the paint plane's template hangs off.
-    expect(layerOf('Priority').dataset['occupied']).toBe('true')
+    // The reserve joins it in the paint plane, stating where the room is so a
+    // narrower occupant still stands at the edge the reserve promised.
+    expect(screen.getAllByText('MARK9')).toHaveLength(2)
+    expect(layerOf('Priority').dataset['held']).toBe('true')
   })
 
-  it('takes the room as taken when the occupant is one it does not hold', () => {
-    const { rerender } = render(<FittedRun reserve={<i>MARK9</i>}>Priority</FittedRun>)
-    expect(layerOf('Priority').dataset['occupied']).toBeUndefined()
+  it('reserves at either end, which is what centres content against one', () => {
+    render(
+      <FittedRun start={{ reserve: <i>PAD</i> }} end={{ reserve: <i>PAD</i>, occupant: <b>M9</b> }}>
+        Priority
+      </FittedRun>,
+    )
+
+    // Both flanks floor at the same shape, so the content keeps the run's own
+    // centre rather than being pushed off it by the occupied end. No length
+    // says so: the balance is measured from the shape.
+    const asks = screen.getAllByText('PAD').map(n => n.parentElement as HTMLElement)
+    const places = asks.filter(a => a.className.includes('sizeRoom')).map(a => a.dataset['at'])
+    expect(places).toEqual(['start', 'end'])
+    expect(layerOf('Priority').dataset['held']).toBe('true')
+  })
+
+  it('draws an occupied leading room at the start', () => {
+    render(<FittedRun start={{ reserve: <i>PAD</i>, occupant: <b>P1</b> }}>Priority</FittedRun>)
+
+    const occupant = screen.getByText('P1').parentElement as HTMLElement
+    expect(occupant.dataset['at']).toBe('start')
+    expect(layerOf('Priority').dataset['held']).toBe('true')
+  })
+
+  it('measures a stated exemplar in the content\'s place', () => {
+    render(<FittedRun exemplar={<i>WIDEST</i>}>7</FittedRun>)
+
+    // Content that cannot measure itself — a control, or a value that varies —
+    // hands the size plane an inert stand-in instead, so the run's width stops
+    // depending on anything that changes.
+    const ghost = screen.getByText('WIDEST').parentElement as HTMLElement
+    expect(ghost.className).toContain('sizeContent')
+    expect(ghost.getAttribute('aria-hidden')).toBe('true')
+    expect(screen.getByText('7').className).toContain('content')
+  })
+
+  it('takes the room as held when the occupant is one it does not hold', () => {
+    const { rerender } = render(<FittedRun end={{ reserve: <i>MARK9</i> }}>Priority</FittedRun>)
+    expect(layerOf('Priority').dataset['held']).toBeUndefined()
 
     // A control floating over the run's end cannot nest inside it, so the
     // caller says the room is taken and the run makes way without holding it.
-    rerender(<FittedRun reserve={<i>MARK9</i>} occupied>Priority</FittedRun>)
-    expect(layerOf('Priority').dataset['occupied']).toBe('true')
+    rerender(<FittedRun end={{ reserve: <i>MARK9</i>, occupied: true }}>Priority</FittedRun>)
+    expect(layerOf('Priority').dataset['held']).toBe('true')
     expect(screen.queryByText('M9')).toBeNull()
   })
 
@@ -103,7 +142,7 @@ describe('FittedRun', () => {
 describe('ScrollingRun', () => {
   it('names the scroller for a caller that scrolls it, inside the box that asks for the room', () => {
     const scroller = createRef<HTMLSpanElement>()
-    render(<ScrollingRun ref={scroller} reserve={<i>ROOM</i>}>chips</ScrollingRun>)
+    render(<ScrollingRun ref={scroller} end={{ reserve: <i>ROOM</i> }}>chips</ScrollingRun>)
 
     const scrolled = scroller.current as HTMLElement
     expect(scrolled).toBe(screen.getByText('chips').parentElement)
@@ -111,8 +150,23 @@ describe('ScrollingRun', () => {
     expect(scrolled.parentElement?.className).toContain('scrollBox')
   })
 
+  it('keeps a room at either end, in the ask and in what scrolls', () => {
+    render(
+      <ScrollingRun start={{ reserve: <i>LEAD</i>, occupant: <b>L1</b> }} end={{ reserve: <i>ROOM</i> }}>
+        chips
+      </ScrollingRun>,
+    )
+
+    const asks = screen.getAllByText('LEAD').map(n => n.parentElement as HTMLElement)
+    expect(asks.filter(a => a.className.includes('sizeRoom'))[0]?.dataset['at']).toBe('start')
+    // The trailing room is asked for and stays out of what scrolls, since
+    // nothing floats over that end to scroll clear of.
+    expect(screen.getAllByText('ROOM')).toHaveLength(1)
+    expect((screen.getByText('L1').parentElement as HTMLElement).dataset['at']).toBe('start')
+  })
+
   it('asks for the room and nothing else: no ghost of content it means to scroll', () => {
-    render(<ScrollingRun reserve={<i>ROOM</i>}>chips</ScrollingRun>)
+    render(<ScrollingRun end={{ reserve: <i>ROOM</i> }}>chips</ScrollingRun>)
 
     const box = screen.getByText('chips').parentElement?.parentElement as HTMLElement
     const room = screen.getByText('ROOM').parentElement as HTMLElement
@@ -127,14 +181,14 @@ describe('ScrollingRun', () => {
   })
 
   it('puts the room inside the scroll content only once it is taken', () => {
-    const { rerender } = render(<ScrollingRun reserve={<i>ROOM</i>}>chips</ScrollingRun>)
+    const { rerender } = render(<ScrollingRun end={{ reserve: <i>ROOM</i> }}>chips</ScrollingRun>)
     const scroller = () => screen.getByText('chips').parentElement as HTMLElement
 
     // Nothing floats over the end, so there is nothing to scroll clear of and
     // both flanks stay equal: the content simply honours the alignment.
     expect(scroller().children).toHaveLength(1)
 
-    rerender(<ScrollingRun reserve={<i>ROOM</i>} occupied>chips</ScrollingRun>)
+    rerender(<ScrollingRun end={{ reserve: <i>ROOM</i>, occupied: true }}>chips</ScrollingRun>)
 
     // Now it is the overscroll that carries the content's end out from under
     // whatever floats there, so it has to be inside what scrolls.
@@ -143,7 +197,7 @@ describe('ScrollingRun', () => {
   })
 
   it('holds an occupant it does hold, in the same room', () => {
-    render(<ScrollingRun reserve={<i>ROOM</i>} occupant={<b>done</b>}>chips</ScrollingRun>)
+    render(<ScrollingRun end={{ reserve: <i>ROOM</i>, occupant: <b>done</b> }}>chips</ScrollingRun>)
 
     const occupant = screen.getByText('done').parentElement as HTMLElement
     expect(occupant.className).toContain('room')

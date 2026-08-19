@@ -1,6 +1,6 @@
 /*
- * A run: content with room reserved at an end for an occupant that comes and
- * goes, where the room is held whether or not the occupant is there.
+ * A run: content with room reserved at either end for an occupant that comes
+ * and goes, where the room is held whether or not the occupant is there.
  *
  * The room is stated as an element — the widest form the end can ever hold —
  * rather than as a length, so the engine measures it and no rule here carries
@@ -11,11 +11,14 @@
  * decides where things sit inside whatever width it is given. Fusing them is
  * what makes the problem hard, and splitting them is the whole design.
  *
- * The size plane is two hidden exemplars in two plain tracks: a ghost of the
- * content, and the reserve. They are the only things in flow, so the run asks
- * for the content plus the room, always — an occupant is not an input to the
- * run's size, because it is not in the size plane at all. That is stronger
- * than measuring the two states and finding them equal: there is one state.
+ * The size plane is hidden exemplars in three plain tracks: a stand-in for the
+ * content between one reserve per end. They are the only things in flow, so
+ * the run asks for the content plus its rooms, always — an occupant is not an
+ * input to the run's size, because it is not in the size plane at all. That is
+ * stronger than measuring the two states and finding them equal: there is one
+ * state. Where the content cannot stand in for itself, because it is a control
+ * or a value that varies, the caller states its exemplar too, and then nothing
+ * a run asks for depends on anything that changes.
  *
  * The paint plane is an overlay laid out at the width the size plane won. It
  * carries the content the reader sees, the room, and the occupant, and it is
@@ -59,7 +62,7 @@
 .run {
   position: relative;
   display: grid;
-  grid-template-columns: max-content max-content;
+  grid-template-columns: max-content max-content max-content;
   min-width: 0;
 }
 
@@ -68,17 +71,22 @@
    content's — and it carries the caller's content class, so it measures the
    way the content the reader sees measures. */
 .sizeContent {
-  grid-area: 1 / 1;
+  grid-area: 1 / 2;
   visibility: hidden;
 }
 
 .sizeRoom {
-  justify-self: end;
   visibility: hidden;
 }
 
-.run > .sizeRoom {
-  grid-area: 1 / 2;
+.run > .sizeRoom[data-at='start'] {
+  grid-area: 1 / 1;
+  justify-self: start;
+}
+
+.run > .sizeRoom[data-at='end'] {
+  grid-area: 1 / 3;
+  justify-self: end;
 }
 
 /* The paint plane, at the run's own width. Absolutely positioned, so its
@@ -122,11 +130,15 @@
 }
 
 /* The reserve and the occupant share one cell: the reserve states where the
-   room is, the occupant lands in it. Both sit at the reserved edge, so an
-   occupant narrower than its reserve stands where the reserve's edge
-   promised. */
-.room {
+   room is, the occupant lands in it. Both sit at their own end, so an occupant
+   narrower than its reserve stands where the reserve's edge promised. */
+.room[data-at='start'] {
   grid-area: 1 / 1;
+  justify-self: start;
+}
+
+.room[data-at='end'] {
+  grid-area: 1 / 3;
   justify-self: end;
 }
 
@@ -134,43 +146,47 @@
   visibility: hidden;
 }
 
-/* An occupant is drawn, so now there is something to keep clear of, and the
-   paint plane becomes three tracks: a flank, the content, and the room. The
-   flanks are coefficients and the other two floor at intrinsic minimums, which
-   fixes the order in which space is given up — the content is spent last, and
-   the room outlives the flanks.
+/* A room is occupied, so now there is something to keep clear of, and the
+   paint plane becomes three tracks: a flank, the content, and a flank. The
+   flanks are coefficients and the content floors at its intrinsic minimum,
+   which fixes the order in which space is given up — the content is spent
+   last, and a room outlives the flank it shares a track with.
 
-   What that produces is the rule as a formula rather than as a list of cases.
-   The trailing track's base is the room, so the content sits at
+   A room stands in its own flank rather than in a track of its own, and that
+   is what turns the rule into a formula instead of a list of cases. The
+   flank's base is the room it holds, so the content sits at
    `min(slack, (room + slack) / 2)`: centred wherever there is room to be
-   centred, and pushed off centre by what the mark needs and no more. Where the
-   slack reaches the room's width the two agree, and the content does not move
-   as an occupant arrives at all. */
-.layer[data-occupied] {
+   centred, and pushed off centre by what the occupant needs and no more. Where
+   the slack reaches the room's width the two agree, and the content does not
+   move as an occupant arrives at all.
+
+   A flank whose end keeps no room, or keeps one nobody is in, holds nothing
+   and so floors at zero. Give both ends the same shape and the two flanks
+   floor equally, which puts the content on the run's own centre and takes no
+   length to say. */
+.layer[data-held] {
   grid-template-columns: 1fr minmax(min-content, auto) 1fr;
 }
 
-.layer[data-occupied][data-justify='start'] {
+.layer[data-held][data-justify='start'] {
   grid-template-columns: 0fr minmax(min-content, auto) 1fr;
 }
 
-.layer[data-occupied][data-justify='end'] {
+.layer[data-held][data-justify='end'] {
   grid-template-columns: 1fr minmax(min-content, auto) 0fr;
 }
 
 /* The content takes the slack instead of the flanks: for a run whose content
-   is a box with an interior of its own, not a phrase to be placed. */
-.layer[data-occupied][data-justify='stretch'] {
+   is a box with an interior of its own, not a phrase to be placed. A `0fr`
+   flank still floors at the room it holds, so a stretched content gives up the
+   slack without giving up the reservation. */
+.layer[data-held][data-justify='stretch'] {
   grid-template-columns: 0fr minmax(min-content, 1fr) 0fr;
 }
 
-.layer[data-occupied] > .content {
+.layer[data-held] > .content {
   grid-area: 1 / 2;
   justify-self: auto;
-}
-
-.layer[data-occupied] > .room {
-  grid-area: 1 / 3;
 }
 
 /* Every plane takes the cross-axis mode: the size plane because the run's own
@@ -269,6 +285,10 @@
   justify-self: auto;
 }
 
-.scroller > .room {
+.scroller > .room[data-at='start'] {
+  grid-area: 1 / 1;
+}
+
+.scroller > .room[data-at='end'] {
   grid-area: 1 / 3;
 }
