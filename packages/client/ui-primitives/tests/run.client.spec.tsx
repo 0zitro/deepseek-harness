@@ -8,62 +8,84 @@ afterEach(cleanup)
 
 /**
  * jsdom resolves no layout, so what the suite can hold is the markup the law
- * is expressed in: that the reserve is rendered and hidden from the reader,
- * that it and the occupant share one cell, and that the alignment reaches the
- * stylesheet. The law itself — the floors, the spending order, the overscroll
- * — is measured in a browser and recorded in the Agent Note.
+ * is expressed in: that a fitted run is two planes, that what is there to be
+ * measured is kept from the reader, and that the alignment reaches the
+ * stylesheet. The law itself — the floors, the spending order, where the
+ * content sits against an occupant — is measured in a browser and recorded in
+ * the Agent Note.
  */
-const runOf = (node: HTMLElement) => node.closest('span[data-justify]') as HTMLElement
+/** The visible content of a fitted run, the hidden ghost being the first. */
+const paintOf = (text: string) => screen.getAllByText(text)[1] as HTMLElement
+const layerOf = (text: string) => paintOf(text).parentElement as HTMLElement
+const runOf = (text: string) => layerOf(text).parentElement as HTMLElement
 
 describe('FittedRun', () => {
-  it('renders the content, and the reserve beside it, kept from the reader', () => {
-    render(<FittedRun reserve={<i>MARK9</i>}>Priority</FittedRun>)
+  it('renders the content twice: once to be measured, once to be read', () => {
+    render(<FittedRun contentClassName="inner">Priority</FittedRun>)
 
-    const run = runOf(screen.getByText('Priority'))
-    const reserve = screen.getByText('MARK9').parentElement as HTMLElement
-
-    expect(run.children).toHaveLength(2)
-    expect(reserve.getAttribute('aria-hidden')).toBe('true')
-    // The room and what would occupy it are one cell, so an occupant arriving
-    // cannot move anything: the cell was already the reserve's width.
-    expect(reserve.className).toContain('room')
-    expect(reserve.className).toContain('reserve')
+    const [ghost, content] = screen.getAllByText('Priority') as [HTMLElement, HTMLElement]
+    // The ghost is what the run asks its width from, so it must measure the
+    // way the content the reader sees measures: same class, same text.
+    expect(ghost.className).toContain('sizeContent')
+    expect(ghost.className).toContain('inner')
+    expect(ghost.getAttribute('aria-hidden')).toBe('true')
+    expect(content.className).toContain('inner')
+    expect(content.getAttribute('aria-hidden')).toBeNull()
+    // One in the size plane, one in the paint plane.
+    expect(content.parentElement?.className).toContain('layer')
   })
 
-  it('gives the occupant the same cell the reserve holds', () => {
+  it('states the room in both planes, and keeps both copies from the reader', () => {
+    render(<FittedRun reserve={<i>MARK9</i>}>Priority</FittedRun>)
+
+    const copies = screen.getAllByText('MARK9').map(n => n.parentElement as HTMLElement)
+    const [sizeRoom, room] = copies as [HTMLElement, HTMLElement]
+
+    expect(sizeRoom.className).toContain('sizeRoom')
+    expect(room.className).toContain('room')
+    expect(room.className).toContain('reserve')
+    for (const copy of copies) expect(copy.getAttribute('aria-hidden')).toBe('true')
+  })
+
+  it('gives the occupant the room, and lets it name itself', () => {
     render(<FittedRun reserve={<i>MARK9</i>} occupant={<b>M9</b>}>Priority</FittedRun>)
 
-    const run = runOf(screen.getByText('Priority'))
     const occupant = screen.getByText('M9').parentElement as HTMLElement
 
-    expect(run.children).toHaveLength(3)
     expect(occupant.className).toContain('room')
-    // Only the reserve is hidden; the occupant is the one the reader gets.
+    // The class is the whole of the run's state: the stylesheet reads it to
+    // decide whether there is anything to keep the content clear of.
+    expect(occupant.className).toContain('occupant')
     expect(occupant.className).not.toContain('reserve')
     expect(occupant.getAttribute('aria-hidden')).toBeNull()
   })
 
-  it('holds no room when it was given no reserve', () => {
+  it('holds no room in either plane when it was given no reserve', () => {
     render(<FittedRun>Priority</FittedRun>)
 
-    expect(runOf(screen.getByText('Priority')).children).toHaveLength(1)
+    // The ghost and the layer, and nothing between them.
+    expect(runOf('Priority').children).toHaveLength(2)
+    expect(layerOf('Priority').children).toHaveLength(1)
   })
 
-  it('states the placement it was asked for, and centres by default', () => {
+  it('states the placement on both planes, and centres by default', () => {
     const { rerender } = render(<FittedRun>Priority</FittedRun>)
-    const run = runOf(screen.getByText('Priority'))
-    expect([run.dataset['justify'], run.dataset['align']]).toEqual(['center', 'center'])
+    const placement = (el: HTMLElement) => [el.dataset['justify'], el.dataset['align']]
+
+    // The root carries it as the state a consumer may read; the layer carries
+    // it as the switch the stylesheet acts on.
+    expect(placement(runOf('Priority'))).toEqual(['center', 'center'])
+    expect(placement(layerOf('Priority'))).toEqual(['center', 'center'])
 
     rerender(<FittedRun justify="end" align="baseline">Priority</FittedRun>)
-    expect([run.dataset['justify'], run.dataset['align']]).toEqual(['end', 'baseline'])
+    expect(placement(runOf('Priority'))).toEqual(['end', 'baseline'])
+    expect(placement(layerOf('Priority'))).toEqual(['end', 'baseline'])
   })
 
-  it('takes a class of its own and one for the content', () => {
-    render(<FittedRun className="outer" contentClassName="inner">Priority</FittedRun>)
+  it('takes a class of its own', () => {
+    render(<FittedRun className="outer">Priority</FittedRun>)
 
-    const content = screen.getByText('Priority')
-    expect(content.className).toContain('inner')
-    expect(runOf(content).className).toContain('outer')
+    expect(runOf('Priority').className).toContain('outer')
   })
 })
 
