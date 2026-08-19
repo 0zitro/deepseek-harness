@@ -218,7 +218,7 @@ describe('KeybindingRecorder', () => {
 
   it('follows its own tail while recording, so a new stroke is visible', () => {
     const { recorder } = mount()
-    const strip = recorder.querySelector('span > span') as HTMLElement
+    const strip = recorder.querySelector('[class*="_scroller_"]') as HTMLElement
     // jsdom lays nothing out, so the strip reports the width it is given.
     Object.defineProperty(strip, 'scrollWidth', { value: 400, configurable: true })
 
@@ -233,7 +233,7 @@ describe('KeybindingRecorder', () => {
 
   it('follows its tail toward the other end when the strip reads right to left', () => {
     const { recorder } = mount()
-    const strip = recorder.querySelector('span > span') as HTMLElement
+    const strip = recorder.querySelector('[class*="_scroller_"]') as HTMLElement
     Object.defineProperty(strip, 'scrollWidth', { value: 400, configurable: true })
     strip.style.direction = 'rtl'
 
@@ -245,14 +245,103 @@ describe('KeybindingRecorder', () => {
     expect(strip.scrollLeft).toBe(-400)
   })
 
-  it('holds room for one control, gathering it only when one is there', () => {
+  it("asks for the control's room whether or not a control is drawn", () => {
     const { recorder } = mount()
-    const layout = recorder.firstElementChild as HTMLElement
-    expect(layout.dataset['control']).toBeUndefined()
+    const box = recorder.firstElementChild as HTMLElement
+    const asked = () => [...box.children].filter(child => child.className.includes('sizeRoom'))
+
+    // The room is the whole of what the strip asks for, and it stands there in
+    // both states, so the column cannot move as a control comes and goes.
+    expect(asked()).toHaveLength(1)
+    expect(asked()[0]?.getAttribute('aria-hidden')).toBe('true')
 
     fireEvent.pointerEnter(recorder.parentElement!)
 
-    // The chips ask for the same width either way; only where the room sits moves.
-    expect(layout.dataset['control']).toBe('true')
+    expect(screen.getByRole('button', { name: 'Clear' })).toBeDefined()
+    expect(asked()).toHaveLength(1)
+  })
+
+  /**
+   * The room leaves the scroll content with the control, so the engine clamps
+   * the offset to the shorter range; jsdom lays nothing out, so the sizes and
+   * that clamp are stated here rather than resolved.
+   */
+  function scrollable(recorder: HTMLElement, { scrollWidth = 400, clientWidth = 100 } = {}) {
+    const strip = recorder.querySelector('[class*="_scroller_"]') as HTMLElement
+    Object.defineProperty(strip, 'scrollWidth', { value: scrollWidth, configurable: true })
+    Object.defineProperty(strip, 'clientWidth', { value: clientWidth, configurable: true })
+    return {
+      strip,
+      /** Scroll where a reader would, which is what the strip writes down. */
+      readerScrollsTo: (offset: number) => {
+        strip.scrollLeft = offset
+        fireEvent.scroll(strip)
+      },
+      /** What the engine does to the offset once the room is gone. */
+      clampToFreeEnd: () => { strip.scrollLeft = scrollWidth - clientWidth },
+    }
+  }
+
+  it('gives back the place the clamp took when the control returns', () => {
+    const { recorder } = mount()
+    const { strip, readerScrollsTo, clampToFreeEnd } = scrollable(recorder)
+    const row = recorder.parentElement as HTMLElement
+
+    fireEvent.pointerEnter(row)
+    readerScrollsTo(250)
+    fireEvent.pointerLeave(row)
+    clampToFreeEnd()
+
+    fireEvent.pointerEnter(row)
+
+    // Back where the reader left it, control over the last stroke and all:
+    // inside this leeway, not moving beats not overlapping.
+    expect(strip.scrollLeft).toBe(250)
+  })
+
+  it('leaves a strip moved since the control went away where its reader put it', () => {
+    const { recorder } = mount()
+    const { strip, readerScrollsTo, clampToFreeEnd } = scrollable(recorder)
+    const row = recorder.parentElement as HTMLElement
+
+    fireEvent.pointerEnter(row)
+    readerScrollsTo(250)
+    fireEvent.pointerLeave(row)
+    clampToFreeEnd()
+    strip.scrollLeft = 120
+
+    fireEvent.pointerEnter(row)
+
+    expect(strip.scrollLeft).toBe(120)
+  })
+
+  it('has nothing to give back before the control has ever been there', () => {
+    const { recorder } = mount()
+    const { strip, readerScrollsTo, clampToFreeEnd } = scrollable(recorder)
+
+    // Scrolled while the room was out of the strip, so nothing was written
+    // down: that offset is not one the clamp is about to take away.
+    readerScrollsTo(200)
+    clampToFreeEnd()
+
+    fireEvent.pointerEnter(recorder.parentElement!)
+
+    expect(strip.scrollLeft).toBe(300)
+  })
+
+  it('puts the control room in the scroll content only once the control is there', () => {
+    const { recorder } = mount()
+    const scroller = recorder.querySelector('[class*="_scroller_"]') as HTMLElement
+    const rooms = () => [...scroller.children].filter(child => child.className.includes('_room'))
+
+    // Nothing floats over the strip yet, so there is nothing to scroll clear
+    // of; the room the strip asks for is held by the plane that sizes it.
+    expect(rooms()).toHaveLength(0)
+
+    fireEvent.pointerEnter(recorder.parentElement!)
+
+    // Now it is the overscroll that carries the last chip out from under the
+    // control, so it has to be inside what scrolls.
+    expect(rooms()).toHaveLength(1)
   })
 })

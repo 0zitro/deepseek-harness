@@ -73,9 +73,12 @@
 }
 
 .sizeRoom {
-  grid-area: 1 / 2;
   justify-self: end;
   visibility: hidden;
+}
+
+.run > .sizeRoom {
+  grid-area: 1 / 2;
 }
 
 /* The paint plane, at the run's own width. Absolutely positioned, so its
@@ -143,116 +146,124 @@
    centred, and pushed off centre by what the mark needs and no more. Where the
    slack reaches the room's width the two agree, and the content does not move
    as an occupant arrives at all. */
-.layer:has(> .occupant) {
+.layer[data-occupied] {
   grid-template-columns: 1fr minmax(min-content, auto) 1fr;
 }
 
-.layer:has(> .occupant)[data-justify='start'] {
+.layer[data-occupied][data-justify='start'] {
   grid-template-columns: 0fr minmax(min-content, auto) 1fr;
 }
 
-.layer:has(> .occupant)[data-justify='end'] {
+.layer[data-occupied][data-justify='end'] {
   grid-template-columns: 1fr minmax(min-content, auto) 0fr;
 }
 
 /* The content takes the slack instead of the flanks: for a run whose content
    is a box with an interior of its own, not a phrase to be placed. */
-.layer:has(> .occupant)[data-justify='stretch'] {
+.layer[data-occupied][data-justify='stretch'] {
   grid-template-columns: 0fr minmax(min-content, 1fr) 0fr;
 }
 
-.layer:has(> .occupant) > .content {
+.layer[data-occupied] > .content {
   grid-area: 1 / 2;
   justify-self: auto;
 }
 
-.layer:has(> .occupant) > .room {
+.layer[data-occupied] > .room {
   grid-area: 1 / 3;
 }
 
-/* Both planes take the cross-axis mode: the size plane because the run's own
-   height comes from it, the paint plane because that is where the content the
+/* Every plane takes the cross-axis mode: the size plane because the run's own
+   height comes from it, a paint plane because that is where the content the
    reader sees is placed. */
 .run[data-align='start'],
-.layer[data-align='start'] {
+.layer[data-align='start'],
+.scroller[data-align='start'] {
   align-items: start;
 }
 
 .run[data-align='center'],
-.layer[data-align='center'] {
+.layer[data-align='center'],
+.scroller[data-align='center'] {
   align-items: center;
 }
 
 .run[data-align='end'],
-.layer[data-align='end'] {
+.layer[data-align='end'],
+.scroller[data-align='end'] {
   align-items: end;
 }
 
 .run[data-align='stretch'],
-.layer[data-align='stretch'] {
+.layer[data-align='stretch'],
+.scroller[data-align='stretch'] {
   align-items: stretch;
 }
 
 .run[data-align='baseline'],
-.layer[data-align='baseline'] {
+.layer[data-align='baseline'],
+.scroller[data-align='baseline'] {
   align-items: baseline;
 }
 
-/* The scrolling run reads its content by scrolling rather than by clipping,
-   and keeps one plane: overlap has no meaning inside a scroller, where the
-   room has to be part of the scroll content to be reachable at the end of it.
-   Its box places the scroller; the scroller itself shrink-wraps while its
-   content fits, which is what lets the placement below centre it, and fills
-   the box once it does not, which is what lets it scroll. */
-.scrollerBox {
+/* The scrolling run splits the same two jobs, but its planes are stacked
+   rather than layered, because a scroller has to stay in flow to give the run
+   its height and its content its natural line.
+
+   The box asks for the room and nothing else. That is the honest ask for a
+   scroller: it does not need its content's width, since its whole answer to
+   content it cannot fit is to scroll. The reserve stands in the box's one
+   cell, hidden, and is what the ask comes from — the scroller beside it asks
+   for nothing, its own overflow having given up its automatic minimum — so the
+   ask is the room in both states, and no column moves as an occupant arrives.
+
+   A ghost of the content would be wrong here as well as expensive. A scrolling
+   run's content is a strip that may be arbitrarily long, and asking for its
+   width would hand every column the longest gesture anyone ever recorded. */
+.scrollBox {
   display: grid;
-  justify-items: center;
+  grid-template-columns: 1fr;
 }
 
-.scrollerBox[data-justify='start'] {
-  justify-items: start;
+.scrollBox > .sizeRoom {
+  grid-area: 1 / 1;
 }
 
-.scrollerBox[data-justify='end'] {
-  justify-items: end;
-}
+/* Three tracks, and the content's is `max-content`: a scrolling run does not
+   shrink its content to fit, it scrolls it, so the flanks give up everything
+   and then the run overflows into its own scrollable area.
 
-/* Three tracks again, and the same order, but stated the other way around.
-   The content and the room floor at their own max-content, so they are always
-   the full width they ask for; the slack alone can be grown, and it is the
-   only track free space can reach. That is the whole of the move-before-scroll
-   rule, in one template: while there is room to spare the slack takes it and
-   the content sits centred; as the spare runs out the slack gives it back a
-   pixel at a time and the content drifts toward the start; once the slack is
-   gone the run overflows and scrolls, and the leeway the content moved by was
-   exactly the reserve's width.
-
-   `auto` would not do, for a reason worth stating: an `auto` track's base size
-   is its *min*-content, and it is grown only out of free space, which is what
-   a container too narrow to fit has none of. The content would then overflow
-   its own track — leaving the room parked mid-scroll, and the end of the
-   scroll under whatever floats over the run's end.
-
-   The reserve is rendered twice here, as the slack ahead of the content and as
-   the room behind it: the first is what puts the content's own centre on the
-   box's centre, the second is what puts the room inside the scroll content,
-   where it doubles as the overscroll. */
+   The room is in here only while it is taken, which is what lets the flanks
+   stay equal while it is not: with nothing floating over the run's end there
+   is nothing to keep clear of, and the content simply honours the alignment.
+   Once something does, the trailing track floors at the room and the content
+   moves off that alignment by what the occupant needs and no more — the same
+   `min(slack, (room + slack) / 2)` the fitted run follows — while the room
+   itself, being inside what scrolls, becomes the overscroll that carries the
+   content's end out from under it. */
 .scroller {
+  grid-area: 1 / 1;
   display: grid;
-  grid-template-columns: minmax(0, max-content) max-content max-content;
-  max-width: 100%;
+  grid-template-columns: 1fr max-content 1fr;
+  min-width: 0;
   overflow-x: auto;
   overflow-y: hidden;
   scrollbar-width: none;
   overscroll-behavior-inline: contain;
 }
 
+.scroller[data-justify='start'] {
+  grid-template-columns: 0fr max-content 1fr;
+}
+
+.scroller[data-justify='end'] {
+  grid-template-columns: 1fr max-content 0fr;
+}
+
 .scroller::-webkit-scrollbar {
   display: none;
 }
 
-/* The scroller's own areas, since the shared `.content` and `.room` rules
-   describe the fitted run's paint plane, which the scroller does not have. */
 .scroller > .content {
   grid-area: 1 / 2;
   justify-self: auto;
@@ -260,15 +271,4 @@
 
 .scroller > .room {
   grid-area: 1 / 3;
-}
-
-/* Slack, and only slack: it holds the reserve's width where there is room for
-   it and gives all of it up before the scrolling starts, so content that
-   nearly fits moves by exactly the scroll it saves. Once the track is down to
-   nothing the copy inside goes on measuring the reserve and overflows it toward
-   the start, which is the one direction no scroll reaches and no `scrollWidth`
-   counts, in either writing direction. */
-.slack {
-  grid-area: 1 / 1;
-  visibility: hidden;
 }

@@ -29,6 +29,13 @@ interface RunProps {
   reserve?: ReactNode
   /** Who is in that room now. Its absence changes no measurement. */
   occupant?: ReactNode
+  /**
+   * The room is taken by something the run does not hold — a control floating
+   * over the run's end, which cannot nest inside the content it floats over.
+   * The run places its content as though it held that occupant, and renders
+   * nothing for it.
+   */
+  occupied?: boolean | undefined
   justify?: RunJustify | undefined
   align?: RunAlign | undefined
   className?: string | undefined
@@ -52,15 +59,20 @@ export interface ScrollingRunProps extends Omit<RunProps, 'justify'> {
   justify?: ScrollJustify | undefined
 }
 
+/**
+ * Whether the room is taken, which is the only state a run has: by an occupant
+ * the run holds, or by one floating over it that the run only makes way for.
+ */
+function taken({ occupant, occupied }: Pick<RunProps, 'occupant' | 'occupied'>): true | undefined {
+  return occupant !== undefined || occupied === true ? true : undefined
+}
+
 /** The room and what is in it, as the two children that share one cell. */
 function Room({ reserve, occupant }: Pick<RunProps, 'reserve' | 'occupant'>) {
   return (
     <>
       {reserve === undefined ? null : <span className={clsx(css.room, css.reserve)} aria-hidden="true">{reserve}</span>}
-      {/* The occupant names itself, so the stylesheet can ask whether one is
-          there. That is the only state a run has, and it is read where it is
-          written rather than mirrored into a prop, a class, or a hook. */}
-      {occupant === undefined ? null : <span className={clsx(css.room, css.occupant)}>{occupant}</span>}
+      {occupant === undefined ? null : <span className={css.room}>{occupant}</span>}
     </>
   )
 }
@@ -84,7 +96,7 @@ function Room({ reserve, occupant }: Pick<RunProps, 'reserve' | 'occupant'>) {
  * @returns the run.
  */
 export function FittedRun(
-  { reserve, occupant, justify = 'center', align = 'center', className, contentClassName, children }: FittedRunProps,
+  { reserve, occupant, occupied, justify = 'center', align = 'center', className, contentClassName, children }: FittedRunProps,
 ) {
   return (
     <span className={clsx(css.run, className)} data-justify={justify} data-align={align}>
@@ -92,7 +104,12 @@ export function FittedRun(
           measures the way the content the reader sees measures. */}
       <span className={clsx(css.sizeContent, contentClassName)} aria-hidden="true">{children}</span>
       {reserve === undefined ? null : <span className={css.sizeRoom} aria-hidden="true">{reserve}</span>}
-      <span className={css.layer} data-justify={justify} data-align={align}>
+      <span
+        className={css.layer}
+        data-justify={justify}
+        data-align={align}
+        data-occupied={taken({ occupant, occupied })}
+      >
         <span className={clsx(css.content, contentClassName)}>{children}</span>
         <Room reserve={reserve} occupant={occupant} />
       </span>
@@ -118,19 +135,25 @@ export function FittedRun(
  * @returns the run.
  */
 export const ScrollingRun = forwardRef(function ScrollingRun(
-  { reserve, occupant, justify = 'center', align = 'center', className, contentClassName, children }: ScrollingRunProps,
+  { reserve, occupant, occupied, justify = 'center', align = 'center', className, contentClassName, children }: ScrollingRunProps,
   ref: ForwardedRef<HTMLSpanElement>,
 ) {
+  const held = taken({ occupant, occupied })
+
   return (
-    <span className={clsx(css.scrollerBox, className)} data-justify={justify}>
-      <span ref={ref} className={css.scroller} data-align={align}>
-        {/* The reserve twice: slack ahead of the content, room behind it. Both
-            are inert, so rendering it twice costs nothing but the room it is
-            there to state — and it is what keeps the content's own centre on
-            the box's centre while it fits. */}
-        {reserve === undefined ? null : <span className={css.slack} aria-hidden="true">{reserve}</span>}
+    <span className={clsx(css.scrollBox, className)} data-align={align}>
+      {/* The whole of the ask: the room, held in both states. No ghost of the
+          content, which a scroller does not need and must not have — its
+          content may be arbitrarily long, and asking for that width would hand
+          the column the longest content anyone ever put in it. */}
+      {reserve === undefined ? null : <span className={css.sizeRoom} aria-hidden="true">{reserve}</span>}
+      <span ref={ref} className={css.scroller} data-justify={justify} data-align={align}>
         <span className={clsx(css.content, contentClassName)}>{children}</span>
-        <Room reserve={reserve} occupant={occupant} />
+        {/* The room is in the scroll content only while it is taken: that is
+            what carries the scroll past the content's end and out from under
+            whatever floats there. With nothing floating there, there is
+            nothing to scroll clear of. */}
+        {held === undefined ? null : <Room reserve={reserve} occupant={occupant} />}
       </span>
     </span>
   )

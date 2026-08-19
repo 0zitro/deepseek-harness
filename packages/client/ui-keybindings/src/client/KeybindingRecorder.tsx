@@ -1,5 +1,6 @@
 /** A binding's chord recorder: shows committed strokes as `<kbd>` chips and captures a new chord. */
 import { useEffect, useRef, useState } from 'react'
+import { ScrollingRun } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { KeybindingModifier, KeyStroke } from '../keybinding.ts'
 import {
   KEYBINDING_MODIFIER_LABELS, keybindingKeyLabel, modifiersOf, strokeFromEvent,
@@ -55,6 +56,20 @@ function Cross() {
     <svg viewBox="0 0 12 12" width="12" height="12">
       <path d="M3 3l6 6M9 3l-6 6" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" />
     </svg>
+  )
+}
+
+/**
+ * The room the floating control takes out of the strip: the control's own box,
+ * plus the inset it sits at. A copy rather than a width, so the two cannot
+ * disagree — and a span rather than a button, since this one goes inside the
+ * recorder and a control may not nest in a control.
+ */
+export function ControlRoom() {
+  return (
+    <span className={css.controlRoom}>
+      <span className={css.ghost}><CheckMark /></span>
+    </span>
   )
 }
 
@@ -168,6 +183,14 @@ export function KeybindingRecorder(
     if (armed) recorder.current?.focus()
   }, [armed])
 
+  /** Put the strip's own end under the reader's eye, whichever way it runs. */
+  const followTail = (strip: HTMLSpanElement) => {
+    // Scroll offsets are physical: under RTL the scrollable range runs the
+    // other way, so the end of the content is the negative extreme.
+    const towardEnd = getComputedStyle(strip).direction === 'rtl' ? -1 : 1
+    strip.scrollLeft = strip.scrollWidth * towardEnd
+  }
+
   // A chord wider than its column records off the end of the strip unless the
   // strip follows its own tail: chips append at the inline end, and the stroke
   // that was just pressed is the one that has to be visible. Only while
@@ -176,12 +199,53 @@ export function KeybindingRecorder(
     const strip = strokeStrip.current
     /* v8 ignore next -- the strip is mounted for as long as the recorder is */
     if (strip === null || !recording) return
-
-    // Scroll offsets are physical: under RTL the scrollable range runs the
-    // other way, so the end of the content is the negative extreme.
-    const towardEnd = getComputedStyle(strip).direction === 'rtl' ? -1 : 1
-    strip.scrollLeft = strip.scrollWidth * towardEnd
+    followTail(strip)
   }, [recording, draft, held])
+
+  // Where the reader had the strip while the control's room was in it. That
+  // room leaves the scroll content with the control, so the range shrinks under
+  // the offset and the engine clamps it — discarding the position before
+  // anything here could read it. Writing it down while it still exists is the
+  // only way to give it back.
+  const parked = useRef<number | null>(null)
+
+  useEffect(() => {
+    const strip = strokeStrip.current
+    /* v8 ignore next -- the strip is mounted for as long as the recorder is */
+    if (strip === null) return
+
+    // The scroll the engine causes by clamping arrives once the room has
+    // already gone, and reports where the strip was forced to rather than where
+    // the reader put it. The room's presence is what tells the two apart.
+    const remember = () => {
+      if (strip.childElementCount > 1) parked.current = strip.scrollLeft
+    }
+    strip.addEventListener('scroll', remember)
+    return () => { strip.removeEventListener('scroll', remember) }
+  }, [])
+
+  // The room returns with the control and the range grows again, under an
+  // offset the clamp has already moved. Giving that offset back leaves the
+  // strip exactly where its reader left it, overlap and all: inside a leeway
+  // this small the whole point is that nothing moves, and a jump of a full
+  // room reads worse than a control standing over the last stroke.
+  useEffect(() => {
+    const strip = strokeStrip.current
+    /* v8 ignore next -- the strip is mounted for as long as the recorder is */
+    if (strip === null || !control) return
+
+    const room = strip.lastElementChild
+    /* v8 ignore next -- the run puts the room in the strip exactly while it is
+       taken, which is what `control` says */
+    if (room === null) return
+
+    // Only a strip still sitting where the clamp put it has a place to be given
+    // back; one moved since is where its reader chose to be.
+    const clamped = strip.scrollWidth - strip.clientWidth - room.getBoundingClientRect().width
+    if (parked.current !== null && Math.abs(Math.abs(strip.scrollLeft) - clamped) < 1) {
+      strip.scrollLeft = parked.current
+    }
+  }, [control])
 
   const described = recording ? describe(draft, held) : describe(strokes, [])
 
@@ -202,8 +266,13 @@ export function KeybindingRecorder(
       >
         {/* A button is not a layout container: the reservation lives one level
             down, where a grid actually takes effect. */}
-        <span className={css.recorderLayout} data-control={control || undefined}>
-          <span className={css.strokes} ref={strokeStrip}>
+        <ScrollingRun
+          className={css.recorderLayout}
+          ref={strokeStrip}
+          reserve={<ControlRoom />}
+          occupied={control}
+        >
+          <span className={css.strokeStrip}>
             {recording
               ? (
                 <>
@@ -227,7 +296,7 @@ export function KeybindingRecorder(
                   : strokes.map((stroke, index) => <StrokeChips key={index} stroke={stroke} />)
               )}
           </span>
-        </span>
+        </ScrollingRun>
       </button>
       {control && (
         <button
