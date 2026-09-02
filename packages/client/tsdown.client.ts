@@ -349,7 +349,12 @@ const clientExternalCache = new Map<string, ReadonlySet<string>>()
 function workspaceManifest(id: string): WorkspaceManifest {
   const cached = manifestCache.get(id)
   if (cached !== undefined) return cached
-  for (const manifestPath of globSync('packages/*/*/package.json', { cwd: REPOSITORY_ROOT })) {
+  // out-of-tree/*/ packages share this preset through their own tsdown configs.
+  const manifestPaths = [
+    ...globSync('packages/*/*/package.json', { cwd: REPOSITORY_ROOT }),
+    ...globSync('out-of-tree/*/package.json', { cwd: REPOSITORY_ROOT }),
+  ]
+  for (const manifestPath of manifestPaths) {
     const manifest = JSON.parse(
       readFileSync(resolvePath(REPOSITORY_ROOT, manifestPath), 'utf8'),
     ) as WorkspaceManifest

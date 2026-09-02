@@ -1,0 +1,36 @@
+{
+  "name": "@zitro/dsh-oot-web-profile",
+  "description": "Installable patch bundle mounting the out-of-tree UI modules on a dsh profile",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "main": "lib/index.js",
+  "types": "lib/types/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./lib/types/index.d.ts",
+      "default": "./lib/index.js"
+    },
+    "./cordis.patch.yml": "./cordis.patch.yml",
+    "./src/*": "./src/*",
+    "./package.json": "./package.json"
+  },
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    }
+  },
+  "license": "MIT",
+  "dependencies": {
+    "@zitro/dsh-oot-ui-actions": "workspace:^",
+    "@zitro/dsh-oot-ui-overlay": "workspace:^",
+    "@zitro/dsh-oot-ui-stock-actions": "workspace:^",
+    "@zitro/dsh-oot-ui-widgets": "workspace:^"
+  },
+  "peerDependencies": {
+    "@deepseek-ai/cordis": "workspace:^"
+  },
+  "devDependencies": {
+    "@deepseek-ai/cordis": "workspace:^"
+  }
+}

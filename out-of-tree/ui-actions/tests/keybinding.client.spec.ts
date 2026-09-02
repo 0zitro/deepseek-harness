@@ -1,0 +1,163 @@
+import { describe, expect, it } from 'vitest'
+import {
+  KEYBINDING_MODIFIER_LABELS, KEYBINDING_MODIFIERS,
+  KeybindingOverrideSchema, KeyStrokeSchema, isRecordableKey, keybindingKeyLabel, keybindingKey,
+  keybindingLabels, keybindingOfEntry, modifiersOf, normalizeEventKey,
+  sameStrokes, strokeFromEvent, strokeLabels, strokeMatches,
+} from '../src/keybinding.ts'
+import type { KeyGesture, KeyStroke } from '../src/keybinding.ts'
+import { COMPOSER_SEND_ACTION } from '../src/ui-action.ts'
+
+function gesture(
+  key: string,
+  modifiers: Partial<Record<'ctrlKey' | 'metaKey' | 'altKey' | 'shiftKey', boolean>> = {},
+): KeyGesture {
+  return { key, ctrlKey: false, metaKey: false, altKey: false, shiftKey: false, ...modifiers }
+}
+
+describe('modifiersOf', () => {
+  it('returns held modifiers in canonical order', () => {
+    expect(modifiersOf(gesture('a', { shiftKey: true, ctrlKey: true }))).toEqual(['ctrl', 'shift'])
+    expect(modifiersOf(gesture('a', { metaKey: true, altKey: true }))).toEqual(['meta', 'alt'])
+    expect(modifiersOf(gesture('a'))).toEqual([])
+  })
+
+  it('reads a modifier via getModifierState when the boolean flag is false', () => {
+    expect(modifiersOf({
+      key: 'k', ctrlKey: false, metaKey: false, altKey: false, shiftKey: false,
+      getModifierState: modifier => modifier === 'Alt',
+    })).toEqual(['alt'])
+  })
+})
+
+describe('normalizeEventKey', () => {
+  it('lowercases single printable characters', () => {
+    expect(normalizeEventKey('A')).toBe('a')
+    expect(normalizeEventKey('a')).toBe('a')
+  })
+
+  it('keeps named keys and space verbatim', () => {
+    expect(normalizeEventKey('Enter')).toBe('Enter')
+    expect(normalizeEventKey(' ')).toBe(' ')
+    expect(normalizeEventKey('ArrowUp')).toBe('ArrowUp')
+  })
+})
+
+describe('isRecordableKey', () => {
+  it('rejects lone modifiers and lock keys', () => {
+    for (const key of ['Control', 'Shift', 'Alt', 'Meta', 'CapsLock', 'Fn', 'Dead', 'Unidentified']) {
+      expect(isRecordableKey(key)).toBe(false)
+    }
+  })
+
+  it('accepts real keys', () => {
+    expect(isRecordableKey('a')).toBe(true)
+    expect(isRecordableKey('Enter')).toBe(true)
+    expect(isRecordableKey(' ')).toBe(true)
+  })
+})
+
+describe('strokeFromEvent', () => {
+  it('records a key with its modifiers, normalizing case', () => {
+    expect(strokeFromEvent(gesture('A', { ctrlKey: true }))).toEqual({ key: 'a', modifiers: ['ctrl'] })
+  })
+
+  it('returns null for a lone modifier', () => {
+    expect(strokeFromEvent(gesture('Control', { ctrlKey: true }))).toBeNull()
+  })
+})
+
+describe('strokeMatches', () => {
+  it('matches the exact stroke', () => {
+    expect(strokeMatches(gesture('Enter'), { key: 'Enter', modifiers: [] })).toBe(true)
+    expect(strokeMatches(gesture('k', { ctrlKey: true }), { key: 'k', modifiers: ['ctrl'] })).toBe(true)
+  })
+
+  it('is case-insensitive on the key', () => {
+    expect(strokeMatches(gesture('A'), { key: 'a', modifiers: [] })).toBe(true)
+  })
+
+  it('rejects a different key', () => {
+    expect(strokeMatches(gesture('x'), { key: 'Enter', modifiers: [] })).toBe(false)
+  })
+
+  it('rejects an extra held modifier', () => {
+    expect(strokeMatches(gesture('Enter', { altKey: true }), { key: 'Enter', modifiers: [] })).toBe(false)
+  })
+
+  it('rejects a missing modifier', () => {
+    expect(strokeMatches(gesture('Enter'), { key: 'Enter', modifiers: ['ctrl'] })).toBe(false)
+  })
+})
+
+describe('labels', () => {
+  it('formats space, letters, and named keys', () => {
+    expect(keybindingKeyLabel(' ')).toBe('Space')
+    expect(keybindingKeyLabel('a')).toBe('A')
+    expect(keybindingKeyLabel('Enter')).toBe('Enter')
+  })
+
+  it('orders modifiers before the key per stroke', () => {
+    expect(strokeLabels({ key: 'Enter', modifiers: ['ctrl', 'shift'] })).toEqual(['Ctrl', 'Shift', 'Enter'])
+  })
+
+  it('returns one chip row per stroke', () => {
+    expect(keybindingLabels({ strokes: [{ key: 'k', modifiers: ['ctrl'] }, { key: 's', modifiers: ['ctrl'] }] }))
+      .toEqual([['Ctrl', 'K'], ['Ctrl', 'S']])
+  })
+})
+
+describe('constants and schema', () => {
+  it('has four canonical modifiers with labels', () => {
+    expect(KEYBINDING_MODIFIERS).toEqual(['ctrl', 'meta', 'alt', 'shift'])
+    expect(KEYBINDING_MODIFIER_LABELS).toEqual({ ctrl: 'Ctrl', meta: 'Meta', alt: 'Alt', shift: 'Shift' })
+  })
+
+  it('parses a stroke and an override', () => {
+    expect(KeyStrokeSchema({ key: 'a', modifiers: ['ctrl'] })).toEqual({ key: 'a', modifiers: ['ctrl'] })
+    expect(KeybindingOverrideSchema({
+      strokes: [{ key: 'a', modifiers: ['ctrl'] }],
+      action: COMPOSER_SEND_ACTION,
+      key: keybindingKey('send'),
+      base: { strokes: [{ key: 'Enter', modifiers: [] }] },
+      when: 'agentBusy',
+    })).toEqual({
+      strokes: [{ key: 'a', modifiers: ['ctrl'] }],
+      action: COMPOSER_SEND_ACTION,
+      key: keybindingKey('send'),
+      base: { strokes: [{ key: 'Enter', modifiers: [] }] },
+      when: 'agentBusy',
+    })
+  })
+})
+
+describe('keybindingOfEntry', () => {
+  it('projects an entry to its gesture, dropping the action', () => {
+    expect(keybindingOfEntry({
+      strokes: [{ key: 'a', modifiers: ['ctrl'] }],
+      action: COMPOSER_SEND_ACTION, source: 'user',
+      when: 'agentBusy',
+    })).toEqual({ strokes: [{ key: 'a', modifiers: ['ctrl'] }], when: 'agentBusy' })
+    expect(keybindingOfEntry({ strokes: [{ key: 'Enter', modifiers: [] }], action: COMPOSER_SEND_ACTION, source: 'user' }))
+      .toEqual({ strokes: [{ key: 'Enter', modifiers: [] }] })
+  })
+})
+
+describe('sameStrokes', () => {
+  const CTRL_K: KeyStroke[] = [{ key: 'k', modifiers: ['ctrl'] }]
+
+  it('holds for the same gesture whatever the modifier order', () => {
+    expect(sameStrokes(CTRL_K, [{ key: 'k', modifiers: ['ctrl'] }])).toBe(true)
+    expect(sameStrokes(
+      [{ key: 'z', modifiers: ['ctrl', 'shift'] }],
+      [{ key: 'z', modifiers: ['shift', 'ctrl'] }],
+    )).toBe(true)
+  })
+
+  it('fails on a different length, key, or modifier set', () => {
+    expect(sameStrokes(CTRL_K, [])).toBe(false)
+    expect(sameStrokes(CTRL_K, [{ key: 'j', modifiers: ['ctrl'] }])).toBe(false)
+    expect(sameStrokes(CTRL_K, [{ key: 'k', modifiers: [] }])).toBe(false)
+    expect(sameStrokes(CTRL_K, [{ key: 'k', modifiers: ['alt'] }])).toBe(false)
+  })
+})

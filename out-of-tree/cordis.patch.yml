@@ -1,0 +1,25 @@
+# Out-of-tree development overlay: mounts the fork's UI modules over the
+# shipped `web` profile without touching it. Relative names anchor to this
+# file's directory (the loader rewrites them to file: URLs) and resolve to
+# each package's built host entry; the browser halves are served from the
+# same packages' built `lib/client.js`. Build first:
+#
+#     pnpm --filter '@zitro/dsh-oot-*' run bundle
+#     pnpm dsh web --patch ./out-of-tree/cordis.patch.yml
+#
+# Rows must precede their consumers' `dsh.client.inject` requests only in the
+# module graph sense, which `orderByModuleGraph` derives from the packages'
+# own declarations; the insert order here is documentary.
+
+- insert:
+    - id: oot-ui-widgets
+      name: './ui-widgets/lib/index.js'
+
+    - id: oot-ui-actions
+      name: './ui-actions/lib/index.js'
+
+    - id: oot-ui-overlay
+      name: './ui-overlay/lib/index.js'
+
+    - id: oot-ui-stock-actions
+      name: './ui-stock-actions/lib/index.js'

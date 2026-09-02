@@ -1,0 +1,593 @@
+/*
+ * Keybindings settings page.
+ *
+ * Colors use the semantic alias tokens (`--dsw-alias-*`) so light and dark
+ * themes both resolve.
+ */
+
+/* One grid over every row: the command cell spans the rows it owns, which no
+   per-row element could do.
+
+   Each track reconciles two widths: the fr share is what the column would
+   like, and min-content is what it cannot go under — a heading never wraps,
+   so the heading plus the room its sort mark needs is the floor. Cell content
+   stays free to wrap because the inputs carry min-width: 0 and the wrapping
+   text breaks anywhere, so only the heading and the widest chip raise it.
+   A panel too narrow for the floors scrolls rather than bleeding. Dragging a
+   sash replaces these tracks with exact widths, which is what lets the two
+   columns either side of it conserve between themselves. */
+/* The table's own lengths, which the primitive reads and this page decides:
+   the lane a boundary is caught in, the gutter that lane carries beyond it for
+   the control that drops a binding, the gap between rows, and the room a seam
+   needs below the last one. The first lane is the only one with a gutter,
+   because the row's own controls sit where the row begins. */
+.table {
+  --dsh-table-lane: 14px;
+  --dsh-table-gutter-0: 14px;
+  --dsh-table-row-gap: 2px;
+  --dsh-table-seam-inset: var(--dsh-cell-pad);
+  --dsh-table-overhang: 8px;
+  --dsh-cell-pad: 3px;
+  /* Where a recorder's control floats, and therefore how much room every strip
+     in the keybinding column holds open for one. It lives here rather than on
+     the recorder because the struck strip of a superseded binding reserves the
+     same room without ever drawing a control, and the two strips are meant to
+     hold their chips in the same place. */
+  --dsh-control-inset: 5px;
+}
+
+/* The heading cell: a column dragged under its heading clips it rather than
+   refusing to narrow, which is what keeps a drag's two columns conserving
+   between themselves. Until a column is dragged it is at least as wide as its
+   heading, so nothing clips on its own. */
+.headerCell {
+  display: flex;
+  min-width: 0;
+  overflow: hidden;
+}
+
+/* Where a boundary stands, how wide its grip is and how far it keeps from the
+   control beside it are the table's; what is left here is the line it draws,
+   which needs the sash to be something an absolute box can be placed against. */
+.sash {
+  position: relative;
+}
+
+/* The line it draws is thinner than the grip that catches the pointer, and
+   appears only when the pointer is on it or dragging it — a rule between
+   every pair of columns would be a border this table does not have. */
+.sash::after {
+  content: '';
+  position: absolute;
+  inset-block: 4px;
+  inset-inline-start: 50%;
+  width: 2px;
+  margin-inline-start: -1px;
+  border-radius: 1px;
+  background: transparent;
+}
+
+.sash:hover::after,
+.sash[data-dragging]::after {
+  background: var(--dsw-alias-border-l1);
+}
+
+.sash[data-dragging]::after {
+  background: var(--dsw-alias-brand-primary);
+}
+
+/* The heading cell: a button that only paints, since its layout lives one
+   level down. */
+.header {
+  flex: 1;
+  min-width: 0;
+  /* No inline padding: the flanks either side of the heading are free space
+     and give the same room back wherever there is any, but unlike padding
+     they yield it when the column has none to spare. Fixed chrome would be
+     spent before the label, which is the one thing here worth the width. */
+  padding: 4px 0;
+  margin-block-end: 4px;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  color: var(--dsw-alias-label-secondary);
+  font-family: inherit;
+  font-size: 12px;
+  line-height: 16px;
+  font-weight: 500;
+}
+
+.header:hover {
+  color: var(--dsw-alias-label-primary);
+}
+
+/* The heading is a fitted run: the label is its content and the sort mark is
+   its reserve, so the mark's room is held whether or not a mark is drawn and a
+   column does not change width as it joins or leaves the sort order. The run
+   spends its flanks before anything else, which is the order this heading
+   wants — the label must read before it is centred, and it must stay clear of
+   the mark before it is centred too.
+
+   Everything below is the button's own business rather than the run's: the run
+   sizes the tracks and paints nothing, so the width it fills, how the label
+   handles a width it cannot fit, and what the mark looks like are stated here.
+   The run sits on a child of the button rather than on the button itself: an
+   engine may wrap a button's contents in an anonymous block, which leaves a
+   grid declared on the button inert and its children flowing against each
+   other, separated only by whatever padding they carry. */
+.headerLayout {
+  width: 100%;
+}
+
+/* A heading is fitted, never broken: the run's content track floors at this
+   label's min-content, and a label that never wraps has its whole self there,
+   so a column is at least as wide as its own label and the ellipsis is only
+   ever reached by a drag. */
+.heading {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* The mark, and before it the gap the heading keeps clear of it. The gap is
+   the mark's own leading padding rather than a track gap, so it is reserved
+   along with the mark and survives where the flanks have already collapsed: a
+   narrow column moves its heading off centre rather than letting it meet the
+   mark. This box is also what holds the header row's height open, since the
+   run reserves on both axes from the same element. */
+.sortSlot {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  padding-inline-start: 6px;
+}
+
+/* A ghost plate behind a small drawn control: enough contrast that it reads as
+   something to press rather than as part of the text beside it, and a full
+   backplate under the pointer, the way a ghost button answers. */
+.ghost {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 3px;
+  box-sizing: border-box;
+  border-radius: 6px;
+  font: inherit;
+  background: color-mix(in srgb, var(--dsw-alias-interactive-bg-hover) 55%, transparent);
+  color: var(--dsw-alias-brand-primary);
+  border: 1px solid transparent;
+  cursor: pointer;
+}
+
+.ghost:hover {
+  border-color: var(--dsw-alias-label-secondary);
+}
+
+.header:hover .ghost,
+.insert:hover .ghost,
+.recorderRow:hover .ghost {
+  background: var(--dsw-alias-interactive-bg-hover);
+}
+
+.sortArrow {
+  flex: none;
+}
+
+/* Which column the order consults first, shown only when more than one does.
+   Tabular figures so every rank has the same advance: the room the heading
+   reserves is measured from one rank, and must hold any of them. */
+.sortRank {
+  font-size: 10px;
+  line-height: 12px;
+  font-variant-numeric: tabular-nums;
+}
+
+/* One binding's cells, standing on the table's own columns from the second on.
+   The table places the group and keeps its cells on those columns; what is
+   left here is how they sit against each other. */
+.subRow {
+  align-items: center;
+  min-width: 0;
+}
+
+/* Where a binding can be added: the seam under one command's last box, which
+   the table places, reaches and draws. What is left here is what it draws —
+   a rule either side of a mark — and where that sits while the pointer moves
+   across it. */
+.insert {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+}
+
+/* Drawn only under the pointer or the focus ring, and transparent rather than
+   hidden: hiding it would take it off the keyboard as well. Until then it
+   takes no pointer events either, so what it overhangs stays reachable.
+
+   The line follows the pointer across the band, which is what makes it read as
+   a place a binding would land. The band publishes where the pointer is from
+   its own start, so where the line rests before anything has asked is the
+   middle of the band — derived from the two lengths its height is derived
+   from, rather than stated again. */
+.insert > * {
+  --dsh-seam-middle: calc((2 * var(--dsh-table-seam-inset) + var(--dsh-table-row-gap)) / 2);
+  opacity: 0;
+  pointer-events: none;
+  transform: translateY(calc(var(--dsh-table-seam-y, var(--dsh-seam-middle)) - var(--dsh-seam-middle)));
+}
+
+/* Drawn while the pointer is anywhere the band reaches, which is wider than
+   the band once it is drawn and is the band alone until then. Nothing it draws
+   takes a pointer event of its own: the band is the control, so what it draws
+   only has to be seen. */
+.insert[data-drawn] > *,
+.insert:focus-visible > * {
+  opacity: 1;
+}
+
+/* Where a binding is dropped: the gutter of the lane the row begins at, which
+   the table places beside the sash's grip and never over it. */
+.remove {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+}
+
+.remove > * {
+  --dsh-gutter-middle: calc(var(--dsh-table-gutter-0, var(--dsh-table-gutter)) / 2);
+  opacity: 0;
+  pointer-events: none;
+  transform: translateX(calc(var(--dsh-table-gutter-x, var(--dsh-gutter-middle)) - var(--dsh-gutter-middle)));
+}
+
+.remove[data-drawn] > *,
+.remove:focus-visible > * {
+  opacity: 1;
+}
+
+/* The line runs the height of the binding it would drop, so what goes is not
+   in doubt. */
+.removeRule {
+  flex: 1;
+  border-inline-start: 1px dashed var(--dsw-alias-border-l3);
+}
+
+/* The mark of the one control that takes something away, in the colour this
+   table gives a value it will not store. It narrows to the gutter it sits in. */
+.removeMark {
+  flex: none;
+  width: var(--dsh-table-gutter-0, var(--dsh-table-gutter));
+  min-width: 0;
+  padding: 0;
+  border: none;
+  color: var(--dsw-alias-state-error-primary);
+}
+
+.insertRule {
+  flex: 1;
+  border-block-start: 1px dashed var(--dsw-alias-border-l3);
+}
+
+/* The accent the send control and the caret take: the one blue in the app. */
+.insertPlus {
+  flex: none;
+  border: none;
+  color: var(--dsw-alias-state-business-primary);
+}
+
+/* The command reads once over the bindings it owns, centered on its run. */
+.command {
+  align-self: center;
+  padding: 6px 0;
+  overflow-wrap: anywhere;
+  color: var(--dsw-alias-label-primary);
+  font-size: 14px;
+  line-height: 20px;
+}
+
+.description {
+  color: var(--dsw-alias-label-secondary);
+  font-size: 12px;
+  line-height: 16px;
+}
+
+.cell {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+  padding: var(--dsh-cell-pad) 0;
+}
+
+/* A field the user overrode is theirs; one still following its default recedes
+   toward the background without becoming unreadable. */
+.overridden {
+  font-style: italic;
+}
+
+.inherited {
+  opacity: 0.62;
+}
+
+.cellInput {
+  width: 100%;
+  min-width: 0;
+  padding: 3px 8px;
+  border-radius: 6px;
+  border: 1px solid var(--dsw-alias-border-l1);
+  background: var(--dsw-alias-bg-base);
+  color: var(--dsw-alias-label-primary);
+  font: inherit;
+  font-size: 13px;
+  line-height: 18px;
+}
+
+.cellInput:focus {
+  border-color: var(--dsw-alias-brand-primary);
+}
+
+/* A field whose arrows are ours rather than the engine's. The box moves out
+   here from the input, so the arrows stand inside the border beside the value
+   and the whole field answers to focus.
+
+   Both engines draw a native spinner that occupies its width whether or not it
+   paints — Chrome hides it until hover, Firefox shows it always — and the
+   value is centred in what it leaves. That is why an unmarked reservation
+   reads as a value sitting off centre: the eye takes the border box as the
+   field and has nothing telling it where the value's space ends. The rule
+   before the arrows is what says so, which is why they are drawn at rest and
+   only their weight answers to the pointer.
+
+   Declared above `.invalid` on purpose: that rule sets `border-color`, and a
+   `border` shorthand here would otherwise overwrite it and lose the red. */
+.numberField {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  min-width: 0;
+  padding: 3px 6px;
+  border: 1px solid var(--dsw-alias-border-l1);
+  border-radius: 6px;
+  background: var(--dsw-alias-bg-base);
+}
+
+.numberField:focus-within {
+  border-color: var(--dsw-alias-brand-primary);
+}
+
+/* The run inside owns the tracks: the arrows' shape is reserved at both ends,
+   so the value sits on the field's centre without this page stating a width
+   for either side. What is left here is the width the run fills. */
+.numberLayout {
+  width: 100%;
+}
+
+/* The input keeps its type face and gives up its box, which the field holds.
+   It gives up the engine's spinner too: ours are the only arrows that draw,
+   and a native one beside them would reserve a second width. */
+.numberField .cellInput {
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: none;
+  appearance: textfield;
+}
+
+.numberField .cellInput::-webkit-inner-spin-button,
+.numberField .cellInput::-webkit-outer-spin-button {
+  appearance: none;
+  margin: 0;
+}
+
+.steppers {
+  display: flex;
+  flex-direction: column;
+  margin-inline-start: 4px;
+  padding-inline-start: 5px;
+  border-inline-start: 1px solid var(--dsw-alias-border-l1);
+  color: var(--dsw-alias-label-secondary);
+}
+
+.numberField:hover .steppers,
+.numberField:focus-within .steppers {
+  color: var(--dsw-alias-label-primary);
+}
+
+/* Wider than the arrow it draws: a stacked pair splits one line of text
+   between them, so the width is where a press has room to land. */
+.stepper {
+  display: flex;
+  padding: 1px 1px;
+  border: none;
+  background: none;
+  color: inherit;
+  cursor: pointer;
+}
+
+.stepper:hover {
+  color: var(--dsw-alias-brand-primary);
+}
+
+.invalid {
+  border-color: var(--dsw-alias-state-error-primary);
+}
+
+.prioInput {
+  text-align: center;
+}
+
+/* A clause is code: it reads by its punctuation, so it takes the code face. */
+.clauseInput {
+  font-family: var(--ds-font-family-code);
+}
+
+.source {
+  justify-content: center;
+  text-align: center;
+  overflow-wrap: anywhere;
+  color: var(--dsw-alias-label-secondary);
+  font-size: 13px;
+  line-height: 18px;
+}
+
+/* A binding an override took the seat from. It keeps the seat's shapes, so the
+   two rows read against each other, and says it is inert by receding and by
+   one line across the row: what is superseded is the binding, not the values
+   written in it. */
+.shipped {
+  position: relative;
+  opacity: 0.55;
+  color: var(--dsw-alias-label-secondary);
+}
+
+/* Each cell draws its own span of that line, reaching back across the lane
+   before it so the spans meet where the columns are held apart. It reaches
+   backward only: a cell that also reached forward would carry the line past
+   the last column and out of the table, which is a scrollbar rather than a
+   line. */
+.shipped::after {
+  content: '';
+  position: absolute;
+  inset-inline-start: calc(-1 * var(--dsh-table-lane));
+  inset-inline-end: 0;
+  top: 50%;
+  height: 1px;
+  background: currentColor;
+  pointer-events: none;
+}
+
+/* The boxes the row would offer if it were editable, drawn rather than
+   offered: the recorder's and the input's metrics, without the pointer. */
+.shippedBox {
+  min-width: 0;
+  padding: 3px 8px;
+  border-radius: 6px;
+  border: 1px solid var(--dsw-alias-border-l1);
+  background: var(--dsw-alias-bg-base);
+}
+
+/* The place column keeps its shape while the row states no place. */
+.shippedPlace {
+  display: block;
+  width: 100%;
+  min-height: 18px;
+}
+
+/* A clause the page shows but does not offer to edit, in the input's face and
+   metrics so a column of clauses reads as one column — including the one line
+   it keeps: a clause that wrapped would deepen its row past the seat's other
+   binding, and the two are meant to read against each other. */
+.clauseText {
+  display: block;
+  width: 100%;
+  overflow: hidden;
+  white-space: nowrap;
+  font-family: var(--ds-font-family-code);
+  font-size: 13px;
+  line-height: 18px;
+}
+
+/* The recorder only paints; the layout that holds room for its control lives
+   one level down, where a grid takes effect. */
+.recorder {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  min-width: 0;
+  padding: 3px 8px;
+  border-radius: 6px;
+  border: 1px solid var(--dsw-alias-border-l1);
+  background: var(--dsw-alias-bg-base);
+  color: var(--dsw-alias-label-primary);
+  cursor: pointer;
+  font: inherit;
+}
+
+.recorder:hover,
+.recorder[data-recording] {
+  border-color: var(--dsw-alias-brand-primary);
+}
+
+/* The control sits inside the recorder's box while staying its sibling: a
+   control nested in a control is not valid content. */
+.recorderRow {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  width: 100%;
+  min-width: 0;
+}
+
+.recorderControl {
+  position: absolute;
+  inset-inline-end: var(--dsh-control-inset);
+  padding: 0;
+}
+
+/* The strip of chips is a scrolling run: centred while it fits, scrolled when
+   it does not, since wrapping would deepen the row and clipping would hide the
+   strokes for good. The run reserves the control's room at the strip's end and
+   holds it whether or not a control is drawn, so nothing shifts as one comes
+   and goes, and that same room is the overscroll that clears the control at
+   the end of a scroll. The run brings all of that; what is left here is the
+   width it fills. */
+.recorderLayout {
+  width: 100%;
+}
+
+/* The chips, spaced by their own margins rather than by a gap, since the run
+   measures this strip to decide when it must scroll. */
+.strokeStrip {
+  display: flex;
+  align-items: center;
+}
+
+/* The room the control takes, as a box the same size as the control plus the
+   inset it sits at. The recorder passes a copy of the control's own plate, so
+   the width comes from the plate rather than from a number; only the inset is
+   stated, once, and the floating control reads the same one. */
+.controlRoom {
+  display: flex;
+  align-items: center;
+  padding-inline-end: var(--dsh-control-inset);
+}
+
+.strokeGroup {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.strokeGroup + .strokeGroup {
+  border-left: 1px solid var(--dsw-alias-border-l1);
+  padding-left: 8px;
+  margin-left: 8px;
+}
+
+.chip {
+  font-family: inherit;
+  font-size: 12px;
+  line-height: 16px;
+  padding: 1px 6px;
+  border-radius: 4px;
+  border: 1px solid var(--dsw-alias-border-l1);
+  background: var(--dsw-alias-bg-base);
+  color: var(--dsw-alias-label-primary);
+  white-space: nowrap;
+}
+
+.chipPlaceholder {
+  color: var(--dsw-alias-label-secondary);
+  border-style: dashed;
+}
+
+.chipPressed {
+  border-color: var(--dsw-alias-brand-primary);
+  background: color-mix(in srgb, var(--dsw-alias-brand-primary) 15%, var(--dsw-alias-bg-base));
+  color: var(--dsw-alias-brand-primary);
+}
