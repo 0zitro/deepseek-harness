@@ -402,6 +402,32 @@ describe('SettingsScopeBinder.bind', () => {
     expect(describeCall).toHaveBeenCalledTimes(3)
   })
 
+  it('reports a namespace the Host does not serve, once', async () => {
+    const describeCall = vi.fn()
+      .mockResolvedValue(ok({ writable: true, hasDocument: true, namespaces: [] }))
+    const ctx = new Context()
+    ctx.provide('connection', {
+      api: { settings: { describe: describeCall } },
+      isLoopback: true,
+    } as never)
+    const error = vi.spyOn(ctx.logger, 'error').mockImplementation(() => {})
+    new TestRemote(ctx)
+    await ctx.plugin(SettingsScopeBinder).await()
+    const fiber = ctx.plugin({
+      inject: ['connection', 'remote', 'settingsScope'],
+      apply: (plugin: Context) => { plugin.settingsScope.bind<UiTestSettings>({ namespace: 'ui-test' }) },
+    })
+    await fiber.await()
+
+    await vi.waitFor(() => { expect(error).toHaveBeenCalledOnce() })
+    expect(error.mock.calls[0]?.[0]).toContain('"ui-test"')
+
+    ctx.remote.$dispatch('settings/document-updated', ['ui-test', 0])
+    await vi.waitFor(() => { expect(describeCall).toHaveBeenCalledTimes(2) })
+    expect(error).toHaveBeenCalledOnce()
+    await fiber.dispose()
+  })
+
   it('binds a remote browser in memory mode without starting a settings read', async () => {
     const describeCall = vi.fn()
     const ctx = new Context()
@@ -410,6 +436,7 @@ describe('SettingsScopeBinder.bind', () => {
       isLoopback: false,
     } as never)
     let scope!: SettingsScope<UiTestSettings>
+    const error = vi.spyOn(ctx.logger, 'error').mockImplementation(() => {})
     new TestRemote(ctx)
     await ctx.plugin(SettingsScopeBinder).await()
     const fiber = ctx.plugin({
@@ -422,5 +449,6 @@ describe('SettingsScopeBinder.bind', () => {
     expect(scope.getSnapshot()).toMatchObject({ status: 'unavailable', mode: 'memory', writable: false })
     await fiber.dispose()
     expect(describeCall).not.toHaveBeenCalled()
+    expect(error).not.toHaveBeenCalled()
   })
 })

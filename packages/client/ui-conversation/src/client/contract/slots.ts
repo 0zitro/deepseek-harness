@@ -18,7 +18,6 @@ import type {
   ComposerKeyboard, DraftAttachmentId, EditSelection, InputActions, InputNotice, InputState,
 } from '../input/contract.ts'
 import type { createChatStore } from '../stores.ts'
-import type { ComposerSubmitGesture, InputSubmitMode } from './composer-submission.ts'
 import type { ChatNode, ChatNodeKind } from './chat-nodes.ts'
 import type { CallId, SelectionTarget, ViewTab } from './views.ts'
 
@@ -493,18 +492,14 @@ export interface ComposerBarOwnerProps {
 export interface ComposerBarInjected {
   /** The InputBar-exclusive keyboard/DOM command face (private plane); absent with the session. */
   keyboard: ComposerKeyboard | undefined
+  /** The aggregate submit: resolves queue versus steer via the busy-Enter preference. */
+  send: () => void
   /** Create previews and append image ids to the session input. */
   addImages: ((files: readonly File[]) => string | null) | undefined
   /** Release one preview and remove its id from session input. */
   removeImage: ((id: DraftAttachmentId) => void) | undefined
   /** Resolve ordered input ids to browser-owned draft images. */
   draftImages: ((ids: readonly DraftAttachmentId[]) => readonly ComposerAttachment[]) | undefined
-  /** Resolve one keyboard submission gesture against the current running state and persisted preference. */
-  resolveSubmitMode: (
-    running: boolean,
-    gesture: ComposerSubmitGesture,
-    steeringAvailable: boolean,
-  ) => InputSubmitMode
   /** Toggle the shared slash menu with only its command source; absent without ui-input-trigger or a session. */
   toggleCommandMenu: ((selection: EditSelection) => void) | undefined
   /** Cancel the in-flight turn; absent with the session. */

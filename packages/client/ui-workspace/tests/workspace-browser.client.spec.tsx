@@ -5,7 +5,7 @@ import { bindSnapshotSelector } from '@deepseek-ai/dsh-client-web-react'
 import type {
   SessionId, SessionListState, SessionSummary, WorkspaceId, WorkspaceListState, WorkspaceView,
 } from '@deepseek-ai/dsh-client-runtime/client'
-import { makeTranslate } from '@deepseek-ai/dsh-client-test-runtime'
+import { dismissOverlay, makeTranslate } from '@deepseek-ai/dsh-client-test-runtime'
 import { zh as commonZh } from '@deepseek-ai/dsh-client-locale/src/locales/zh.ts'
 import type { WorkspaceBrowserProps } from '../src/client/contract/slots.ts'
 import { createWorkspaceViewStore, FLAT_SESSION_ORDER_KEY } from '../src/client/stores.ts'
@@ -151,9 +151,10 @@ describe('WorkspaceBrowser', () => {
     expect(b.store.getSnapshot().groupBy).toBe('workspace')
     expect(screen.getByText('工作区')).toBeTruthy()
 
-    // Escape closes the menu without picking.
+    // A dismissal closes the menu without picking. Which gesture dismisses is
+    // a keybinding on overlay.close, not this browser's to assert.
     fireEvent.click(screen.getByRole('button', { name: '视图选项' }))
-    fireEvent.keyDown(document, { key: 'Escape' })
+    dismissOverlay()
     expect(screen.queryByRole('menu')).toBeNull()
     expect(b.store.getSnapshot().groupBy).toBe('workspace')
   })

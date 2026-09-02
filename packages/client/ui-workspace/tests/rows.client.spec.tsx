@@ -2,7 +2,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { act, cleanup, createEvent, fireEvent, render, screen } from '@testing-library/react'
 import type { SessionId, WorkspaceId } from '@deepseek-ai/dsh-client-runtime/client'
-import { makeTranslate } from '@deepseek-ai/dsh-client-test-runtime'
+import { dismissOverlay, makeTranslate } from '@deepseek-ai/dsh-client-test-runtime'
 import { zh as commonZh } from '@deepseek-ai/dsh-client-locale/src/locales/zh.ts'
 import type { RowDragProps } from '../src/client/rows/Rows.tsx'
 import { ProjectRowItem, SearchResultItem, SessionNodeItem } from '../src/client/rows/Rows.tsx'
@@ -273,9 +273,10 @@ describe('workspace browser rows', () => {
     expect(screen.queryByRole('menu')).toBeNull()
     expect(onRename).toHaveBeenCalledOnce()
     expect(onDelete).toHaveBeenCalledOnce()
-    // Escape closes without selecting (Menu onClose path).
+    // A dismissal closes without selecting (Menu onClose path). Which gesture
+    // dismisses is a keybinding on overlay.close, not this row's to assert.
     fireEvent.click(screen.getByRole('button', { name: '工作区“Project”的操作' }))
-    fireEvent.keyDown(document, { key: 'Escape' })
+    dismissOverlay()
     expect(screen.queryByRole('menu')).toBeNull()
   })
 
@@ -367,9 +368,10 @@ describe('workspace browser rows', () => {
     expect(onArchive).toHaveBeenCalledWith(node.id)
     expect(onRename).toHaveBeenCalledOnce()
     expect(onOpen).not.toHaveBeenCalled()
-    // Escape closes without selecting (Menu onClose path).
+    // A dismissal closes without selecting (Menu onClose path). Which gesture
+    // dismisses is a keybinding on overlay.close, not this row's to assert.
     fireEvent.click(screen.getByRole('button', { name: '会话“One”的操作' }))
-    fireEvent.keyDown(document, { key: 'Escape' })
+    dismissOverlay()
     expect(screen.queryByRole('menu')).toBeNull()
   })
 

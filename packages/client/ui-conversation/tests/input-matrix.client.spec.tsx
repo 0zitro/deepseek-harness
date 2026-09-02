@@ -53,7 +53,7 @@ function mountBar(shell: SessionInputShell, over?: { running?: boolean; disabled
     addImages: () => null,
     removeImage: () => {},
     draftImages: () => [],
-    resolveSubmitMode: () => 'queue',
+    send: () => {},
     toggleCommandMenu: vi.fn(),
     useNotices: bindSnapshotSelector(shell.notices),
     useLexicon: bindSnapshotSelector(shell.lexicon),
@@ -94,7 +94,7 @@ describe('matrix row: plain', () => {
     const { textarea, shell, sink } = bench()
     fireEvent.change(textarea, { target: { value: '普通消息' } })
     expect(shell.snapshot.claim).toBeUndefined()
-    fireEvent.keyDown(textarea, { key: 'Enter' })
+    act(() => { shell.submit('queue') })
     expect(sink).toHaveBeenCalledWith('普通消息', [], 'queue')
     expect(shell.snapshot.phase).toBe('plain')
   })
@@ -117,10 +117,10 @@ describe('matrix row: claimed', () => {
 
   it('enter routes to claim.submit (command lane, never the queue sink)', async () => {
     const submit = vi.fn(() => Promise.resolve({ kind: 'success' as const, text: '完成', source: 'command', name: 'goal' }))
-    const { view, textarea, sink, claim } = bench({ submit })
+    const { view, textarea, shell, sink, claim } = bench({ submit })
     claim()
     fireEvent.change(textarea, { target: { value: '/goal 发布' } })
-    fireEvent.keyDown(textarea, { key: 'Enter' })
+    act(() => { shell.submit('queue') })
     expect(sink).not.toHaveBeenCalled()
     await vi.waitFor(() => { expect(submit).toHaveBeenCalledWith('发布', SCTX) })
     // Commit: draft cleared, notice surfaced, back to plain.
@@ -143,13 +143,13 @@ describe('matrix row: submitting', () => {
     const submit = vi.fn(() => new Promise<SubmitOutcome>(() => {})) // never settles
     const { textarea, shell, sink, claim } = bench({ submit })
     claim()
-    fireEvent.keyDown(textarea, { key: 'Enter' })
+    act(() => { shell.submit('queue') })
     expect(shell.snapshot.phase).toBe('submitting')
     expect(shell.snapshot.claim).toBeDefined()
     expect((textarea).readOnly).toBe(true)
     // Enter is dead inside the lock (submit dispatch is microtask-deferred).
     await vi.waitFor(() => { expect(submit).toHaveBeenCalledTimes(1) })
-    fireEvent.keyDown(textarea, { key: 'Enter' })
+    act(() => { shell.submit('queue') })
     await Promise.resolve()
     expect(submit).toHaveBeenCalledTimes(1)
     expect(sink).not.toHaveBeenCalled()
@@ -160,7 +160,7 @@ describe('matrix row: submitting', () => {
     const submit = vi.fn(() => new Promise<SubmitOutcome>((_res, rej) => { rejectSubmit = rej }))
     const first = bench({ submit })
     first.claim()
-    fireEvent.keyDown(first.textarea, { key: 'Enter' })
+    act(() => { first.shell.submit('queue') })
     await vi.waitFor(() => { expect(submit).toHaveBeenCalled() })
     act(() => { rejectSubmit(new Error('执行失败')) })
     await vi.waitFor(() => { expect(first.shell.snapshot.phase).toBe('claimed') })
@@ -171,7 +171,7 @@ describe('matrix row: submitting', () => {
     const submit2 = vi.fn(() => new Promise<SubmitOutcome>((_res, rej) => { rejectSubmit = rej }))
     const second = bench({ submit: submit2 })
     second.claim()
-    fireEvent.keyDown(second.textarea, { key: 'Enter' })
+    act(() => { second.shell.submit('queue') })
     await vi.waitFor(() => { expect(submit2).toHaveBeenCalled() })
     act(() => { second.shell.setDraft('用户飞行中打的新稿') })
     act(() => { rejectSubmit(new Error('晚到失败')) })
@@ -190,10 +190,10 @@ describe('matrix row: locked (session disabled)', () => {
   })
 
   it('running does NOT lock: typing and enter-queue stay live', () => {
-    const { textarea, sink } = bench({ running: true })
+    const { textarea, shell, sink } = bench({ running: true })
     expect((textarea).disabled).toBe(false)
     fireEvent.change(textarea, { target: { value: '排队' } })
-    fireEvent.keyDown(textarea, { key: 'Enter' })
+    act(() => { shell.submit('queue') })
     expect(sink).toHaveBeenCalledWith('排队', [], 'queue')
   })
 })

@@ -31,6 +31,7 @@ async function bench() {
   runtime.provide('layout', { openDetails: vi.fn(), closeDetails: vi.fn() })
   const locale = new LocaleRuntime(runtime.ctx)
   runtime.provide('locale', locale)
+  runtime.provide('uiWhenContext', { set: () => () => {} })
   runtime.slots.installLocale(locale)
 
   // Declared by ui-layout's root entry in production; the test root declares

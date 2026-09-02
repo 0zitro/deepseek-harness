@@ -1,0 +1,77 @@
+# @deepseek-ai/dsh-client-ui-keybindings
+
+English | [中文](README.zh.md)
+
+The keybindings orchestrator. The client half provides the `uiActions` registry where feature packages register actions (id, label, default bindings, and a `run` handler), persists one partial override per adjusted default (`{ action, key, base, strokes?, when?, prio? }`) in the `ui-keybindings` settings namespace, renders the effective bindings as a table, and dispatches keystrokes to the matched action's handler. A registrar states its own branded action id and default keys; the brands reach it by type-only import, which the client bundle allows where a value import across plugins is forbidden.
+
+The persisted model names a seat — the pair `(action, key)` — and a contribution to it. [The seats Agent Note](../../../.agents/notes/implemented/architecture/2026-08-16-keybinding-seats-and-contributions.md) owns that vocabulary and why a stored adjustment addresses a seat rather than the gesture sitting in it.
+
+## Stored overrides
+
+The rendered list projects the stored overrides and nothing else, so an edit appears once it is stored rather than when it is made, and a write the Host refuses cannot leave a binding on screen that no reload will bring back. Each write derives the next list from the stored one; absent a stored list — unread, unserved, or undecodable — there is nothing to derive from, so the write is refused with an error rather than allowed to replace overrides it never saw.
+
+An edit carries the fields the user changed and no others, and merges into the stored override rather than replacing it. Recording a gesture therefore leaves the clause absent from the override, so the binding keeps following its default's clause and a later change to that default still reaches the merged binding. A clause the user does clear is stored as the empty string, which states no predicate and is always active — the one way an override can drop a predicate its default carries.
+
+A stored base is reconciled against the world whenever a registration or a durable change moves either side, and the pass settles after one write. An override whose default is unavailable keeps the base it retained, and its overridden fields are never touched by a reconcile. Only the user's document is written back, so reconciling touches nothing a plugin contributed. Ranking decides which override merges — user over plugin over shipped, never a roll of all three — and a source is the shipped default, the user, or the contributing plugin named by its own id, stamped on ingest rather than declared.
+
+## The settings table
+
+The table is the shared one from [`dsh-client-ui-primitives`](../ui-primitives/README.md#tables), which owns the columns, the lanes between them, the boundaries that move a lane, the groups a row's cells stand in, and the controls that live in the space between cells. What this page states is what only it knows: how wide each column would like to be, what a column may not be dragged below, and what pressing any of those controls means.
+
+A column's floor is its own heading — the label, plus the room it keeps for a sort mark. The rows have no say in it: their fields clip and their gestures scroll, so a long clause would otherwise hold a column open for content that has somewhere else to go.
+
+The page is one grid over every row — a command cell spans the rows it owns, which no per-row element could do — with five columns: command, keybinding, when clause, priority, and source. One command's rows are adjacent because rows sort by the action's dot-delimited segments, and the command reads once, centered over its run. A field the user overrode renders italic; one still following its default recedes, which is the same distinction the stored override draws. A clause takes the code face, since it reads by its punctuation, and the source column centres its short values.
+
+An override does not replace what a seat ships; the page shows both, the shipped binding reading directly above the one that dispatches, struck through and offering no controls. Only the binding that dispatches holds a place, so a superseded row states no priority and consumes no slot in its collision scope; where priority orders the table it reads after every row that holds one. A seat that ships no gesture shows one row alone.
+
+## Sorting
+
+Clicking a column heading sorts by it, and columns accumulate in click order, so the first one clicked stays the most significant and a rank appears beside each mark once more than one column orders the table. A second click reverses a column, a double click drops it out of the order — the clicks composing that double click toggle it first, which the drop then discards, so no click has to be held back to learn which gesture it belongs to.
+
+A column does not carry a comparison: it declares which kind of value it holds, and the kind carries both the ordering and the direction a first click takes. That is what makes a source order by precedence rather than alphabet, a command by its dotted segments, and a gesture by the key it ends on so that every binding on one key gathers whatever modifiers it holds. Sorting is stable, so rows an order does not separate keep the arrangement they arrived in, and one command's rows stay adjacent wherever the order leaves them adjacent.
+
+A heading is a run holding room for the widest mark a column can carry — one bearing the rank the order would give its last column — so a column does not change width as it joins or leaves the order, and its label moves out of a drawn mark's way by what that mark needs and no further.
+
+## Editing a field
+
+Every field commits on blur, so a half-typed value is never stored, never dispatched, and never reaches another client; a draft that was not edited commits nothing, and one that changes underneath the field is replaced. A clause that does not parse is flagged and left uncommitted, because storing it would resolve false and disable the binding it belongs to. The key recorder is the exception: a gesture has no meaningful intermediate form, so it commits when recording finishes.
+
+A priority is a number field that may stand empty while it is edited: stating nothing is an abandoned edit rather than a mistake, so the field returns to the stored value on blur without complaint, while a value a place in an order cannot take is flagged and left uncommitted. Only whole, non-negative values are stored.
+
+Its arrows are the page's own rather than the engine's, and they stand at rest rather than on hover, because being seen is their second job: an engine's spinner takes its width whether or not it paints, so an unmarked reservation reads as a value sitting off centre. The field is a run reserving the arrows' shape at both ends and occupying only the trailing one, which puts the value on the field's centre without this page stating a width for either side. Neither arrow is a tab stop, because the field already steps on Up and Down. A press moves the draft alone, so a run of presses stores the value it ended on and not the ones it passed through, and the arrows are labelled by the value they change rather than by rank — 0 is the highest priority, so raising the value orders a binding later.
+
+The priority a row shows is the one dispatch settles collisions with — the value the override states, or its position among the bindings it can actually collide with. Priority separates entries sharing a `(stroke, source)` and nothing else, so a binding that competes with none reads 0 and only a genuine contest counts upward. A stated priority stands and seeding fills the slots it leaves, lowest first, so an unstated binding never lands on a claimed one. Stating a priority places the binding rather than claiming a value that might be refused: it takes the value, and every binding that ordered at or after it in the same scope moves one place back. A binding whose command is no longer registered cannot use a place in the order, so it retires its priority instead of taking one.
+
+## Adding and dropping a binding
+
+A binding is added from the space between one command's last binding and the next command's first, which no box occupies: a seam hangs under the last binding a command owns, and pressing anywhere along it adds the binding rather than only the mark in the middle of it. The mark takes the accent the composer's send button and caret take, since it is the one thing in the table that adds something. Only the control commits, never the band, since an addition cannot yet be taken back and the band lies where a click meant for a box can miss.
+
+An added binding takes a seat of its own, keyed in the family of the seat it was added beside — `send`, then `send#1`, `send#2`. It forks that seat's base rather than starting from nothing, so its clause follows the binding it came from and can still be cleared or replaced, and it states a gesture of no strokes: it is the user's from the start, and inert until they record one.
+
+A binding the user holds can be dropped again, from the gutter at the row's own edge — a lane's width beyond the boundary's grip, so a press meant for a column boundary cannot land on the one control in the table that destroys something. Dropping leaves what the seat ships, so a shipped binding returns to the page and a binding the user added leaves it altogether. It is offered only on a binding the user holds: a shipped default and a plugin's contribution are not theirs to drop.
+
+## The key recorder
+
+A recorder captures a chord: click to arm, then each non-modifier keydown appends a stroke while held modifiers render as pressed chips; a checkmark inside the recorder commits, Escape or blur cancels, plain Backspace removes the last stroke, lock-key release resets a stuck modifier, and auto-repeat keydowns are ignored. A cross appears in the same place when the pointer is over a recorder that has something to unbind, and clearing stores a gesture of no strokes — nothing matches an empty gesture, so the action is bound to nothing while the binding stays the user's and can be recorded over.
+
+Both controls are drawn rather than written and ride the same ghost plate as the sort marks. A gesture too wide for its column stays on one line and is read by scrolling it, since wrapping would deepen the row and clipping would hide the strokes for good. Keystrokes are captured at the window so focus is irrelevant, and modifier state is read from `getModifierState()` with the boolean flags as fallback.
+
+## The domain model
+
+`keybinding.ts` is shared by the recorder, the persisted schema, and the consumer: a keybinding is an ordered list of strokes — one stroke is a simple binding, two or more is a chord — and each stroke is one non-modifier key plus an optional modifier set. Matching is modifier-exact, so a bound `Ctrl+Enter` does not fire while `Alt` is also held. Single-letter keys persist lowercase, so a letter records the same way whether Shift was held during capture.
+
+An optional `when` clause (`when-clause.ts`) predicates the binding on UI state using the VSCode grammar (`&&`, `||`, `!`, `==`, `!=`, `=~`, parentheses). It resolves against `uiWhenContext`, a map derived from the focus-scope stack (`<FocusScope>`/`data-focus-scope`) plus explicit state keys. The Host half registers the settings namespace.
+
+## Model Experience
+
+None, as the section renders a browser configuration UI; nothing here reaches a model request.
+
+#### KV Cache effect
+
+None; this package neither assembles nor sends a provider request.
+
+## Known Limitations and Deferred Work
+
+- **The state keys a clause may name are whatever features publish, and nothing enumerates them** — the composer declares its focus scope and publishes `commandMenuOpen` and `tokenLeading`, so `composerActive`, `commandMenuOpen`, `tokenLeading` and `controlActive` resolve; a clause naming anything else is not rejected; it never holds. The settings field cannot offer what it cannot list.
+- **A binding cannot be reordered by dragging its row** — stating a priority is the only way to place one within a collision scope, and a stated priority cannot be withdrawn again: absence means unstated, so a value can be changed but not returned to the seeding it came from.
+- **Firefox on Linux filters modifier events from content pages** — `Alt` is absent from a combined keydown and lone modifier keydowns never dispatch to `http` pages (they do reach privileged `about:` pages), so `Alt` chords and the pre-key pressed-modifier preview are unavailable there; Chromium works. The recorder already prefers `getModifierState()`; the events are absent, not merely misflagged.

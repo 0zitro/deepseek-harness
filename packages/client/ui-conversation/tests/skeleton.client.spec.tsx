@@ -202,7 +202,7 @@ function mount(
           addImages={() => null}
           removeImage={() => {}}
           draftImages={() => []}
-          resolveSubmitMode={() => 'queue'}
+          send={() => {}}
           toggleCommandMenu={vi.fn()}
           useNotices={bindSnapshotSelector(wiring.notices)}
           useLexicon={bindSnapshotSelector(wiring.lexicon)}
@@ -251,7 +251,7 @@ function mount(
   }
   const view = render(<ConversationRoot {...props} />)
   return {
-    view, chat, sink, retargetWorkspace, session, slotCalls, seatOwners, open,
+    view, chat, sink, wiring, retargetWorkspace, session, slotCalls, seatOwners, open,
     pickerOwner: () => pickerOwner,
     rerender: () => { view.rerender(<ConversationRoot {...props} />) },
   }
@@ -308,7 +308,7 @@ describe('ConversationRoot resident composer', () => {
     expect((box as HTMLTextAreaElement).value).toBe('ordinary draft')
     fireEvent.change(box, { target: { value: 'ordinary revised' } })
     expect(b.chat.store.getSnapshot().draft).toBe('ordinary revised')
-    fireEvent.keyDown(box, { key: 'Enter' })
+    act(() => { b.wiring.submit('queue') })
     expect(b.sink).toHaveBeenCalledWith('ordinary revised', [], 'queue')
     expect((b.view.getByRole('button', { name: 'Child' }) as HTMLButtonElement).disabled).toBe(true)
     expect(b.view.queryByText('Root')).toBeNull()

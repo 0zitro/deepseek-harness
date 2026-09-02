@@ -57,6 +57,7 @@ async function bench(opts?: { blank?: boolean }) {
   runtime.provide('layout', { openDetails: vi.fn(), closeDetails: vi.fn() })
   const locale = new LocaleRuntime(runtime.ctx)
   runtime.provide('locale', locale)
+  runtime.provide('uiWhenContext', { set: () => () => {} })
   runtime.slots.installLocale(locale)
   await runtime.sessions.add({
     id: SID,
@@ -85,6 +86,7 @@ describe('resident composer', () => {
     runtime.provide('layout', { openDetails: vi.fn(), closeDetails: vi.fn() })
     const locale = new LocaleRuntime(runtime.ctx)
     runtime.provide('locale', locale)
+    runtime.provide('uiWhenContext', { set: () => () => {} })
     runtime.slots.installLocale(locale)
     await runtime.root.declare(LAYOUT_CHILDREN, AppRoot)
     await runtime.mount({ inject: [...inject], apply })
@@ -115,6 +117,7 @@ describe('resident composer', () => {
     runtime.provide('layout', { openDetails: vi.fn(), closeDetails: vi.fn() })
     const locale = new LocaleRuntime(runtime.ctx)
     runtime.provide('locale', locale)
+    runtime.provide('uiWhenContext', { set: () => () => {} })
     runtime.slots.installLocale(locale)
     await runtime.workspaces.update((draft) => {
       draft.items = [{ workspaceId: 'w1', title: 'Proj', path: '/proj', sessionIds: [SID] }] as never
@@ -184,6 +187,7 @@ describe('prompt rejection through the assembled composer', () => {
     runtime.provide('layout', { openDetails: vi.fn(), closeDetails: vi.fn() })
     const locale = new LocaleRuntime(runtime.ctx)
     runtime.provide('locale', locale)
+    runtime.provide('uiWhenContext', { set: () => () => {} })
     runtime.slots.installLocale(locale)
     const prompt = vi.fn<ISession['prompt']>(async () => ({
       ok: false, error: { code: 'agent-busy', message: 'prompt rejected before acceptance', details: { reason: 'busy' } },
@@ -199,7 +203,7 @@ describe('prompt rejection through the assembled composer', () => {
 
     const composer = view.container.querySelector('textarea')!
     fireEvent.change(composer, { target: { value: 'do not lose this' } })
-    fireEvent.keyDown(composer, { key: 'Enter' })
+    fireEvent.click(view.getByRole('button', { name: '发送消息' }))
     await waitFor(() => { expect(prompt).toHaveBeenCalledOnce() })
 
     await runtime.sessions.updateSnapshot(SID, (draft) => {

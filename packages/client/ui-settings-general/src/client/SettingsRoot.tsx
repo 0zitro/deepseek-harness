@@ -14,7 +14,7 @@ import { useCallback, useEffect, useId, useRef, useState } from 'react'
 import clsx from 'clsx'
 import {
   IconAgentPresetOutline16, IconCloseOutline16, IconDataOutline16,
-  IconPersonalizationOutline16, IconSettingsOutline16,
+  IconPersonalizationOutline16, IconSettingsOutline16, OverlayScope,
 } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { SettingsRootComponentProps, SettingsSectionRow } from './shell-contract.ts'
 import css from './SettingsRoot.module.css'
@@ -26,6 +26,13 @@ function navIcon(id: string) {
   if (id === 'plugins') return <IconPersonalizationOutline16 className={css.navIcon} size={16} />
   return <IconSettingsOutline16 className={css.navIcon} size={16} />
 }
+
+/**
+ * Sections whose content needs more than the base content column. The width
+ * is the shell's to decide, like the nav glyph: a registration carries the
+ * nav identity only, and the panel's geometry is chrome the shell owns.
+ */
+const WIDE_SECTIONS: ReadonlySet<string> = new Set(['keybindings'])
 
 type PanelProps = {
   rows: readonly SettingsSectionRow[]
@@ -46,14 +53,6 @@ function SettingsPanel({ rows, renderSlot, activeId, onSelect, onClose }: PanelP
   const active = rows.find(r => r.id === activeId)?.id ?? rows[0]?.id
   const titleId = useId()
 
-  useEffect(() => {
-    const onKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onClose()
-    }
-    document.addEventListener('keydown', onKeyDown)
-    return () => { document.removeEventListener('keydown', onKeyDown) }
-  }, [onClose])
-
   // Baseline focus management: entering the dialog lands on the close button.
   const closeButton = useRef<HTMLButtonElement | null>(null)
   useEffect(() => { closeButton.current?.focus() }, [])
@@ -61,36 +60,45 @@ function SettingsPanel({ rows, renderSlot, activeId, onSelect, onClose }: PanelP
   return (
     <div className={css.overlay} role="presentation">
       <div className={css.mask} aria-hidden="true" onClick={onClose} />
-      <div className={css.panel} role="dialog" aria-modal="true" aria-labelledby={titleId}>
-        <nav className={css.nav}>
-          <div className={css.navTitle} id={titleId}>{renderSlot('settings.header', {})}</div>
-          <div className={css.navList}>
-            {rows.map(row => (
-              <button
-                key={row.id}
-                type="button"
-                className={clsx(css.navCell, row.id === active && css.active)}
-                aria-current={row.id === active ? 'true' : undefined}
-                onClick={() => { onSelect(row.id) }}
-              >
-                {navIcon(row.id)}
-                <span className={css.navLabel}>{row.label}</span>
+      <div className={css.anchor}>
+        <OverlayScope
+          name="settings"
+          onClose={onClose}
+          className={clsx(css.panel, active !== undefined && WIDE_SECTIONS.has(active) && css.wide)}
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby={titleId}
+        >
+          <nav className={css.nav}>
+            <div className={css.navTitle} id={titleId}>{renderSlot('settings.header', {})}</div>
+            <div className={css.navList}>
+              {rows.map(row => (
+                <button
+                  key={row.id}
+                  type="button"
+                  className={clsx(css.navCell, row.id === active && css.active)}
+                  aria-current={row.id === active ? 'true' : undefined}
+                  onClick={() => { onSelect(row.id) }}
+                >
+                  {navIcon(row.id)}
+                  <span className={css.navLabel}>{row.label}</span>
+                </button>
+              ))}
+            </div>
+          </nav>
+          <div className={css.content}>
+            <div className={css.header}>
+              <div className={css.actions}>{renderSlot('settings.action', {})}</div>
+              <button ref={closeButton} type="button" className={css.close} onClick={onClose}>
+                <IconCloseOutline16 size={14} />
+                <span className={css.hiddenLabel}>{renderSlot('settings.close', {})}</span>
               </button>
-            ))}
+            </div>
+            <div className={css.options}>
+              {active !== undefined && renderSlot('settings.section', { close: onClose }, { only: active })}
+            </div>
           </div>
-        </nav>
-        <div className={css.content}>
-          <div className={css.header}>
-            <div className={css.actions}>{renderSlot('settings.action', {})}</div>
-            <button ref={closeButton} type="button" className={css.close} onClick={onClose}>
-              <IconCloseOutline16 size={14} />
-              <span className={css.hiddenLabel}>{renderSlot('settings.close', {})}</span>
-            </button>
-          </div>
-          <div className={css.options}>
-            {active !== undefined && renderSlot('settings.section', { close: onClose }, { only: active })}
-          </div>
-        </div>
+        </OverlayScope>
       </div>
     </div>
   )

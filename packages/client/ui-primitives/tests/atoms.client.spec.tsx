@@ -76,17 +76,15 @@ describe('Menu', () => {
     expect(onSelect).toHaveBeenCalledWith('a')
   })
 
-  it('disabled item does not select; Escape and outside pointerdown close', () => {
+  it('disabled item does not select; outside pointerdown closes', () => {
     const onSelect = vi.fn()
     const onClose = vi.fn()
     render(
       <Menu open anchor={<span>trigger</span>} items={items} onSelect={onSelect} onClose={onClose} />)
     fireEvent.click(screen.getByRole('menuitem', { name: 'Beta' }))
     expect(onSelect).not.toHaveBeenCalled()
-    fireEvent.keyDown(document, { key: 'Escape' })
-    expect(onClose).toHaveBeenCalledTimes(1)
     fireEvent.pointerDown(document.body)
-    expect(onClose).toHaveBeenCalledTimes(2)
+    expect(onClose).toHaveBeenCalledTimes(1)
   })
 
   it('inside pointerdown does not close', () => {
@@ -380,7 +378,7 @@ describe('Menu', () => {
 })
 
 describe('Modal', () => {
-  it('is absent while closed; Escape and mask click call onClose', () => {
+  it('is absent while closed; mask click calls onClose', () => {
     const onClose = vi.fn()
     const { rerender } = render(
       <Modal open={false} onClose={onClose} title="Create new workspace">body</Modal>)
@@ -397,14 +395,10 @@ describe('Modal', () => {
     expect(screen.getByRole('button', { name: 'Configure later' })).toBeDefined()
     expect(screen.getByText('Name it.')).toBeDefined()
     expect(screen.getByText('Name it.').parentElement?.className).toContain('scrolling-content')
-    fireEvent.keyDown(document, { key: 'a' })
-    expect(onClose).not.toHaveBeenCalled()
-    fireEvent.keyDown(document, { key: 'Escape' })
-    expect(onClose).toHaveBeenCalledTimes(1)
     // Mask is the presentation sibling behind the dialog.
     const mask = document.querySelector('[aria-hidden="true"]') as HTMLElement
     fireEvent.click(mask)
-    expect(onClose).toHaveBeenCalledTimes(2)
+    expect(onClose).toHaveBeenCalledTimes(1)
   })
 })
 

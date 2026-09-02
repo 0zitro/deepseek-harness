@@ -8,6 +8,7 @@
  */
 
 import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { dismissOverlay } from '@deepseek-ai/dsh-client-test-runtime'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { bindSnapshotSelector } from '@deepseek-ai/dsh-client-web-react'
 import { createSnapshotStore } from '@deepseek-ai/dsh-client-runtime/client'
@@ -153,7 +154,7 @@ describe('the General-settings row', () => {
     renderRow()
     fireEvent.click(screen.getByRole('button'))
 
-    fireEvent.keyDown(document, { key: 'Escape' })
+    dismissOverlay()
 
     expect(screen.getByRole('button').getAttribute('aria-expanded')).toBe('false')
   })
@@ -271,7 +272,7 @@ describe('the new-session chip', () => {
     renderSeat()
     fireEvent.click(screen.getByRole('button'))
 
-    fireEvent.keyDown(document, { key: 'Escape' })
+    dismissOverlay()
 
     expect(screen.getByRole('button').getAttribute('aria-expanded')).toBe('false')
   })

@@ -8,7 +8,7 @@ import { useEffect, useRef, useState } from 'react'
 import type { UseProjection } from '@deepseek-ai/dsh-client-runtime/client'
 // Type-only: the `contextPressure` / `contextBreakdown` projection key merges.
 import type {} from '@deepseek-ai/dsh-token-meter/client'
-import { Tooltip } from '@deepseek-ai/dsh-client-ui-primitives'
+import { OverlayScope, Tooltip } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { ComposerBarProps } from '../contract/slots.ts'
 import { contextOccupancy, formatTokens } from '../chat/StatsLine.tsx'
 import css from './ContextMeter.module.css'
@@ -51,21 +51,17 @@ export function ContextMeter({ useProjection, t }: ContextMeterProps) {
     if (!available && open) setOpen(false)
   }, [available, open])
 
-  // Outside click / Escape close, one document listener while open (Menu's pattern).
+  // Outside click close, one document listener while open (Menu's pattern);
+  // Escape rides the overlay.close action via the OverlayScope below.
   useEffect(() => {
     if (!open || !available) return
     const onPointerDown = (e: PointerEvent): void => {
       if (e.target instanceof Node && rootRef.current?.contains(e.target) === true) return
       setOpen(false)
     }
-    const onKeyDown = (e: KeyboardEvent): void => {
-      if (e.key === 'Escape') setOpen(false)
-    }
     document.addEventListener('pointerdown', onPointerDown)
-    document.addEventListener('keydown', onKeyDown)
     return () => {
       document.removeEventListener('pointerdown', onPointerDown)
-      document.removeEventListener('keydown', onKeyDown)
     }
   }, [available, open])
 
@@ -113,7 +109,7 @@ export function ContextMeter({ useProjection, t }: ContextMeterProps) {
         </button>
       </Tooltip>
       {open && (
-        <div className={css.panel} role="dialog" aria-label={t('context.used')}>
+        <OverlayScope name="context-meter" onClose={() => { setOpen(false) }} className={css.panel} role="dialog" aria-label={t('context.used')}>
           <div className={css.header}>
             {/* Empty sides collapse through `.headline:empty` so the locale that
                 needs no leading (or trailing) text spends no header gap. */}
@@ -146,7 +142,7 @@ export function ContextMeter({ useProjection, t }: ContextMeterProps) {
               ))}
             </dl>
           )}
-        </div>
+        </OverlayScope>
       )}
     </span>
   )
