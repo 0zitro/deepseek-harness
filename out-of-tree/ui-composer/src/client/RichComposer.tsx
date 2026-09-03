@@ -229,18 +229,19 @@ export const RichComposer = memo(function RichComposer({
   const notice = useNotices(value => value)
 
   return (
-    <div
-      className={css.card}
-      onDragOver={event => { if (imageLimits !== undefined) event.preventDefault() }}
-      onDrop={event => {
-        if (imageLimits === undefined) return
-        event.preventDefault()
-        intakeImages([...event.dataTransfer.files])
-      }}
-    >
+    <div className={css.root}>
       {notice !== null && notice.level === 'error' ? (
         <div className={css.notice} role="alert">{notice.text}</div>
       ) : null}
+      <div
+        className={css.card}
+        onDragOver={event => { if (imageLimits !== undefined) event.preventDefault() }}
+        onDrop={event => {
+          if (imageLimits === undefined) return
+          event.preventDefault()
+          intakeImages([...event.dataTransfer.files])
+        }}
+      >
       <FocusScope name="composer">
       <div className={css.editableWrap}>
         <div
@@ -254,8 +255,8 @@ export const RichComposer = memo(function RichComposer({
           onKeyDown={onKeyDown}
         />
         {empty ? <div className={css.placeholder} aria-hidden="true">{t('placeholder')}</div> : null}
-        {triggers !== undefined ? <TriggerMenu controller={triggers} /> : null}
       </div>
+      {triggers !== undefined ? <TriggerMenu controller={triggers} /> : null}
       </FocusScope>
       {attachments.length > 0 ? (
         <div className={css.attachments}>
@@ -300,6 +301,7 @@ export const RichComposer = memo(function RichComposer({
           </button>
         )}
       </div>
+      </div>
     </div>
   )
 })
@@ -332,8 +334,8 @@ function bytesText(bytes: number): string {
 
 function SendGlyph(): ReactNode {
   return (
-    <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
-      <path d="M1.5 8 14 2 9.5 14 7 9 1.5 8Z" />
+    <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+      <path d="M8 13V3M8 3L3.5 7.5M8 3L12.5 7.5" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
     </svg>
   )
 }

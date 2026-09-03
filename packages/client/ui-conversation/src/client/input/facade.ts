@@ -15,7 +15,7 @@ import {
 import type { LexicalEditor, NodeKey } from 'lexical'
 import {
   $addUpdateTag, $createParagraphNode, $createTextNode, $getRoot, $getSelection, $isRangeSelection,
-  CLEAR_HISTORY_COMMAND, createEditor, HISTORY_MERGE_TAG, PASTE_TAG,
+  $setSelection, CLEAR_HISTORY_COMMAND, createEditor, HISTORY_MERGE_TAG, PASTE_TAG,
 } from 'lexical'
 import { registerPlainText } from '@lexical/plain-text'
 import { createEmptyHistoryState, registerHistory } from '@lexical/history'
@@ -280,7 +280,16 @@ export class SessionInputShell implements SessionInput {
         if (line !== '') paragraph.append($createTextNode(line))
         root.append(paragraph)
       }
-      if (caretToEnd) root.selectEnd()
+      if (caretToEnd) {
+        root.selectEnd()
+      } else {
+        // A driving surface owns the visible caret: this editor is
+        // mounted-hidden, and rebuilding its content would otherwise make
+        // Lexical re-anchor selection onto itself — stealing the document
+        // selection from the visible surface on every pushed edit. Leave the
+        // editor selection-free instead.
+        $setSelection(null)
+      }
     }, { discrete: true, tag: HISTORY_MERGE_TAG })
   }
 
