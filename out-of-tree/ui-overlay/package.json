@@ -37,13 +37,14 @@
   "devDependencies": {
     "@deepseek-ai/cordis": "workspace:^",
     "@deepseek-ai/dsh-client-test-runtime": "workspace:^",
-    "@zitro/dsh-oot-ui-actions": "workspace:^",
     "@types/react": "~18.3.1",
+    "@zitro/dsh-oot-ui-actions": "workspace:^",
     "react": "^18.2.0"
   },
   "files": [
     "lib/index.js",
     "lib/client.js",
     "lib/types/**/*.d.ts"
-  ]
+  ],
+  "dependencies": {}
 }

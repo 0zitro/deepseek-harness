@@ -52,7 +52,8 @@
     "@lezer/markdown": "^1.4.3",
     "@zitro/dsh-oot-ui-actions": "workspace:^",
     "katex": "^0.16.47",
-    "use-sync-external-store": "1.2.0"
+    "use-sync-external-store": "1.2.0",
+    "@deepseek-ai/schemastery": "workspace:^"
   },
   "peerDependencies": {
     "@deepseek-ai/cordis": "workspace:^",
@@ -69,6 +70,8 @@
     "@deepseek-ai/dsh-client-ui-settings": "workspace:^",
     "@deepseek-ai/dsh-client-ui-slots": "workspace:^",
     "@deepseek-ai/dsh-plan-mode": "workspace:^",
+    "@deepseek-ai/dsh-session": "workspace:^",
+    "@deepseek-ai/dsh-settings": "workspace:^",
     "react": "^18.2.0"
   },
   "devDependencies": {
@@ -87,6 +90,8 @@
     "@deepseek-ai/dsh-client-ui-settings": "workspace:^",
     "@deepseek-ai/dsh-client-ui-slots": "workspace:^",
     "@deepseek-ai/dsh-plan-mode": "workspace:^",
+    "@deepseek-ai/dsh-session": "workspace:^",
+    "@deepseek-ai/dsh-settings": "workspace:^",
     "@types/katex": "~0.16.7",
     "@types/node": "^22.20.0",
     "@types/react": "~18.3.1",
@@ -94,7 +99,9 @@
     "@zitro/dsh-oot-ui-actions": "workspace:^",
     "esbuild": "^0.25.0",
     "react": "^18.2.0",
-    "use-sync-external-store": "^1.4.0"
+    "use-sync-external-store": "^1.4.0",
+    "@deepseek-ai/schemastery": "workspace:^",
+    "@deepseek-ai/dsh-client-ui-chat": "workspace:^"
   },
   "files": [
     "lib/index.js",

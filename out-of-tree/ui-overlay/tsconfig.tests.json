@@ -1,31 +1,34 @@
-// Per-package build-mode check program over src + tests. References
-// (repeated from ./tsconfig.json — `extends` does not carry them) give
-// cross-package imports project redirects to built declarations, so no
-// upstream source enters this program; rootDir "." keeps own src+tests
-// inside it. Composite programs may emit declarations — the outDir keeps
-// any such emit inside the gitignored lib/ tree, never beside sources.
-//
-//     tsc -b tsconfig.tests.json
 {
+  // Per-package typecheck over src + tests as ONE PLAIN noEmit program.
+  //
+  // The earlier build-mode variant (composite + references + outDir) emitted
+  // declarations beside every paths-resolved upstream source its program
+  // reached -- the stray .js/.d.ts files that hit this tree twice. No
+  // composite, no references, no rootDir/outDir: upstream names resolve
+  // through tsconfig.base.json paths straight to their sources, everything
+  // type-checks, and no configuration of this file can emit anything.
+  //
+  //     tsc -p tsconfig.tests.json
   "extends": "./tsconfig.json",
   "compilerOptions": {
-    "rootDir": ".",
-    "outDir": "lib/check",
-    "tsBuildInfoFile": "lib/check/tsconfig.tests.tsbuildinfo"
+    "noEmit": true,
+    "composite": false,
+    "declaration": false,
+    "declarationMap": false,
+    "incremental": false,
+    "rewriteRelativeImportExtensions": false,
+    "types": ["client-build-environment", "node"],
+    // Upstream names resolve through node_modules exports to their BUILT
+    // declarations, never to sources: inherited paths would drag the whole
+    // upstream source graph (vendor included) into this program. Run after
+    // `pnpm run build:oot` (and an upstream `tsc -b`) so the declarations
+    // are current.
+    "paths": {},
+    // Overrides the package config's "src" rootDir: the program spans src + tests.
+    "rootDir": "."
   },
   "include": [
     "src",
     "tests"
-  ],
-  "references": [
-    {
-      "path": "../../packages/test-support/client-runtime"
-    },
-    {
-      "path": "../../vendor/cordis"
-    },
-    {
-      "path": "../ui-actions"
-    }
   ]
 }
