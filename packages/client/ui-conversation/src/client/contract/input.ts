@@ -10,6 +10,7 @@ import type { Context } from '@deepseek-ai/cordis'
 import type { ObservableSnapshot, SnapshotStore } from '@deepseek-ai/dsh-client-store'
 import type { Branded } from '@deepseek-ai/dsh-brand'
 import type { LexicalEditor } from 'lexical'
+import type { SessionId } from '@deepseek-ai/dsh-session/types'
 import type { QueueRow } from './queue.ts'
 import type { InputSubmitMode } from './composer-submission.ts'
 
@@ -193,6 +194,28 @@ export interface SessionInput extends InputTarget {
    */
   submit(mode?: InputSubmitMode): void
   /**
+   * Steer every still-pending queued message into the running turn (the empty-draft
+   * accelerated-Enter gesture; the queue dock's per-row steer button is the same operation).
+   */
+  steerQueue(): void
+  /** Insert pasted plain text over the current editor selection (reference-placeholder-sanitized). */
+  paste(text: string): void
+  /**
+   * The live selection as a detect-coordinate span (menu-launcher synthetic hits replace it on
+   * pick); an absent selection answers a collapsed span at the document end.
+   */
+  caretSpan(): EditSelection
+  /** Keyboard arbitration while the menu is open ('pass' when no pipeline). */
+  arbitrate(key: ArbitrateKey, composing: boolean): ArbitrateOutcome
+  /** Space adjudication; true = the input applied a claim — caller preventDefaults. */
+  space(): boolean
+  /** Dismiss the popupSelect shell (any interaction outside the box). */
+  dismissPopup(): void
+  /** Latest surfaced notice (null after clear); composer chrome renders errors as banners. */
+  readonly notices: SnapshotStore<InputNotice | null>
+  /** Trigger lexicon (candidates per trigger char), for a composer chrome that renders menus. */
+  readonly lexicon: ObservableSnapshot<ReadonlyMap<'/' | '@', readonly string[]>>
+  /**
    * Surface a notice outside the machine's own effect stream: detached
    * command results and business notifications render through here.
    * Session-routed — resolving the facade via SessionInputResolver.for(actx) lands
@@ -210,6 +233,13 @@ export interface SessionInput extends InputTarget {
 export interface SessionInputResolver {
   /** Resolve the facade for one session-scope ctx. */
   for(actx: Context): SessionInput
+  /**
+   * Resolve the facade by session id — the address a session-scoped slot's
+   * inject face receives, so a takeover composer chrome reaches the same
+   * machine without a session-scope context of its own.
+   * @param id - the session the facade belongs to.
+   */
+  shell(id: SessionId): SessionInput
 }
 
 /**

@@ -60,4 +60,10 @@ export type { MarkdownCodeLabels, MarkdownFileMentions, MarkdownLabels } from '.
 export { MessageText } from './markdown/MessageText.tsx'
 export { extractMarkdownPlainText } from './markdown/plain-text.ts'
 export type { MarkdownPlainTextMode, MarkdownPlainTextOptions } from './markdown/plain-text.ts'
+// Highlighting face for composer-side live code decoration (the markdown
+// pipeline's own internals stay unexported).
+export {
+  highlightLines, subscribeGrammarLoaded, supportsHighlighting,
+} from './markdown/highlight.ts'
+export type { HighlightSpan } from './markdown/highlight.ts'
 export * from './icons/index.tsx'

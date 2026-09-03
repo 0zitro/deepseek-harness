@@ -62,6 +62,26 @@ export interface IConversation {
    * @returns completion of the page pull.
    */
   loadOlder(): Promise<void>
+  /**
+   * Create browser-owned draft image descriptors from dropped files. The
+   * registry is id-addressed and browser-local; only the ids enter input
+   * state through the shell's `addImages`.
+   * @param files - dropped or pasted files.
+   * @returns one descriptor per accepted file.
+   * @throws UnsupportedImageMediaTypeError when a file's media type is not an image.
+   */
+  createDraftImages(files: readonly File[]): readonly ComposerAttachment[]
+  /**
+   * Resolve ordered input-state ids to the runtime-owned draft images they name.
+   * @param ids - draft attachment ids.
+   * @returns descriptors that remain live, in requested order.
+   */
+  draftImages(ids: readonly DraftAttachmentId[]): readonly ComposerAttachment[]
+  /**
+   * Release one browser-owned draft image (its preview URL and registry entry).
+   * @param id - the draft attachment id.
+   */
+  releaseDraftImage(id: DraftAttachmentId): void
 }
 
 /** Create one browser-only draft descriptor; only its id enters input state. */
