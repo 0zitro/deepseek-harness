@@ -1,6 +1,10 @@
 packages:
   - vendor/*
   - packages/*/*
+  # Fork-only plugin packages, mounted through Cordis patch composition (see
+  # out-of-tree/README.md). Root gates and builds enumerate packages/* only, so
+  # these stay invisible to every upstream check.
+  - out-of-tree/*
   # The Landlock launcher is developed with its harness consumers but keeps
   # its native build and publication scripts under native/landlock-run.
   - native/landlock-run

@@ -227,6 +227,17 @@
       // util/ folders are role-named without the util- prefix their npm names carry,
       // so these aliases stay hand-written like dsh-util-crypto above.
       "@deepseek-ai/dsh-util-time": ["./packages/util/time/src"],
+      // Out-of-tree plugin packages (see out-of-tree/README.md) live outside
+      // packages/*, so gen-tsconfig-paths never enumerates them; their aliases
+      // stay hand-written.
+      "@zitro/dsh-oot-ui-widgets": ["./out-of-tree/ui-widgets/src"],
+      "@zitro/dsh-oot-ui-widgets/client": ["./out-of-tree/ui-widgets/src/client/index.ts"],
+      "@zitro/dsh-oot-ui-actions": ["./out-of-tree/ui-actions/src"],
+      "@zitro/dsh-oot-ui-actions/client": ["./out-of-tree/ui-actions/src/client/index.ts"],
+      "@zitro/dsh-oot-ui-overlay": ["./out-of-tree/ui-overlay/src"],
+      "@zitro/dsh-oot-ui-overlay/client": ["./out-of-tree/ui-overlay/src/client/index.ts"],
+      "@zitro/dsh-oot-ui-stock-actions": ["./out-of-tree/ui-stock-actions/src"],
+      "@zitro/dsh-oot-ui-stock-actions/client": ["./out-of-tree/ui-stock-actions/src/client/index.ts"],
       // BEGIN generated package aliases — pnpm run gen-tsconfig-paths
       "@deepseek-ai/dsh-acp": ["./packages/acp/acp/src"],
       "@deepseek-ai/dsh-acp-app": ["./packages/bundle/acp-app/src"],

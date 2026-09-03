@@ -567,6 +567,117 @@ importers:
 
   native/landlock-run/packages/linux-x64: {}
 
+  out-of-tree/ui-actions:
+    dependencies:
+      '@deepseek-ai/dsh-brand':
+        specifier: workspace:^
+        version: link:../../packages/util/brand
+      '@deepseek-ai/schemastery':
+        specifier: link:../../vendor/schemastery
+        version: link:../../vendor/schemastery
+      '@zitro/dsh-oot-ui-widgets':
+        specifier: workspace:^
+        version: link:../ui-widgets
+    devDependencies:
+      '@deepseek-ai/cordis':
+        specifier: workspace:^
+        version: link:../../vendor/cordis
+      '@deepseek-ai/dsh-client-locale':
+        specifier: workspace:^
+        version: link:../../packages/client/locale
+      '@deepseek-ai/dsh-client-store':
+        specifier: workspace:^
+        version: link:../../packages/client/store
+      '@deepseek-ai/dsh-client-test-runtime':
+        specifier: workspace:^
+        version: link:../../packages/test-support/client-runtime
+      '@deepseek-ai/dsh-client-ui-renderer':
+        specifier: workspace:^
+        version: link:../../packages/client/ui-renderer
+      '@deepseek-ai/dsh-client-ui-settings':
+        specifier: workspace:^
+        version: link:../../packages/client/ui-settings
+      '@deepseek-ai/dsh-client-ui-slots':
+        specifier: workspace:^
+        version: link:../../packages/client/ui-slots
+      '@types/react':
+        specifier: ~18.3.1
+        version: 18.3.31
+      react:
+        specifier: ^18.2.0
+        version: 18.3.1
+
+  out-of-tree/ui-overlay:
+    devDependencies:
+      '@deepseek-ai/cordis':
+        specifier: workspace:^
+        version: link:../../vendor/cordis
+      '@deepseek-ai/dsh-client-test-runtime':
+        specifier: workspace:^
+        version: link:../../packages/test-support/client-runtime
+      '@types/react':
+        specifier: ~18.3.1
+        version: 18.3.31
+      '@zitro/dsh-oot-ui-actions':
+        specifier: workspace:^
+        version: link:../ui-actions
+      react:
+        specifier: ^18.2.0
+        version: 18.3.1
+
+  out-of-tree/ui-stock-actions:
+    devDependencies:
+      '@deepseek-ai/cordis':
+        specifier: workspace:^
+        version: link:../../vendor/cordis
+      '@deepseek-ai/dsh-client-locale':
+        specifier: workspace:^
+        version: link:../../packages/client/locale
+      '@deepseek-ai/dsh-client-test-runtime':
+        specifier: workspace:^
+        version: link:../../packages/test-support/client-runtime
+      '@zitro/dsh-oot-ui-actions':
+        specifier: workspace:^
+        version: link:../ui-actions
+      '@zitro/dsh-oot-ui-overlay':
+        specifier: workspace:^
+        version: link:../ui-overlay
+
+  out-of-tree/ui-widgets:
+    dependencies:
+      clsx:
+        specifier: ^2.0.0
+        version: 2.1.1
+    devDependencies:
+      '@deepseek-ai/cordis':
+        specifier: workspace:^
+        version: link:../../vendor/cordis
+      '@types/react':
+        specifier: ~18.3.1
+        version: 18.3.31
+      react:
+        specifier: ^18.2.0
+        version: 18.3.1
+
+  out-of-tree/web-profile:
+    dependencies:
+      '@zitro/dsh-oot-ui-actions':
+        specifier: workspace:^
+        version: link:../ui-actions
+      '@zitro/dsh-oot-ui-overlay':
+        specifier: workspace:^
+        version: link:../ui-overlay
+      '@zitro/dsh-oot-ui-stock-actions':
+        specifier: workspace:^
+        version: link:../ui-stock-actions
+      '@zitro/dsh-oot-ui-widgets':
+        specifier: workspace:^
+        version: link:../ui-widgets
+    devDependencies:
+      '@deepseek-ai/cordis':
+        specifier: workspace:^
+        version: link:../../vendor/cordis
+
   packages/acp/acp:
     dependencies:
       '@agentclientprotocol/sdk':

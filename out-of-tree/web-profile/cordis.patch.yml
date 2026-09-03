@@ -1,0 +1,20 @@
+# Out-of-tree UI layer: apply after dsh-web-app so the browser roster picks up
+# the fork's modules. Bare names resolve through the profile's node_modules,
+# where `dsh plugin --profile <name> add ./out-of-tree/web-profile` links this
+# bundle and its dependencies:
+#
+#     pnpm --filter '@zitro/dsh-oot-*' run bundle
+#     pnpm dsh plugin --profile web add ./out-of-tree/web-profile
+
+- insert:
+    - id: oot-ui-widgets
+      name: '@zitro/dsh-oot-ui-widgets'
+
+    - id: oot-ui-actions
+      name: '@zitro/dsh-oot-ui-actions'
+
+    - id: oot-ui-overlay
+      name: '@zitro/dsh-oot-ui-overlay'
+
+    - id: oot-ui-stock-actions
+      name: '@zitro/dsh-oot-ui-stock-actions'
