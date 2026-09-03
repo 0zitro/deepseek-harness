@@ -194,8 +194,16 @@ export function decorate(
 ): Segment[] {
   const text = uncompensated(heldText(el), compensated)
   const sel = selectionOffsets(win, el)
+  // The compensation removes one character from the buffer: a caret read on
+  // the pre-removal text sits one too far right once the segments are
+  // written. Shifting keeps the caret on the line the writer broke TO
+  // (after the newline) instead of stranding it at the end of the line they
+  // broke AWAY from.
+  const shifted = sel !== null && compensated >= 0 && sel.start > compensated
+    ? { ...sel, start: sel.start - 1, end: sel.end - 1, focus: sel.focus - 1 }
+    : sel
   const segs = segmentSource(text, drawMath, colorFor, open)
   const changed = reconcile(win.document, el, segs)
-  if (sel !== null && changed) setSelection(win, el, sel.start, sel.end, sel.backward)
+  if (shifted !== null && changed) setSelection(win, el, shifted.start, shifted.end, shifted.backward)
   return segs
 }

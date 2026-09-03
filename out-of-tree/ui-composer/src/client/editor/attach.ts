@@ -556,11 +556,19 @@ export function attach(win: Window, options: AttachOptions): ComposerControl {
 
   // --- the browser's two-newline stand-in -------------------------------------------------------
 
+  // The browser's line-break stand-in, measured rather than inferred: the
+  // beforeinput snapshot records the insertion point; the input pass finds
+  // the inserted run and flags its LAST character — Chromium's stand-in
+  // newline for a break it will not draw (end of text, before an atom). The
+  // caret's own landing spot is deliberately not consulted: it may rest
+  // before, between, or after the inserted run.
   let heldBeforeBreak = -1
+  let breakInsertAt = -1
   el.addEventListener('beforeinput', (event) => {
     const e = event as InputEvent
     if (e.inputType !== 'insertLineBreak' && e.inputType !== 'insertParagraph') return
     heldBeforeBreak = heldText(el).length
+    breakInsertAt = selectionOffsets(win, el)?.start ?? heldBeforeBreak
   })
 
   el.addEventListener('input', (event) => {
@@ -568,12 +576,18 @@ export function attach(win: Window, options: AttachOptions): ComposerControl {
     if (e.inputType !== 'insertLineBreak' && e.inputType !== 'insertParagraph') return
     const text = heldText(el)
     const was = heldBeforeBreak
+    const insertAt = breakInsertAt
     heldBeforeBreak = -1
-    const sel = selectionOffsets(win, el)
-    if (was < 0 || text.length - was !== 2 || sel === null) return
-    // Measured rather than read off the text: a break that grew the text by two was answered with a
-    // stand-in the composer takes back, since it draws the line itself.
-    if (text[sel.start] === '\n') compensated = sel.start
+    breakInsertAt = -1
+    const growth = text.length - was
+    if (was < 0 || (growth !== 2 && growth !== 3)) return
+    // The inserted run is contiguous newlines at the recorded insertion
+    // point; its last character is the stand-in. Verified against the text,
+    // so a run that is not newlines (a real paragraph split with content)
+    // is left alone.
+    const lastInserted = insertAt + growth - 1
+    if (insertAt < 0 || insertAt > was + 1 || text[lastInserted] !== '\n') return
+    compensated = lastInserted
   })
 
   // --- IME and the mutation funnel ---------------------------------------------------------------
