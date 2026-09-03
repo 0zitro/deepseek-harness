@@ -34,6 +34,8 @@ declare module '@deepseek-ai/dsh-client-ui-slots' {
 const NS = 'plan'
 
 /** Injected business face of the composer plan seat. */
+export { PlanChip } from './PlanModeControl.tsx'
+export type { PlanChipProps } from './PlanModeControl.tsx'
 export interface PlanChipInjected {
   /**
    * Leave plan mode by executing /plan off.
