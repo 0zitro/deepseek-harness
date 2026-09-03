@@ -83,12 +83,12 @@ export function apply(ctx: Context): void {
 
   // The action face: current-session routing for this plugin's registrations.
   const composer = new RichComposerService(ctx, sessions)
+  const whenContext = ctx.get('uiWhenContext') as { context: { getSnapshot(): Record<string, unknown> }; set(key: string, value: boolean): () => void } | undefined
   // The menu-open context key the when-clauses gate on (a contribution read
   // optionally, never an inject — publishing a key must not make keybindings
   // a condition of composing).
   const publishMenuOpen = (open: boolean): void => {
-    const when = ctx.get('uiWhenContext') as { set(key: string, value: boolean): () => void } | undefined
-    when?.set('commandMenuOpen', open)
+    whenContext?.set('commandMenuOpen', open)
   }
 
   // The composer's own actions. Defaults ship the stock gestures; every seat

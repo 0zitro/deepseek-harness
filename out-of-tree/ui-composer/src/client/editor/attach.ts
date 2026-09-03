@@ -55,6 +55,8 @@ export interface ComposerControl {
   atDraft(): boolean
   /** The live selection, for surfaces that answer questions about the caret. */
   selection(): HeldSelection | null
+  /** The held text right now (source, hidden runs included, drawing excluded). */
+  held(): string
   /** Undo one step, as the keyboard shortcut would. */
   undo(): void
   /** Redo one step, as the keyboard shortcut would. */
@@ -119,9 +121,15 @@ export function attach(win: Window, options: AttachOptions): ComposerControl {
 
   const observer = new MutationObserver(() => {
     if (composing || restoring) return
-    history.record(heldText(el), selectionOffsets(win, el))
-    options.onEdit(heldText(el))
+    // Decorate FIRST, then record and push: a line-break stand-in the input
+    // handler flagged is removed from the DOM by the correcting decoration,
+    // and the text the shell (and the undo stack) receive must be the
+    // corrected one — pushing first would bounce the doubled text right back
+    // through the shell's adoption echo.
     redecorate()
+    const text = heldText(el)
+    history.record(text, selectionOffsets(win, el))
+    options.onEdit(text)
   })
 
   const redecorate = (moved = false): void => {
@@ -575,9 +583,10 @@ export function attach(win: Window, options: AttachOptions): ComposerControl {
   })
   el.addEventListener('compositionend', () => {
     composing = false
-    history.record(heldText(el), selectionOffsets(win, el))
-    options.onEdit(heldText(el))
     redecorate()
+    const text = heldText(el)
+    history.record(text, selectionOffsets(win, el))
+    options.onEdit(text)
   })
 
   const disposers: (() => void)[] = [
@@ -642,6 +651,7 @@ export function attach(win: Window, options: AttachOptions): ComposerControl {
     },
     atDraft: () => history.atDraft,
     selection: () => selectionOffsets(win, el),
+    held: () => heldText(el),
     undo: () => {
       const target = history.undo()
       if (target !== null) restore(target)

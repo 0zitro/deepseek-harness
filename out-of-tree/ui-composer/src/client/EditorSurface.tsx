@@ -27,6 +27,7 @@ import { FocusScope } from '@zitro/dsh-oot-ui-actions/client'
 import type { SnapshotStore } from '@deepseek-ai/dsh-client-store'
 import type { ComposerAttachment, InputState } from '@deepseek-ai/dsh-client-ui-conversation/client'
 import { attach, type ComposerControl } from './editor/attach.ts'
+import { heldText } from './editor/text.ts'
 import type { RichComposerRegistry, SendGesture } from './service.ts'
 import { useStoreOf } from './useStore.ts'
 import css from './rich-composer.module.css'
@@ -115,13 +116,18 @@ export const RichEditorSurface = memo(function RichEditorSurface({
   }, [enabled, shell, triggers])
 
   // Adopt shell-side draft changes this surface did not make: a persisted
-  // seed, a pick insert, a send-clear. Replacing the buffer wholesale is the
-  // adoption path; the caret lands at the end.
+  // seed, a pick insert, a send-clear. Every own push also bumps the rev, so
+  // the rev alone cannot tell echo from external change — the buffer text
+  // does: when the surface's held text already says the same thing, the
+  // rev bump was the push itself and adopting would slam the caret to the
+  // end of a buffer the writer is mid-way through.
   const lastRev = useRef(-1)
   useEffect(() => {
     if (!enabled) return
     if (shellState.draftRev === lastRev.current) return
     lastRev.current = shellState.draftRev
+    const el = editableRef.current
+    if (el !== null && heldText(el) === shellState.draft) return
     controlRef.current?.adopt(shellState.draft, false)
   }, [shellState, enabled])
 
