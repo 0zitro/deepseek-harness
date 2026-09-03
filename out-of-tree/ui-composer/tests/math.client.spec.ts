@@ -1,0 +1,111 @@
+// @vitest-environment jsdom
+/**
+ * The way back from what maths draws to what it says: the source tokenizer's token rules, the LCS
+ * alignment's pairing tables, and the anchors written onto real KaTeX output.
+ *
+ * The error posture under test: the alignment fails by placing fewer anchors, never by placing one
+ * where the expression does not say.
+ */
+
+import { describe, expect, it } from 'vitest'
+import { anchored, address, printing, typeset, glyphs, drawWithAddress } from '../src/client/editor/math.ts'
+import { foldablesIn } from '../src/client/editor/segments.ts'
+
+describe('printing', () => {
+  it('keeps command names from standing for their letters', () => {
+    const tokens = printing('\\alpha')
+    expect(tokens).toEqual([])
+  })
+
+  it('anchors an escaped character at its backslash', () => {
+    const tokens = printing('\\{')
+    expect(tokens).toEqual([{ ch: '{', at: 0, width: 2 }])
+  })
+
+  it('treats an environment name as one named thing, not its letters', () => {
+    expect(printing('\\begin{pmatrix}')).toEqual([])
+  })
+
+  it('reads ordinary characters at their own places', () => {
+    const tokens = printing('x_1^2')
+    expect(tokens).toEqual([
+      { ch: 'x', at: 0, width: 1 },
+      { ch: '1', at: 2, width: 1 },
+      { ch: '2', at: 4, width: 1 },
+    ])
+  })
+})
+
+describe('anchored', () => {
+  it('pairs in order when both sides agree', () => {
+    expect(anchored('x+1', ['x', '+', '1'])).toEqual([0, 1, 2])
+  })
+
+  it('answers a drawn glyph no character stands for with its gap', () => {
+    // `\pi` draws `π`; the pair lands where the command is written.
+    expect(anchored('\\pi', ['π'])).toEqual([0])
+  })
+
+  it('answers a written character nothing draws by not stalling', () => {
+    // `\sqrt[3]{x}`: the `[` and `]` are written, nothing draws them, and the alignment still
+    // reaches the x -- the greedy walk this replaces stalled on exactly this case.
+    const at = anchored('\\sqrt[3]{x}', ['3', 'x', '√'])
+    expect(at).toHaveLength(3)
+    // The x is paired at its own place; every glyph lands somewhere inside the expression.
+    for (const one of at) {
+      expect(one).toBeGreaterThanOrEqual(0)
+      expect(one).toBeLessThanOrEqual('\\sqrt[3]{x}'.length)
+    }
+  })
+
+  it('pairs source-order glyphs at their own characters', () => {
+    const at = anchored('x_1^2', ['x', '1', '2'])
+    expect(at).toEqual([0, 2, 4])
+  })
+
+  it('never claims a second occurrence the source does not point at', () => {
+    // `aa` with one glyph drawn `a`: the glyph takes the first, and nothing else is placed.
+    expect(anchored('aa', ['a'])).toEqual([0])
+  })
+
+  it('answers an empty drawing with nothing', () => {
+    expect(anchored('x', [])).toEqual([])
+  })
+})
+
+describe('address over real KaTeX', () => {
+  it('stamps every mapped glyph with an offset into the held text', () => {
+    const latex = 'e^{i\\pi} + 1 = 0'
+    const drawn = typeset(latex, false)
+    address(latex, drawn, 10)
+    const written = glyphs(drawn)
+    expect(written.length).toBeGreaterThan(0)
+    for (const glyph of written) {
+      const at = Number(glyph.el.getAttribute('data-ccx-at'))
+      expect(Number.isInteger(at)).toBe(true)
+      expect(at).toBeGreaterThanOrEqual(10)
+      expect(at).toBeLessThanOrEqual(10 + latex.length)
+    }
+    // The base is baked in: whoever reads it off a glyph has a pointer into the composer text.
+    const baseOffsets = written.map((glyph) => Number(glyph.el.getAttribute('data-ccx-at')))
+    expect(Math.min(...baseOffsets)).toBeGreaterThanOrEqual(10)
+  })
+
+  it('anchors the e of e^{i\\pi} at its own source character through a foldable draw', () => {
+    const src = 'a $e^{i\\pi}$ b'
+    const objects = foldablesIn(src, drawWithAddress)
+    const math = objects[0]
+    const drawn = math?.draws?.(document)
+    expect(drawn).not.toBeNull()
+    const written = glyphs(drawn!)
+    const eGlyph = written.find((glyph) => glyph.ch === 'e')
+    expect(eGlyph?.el.getAttribute('data-ccx-at')).toBe('3')
+  })
+
+  it('keeps the drawing importable into the consuming document', () => {
+    const objects = foldablesIn('$x$', drawWithAddress)
+    const imported = objects[0]?.draws?.(document)
+    expect(imported?.ownerDocument).toBe(document)
+    expect(glyphs(imported!).length).toBeGreaterThan(0)
+  })
+})

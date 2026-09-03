@@ -21,6 +21,7 @@ Note](../.agents/notes/implemented/architecture/2026-09-03-out-of-tree-plugin-pa
 | `@zitro/dsh-oot-ui-widgets` | Shared widget library (reserved-room runs, sortable/resizable tables) served as a dynamic module-table row via `dsh.client.external` |
 | `@zitro/dsh-oot-ui-overlay` | Overlay manager (LIFO mount order, DOM-event bridge) + `OverlayScope` primitive |
 | `@zitro/dsh-oot-ui-stock-actions` | Stock action set binding gestures to the surfaces above |
+| `@zitro/dsh-oot-ui-composer` | Rich composer takeover: live markdown decoration, math sub-editors, source-level undo, over the stock session shell |
 | `@zitro/dsh-oot-web-profile` | Installable patch bundle inserting the rows above |
 
 ## Architecture
@@ -38,23 +39,24 @@ Note](../.agents/notes/implemented/architecture/2026-09-03-out-of-tree-plugin-pa
   rebindable action, not a hardcoded Escape handler.
 - **Stock surfaces are untouched day one**: upstream components keep their own
   Escape listeners. Each surface migrates onto the dispatcher only when an
-  out-of-tree takeover replaces it — the composer first, via the
-  `conversation.composer` chain slot whose fallback-stays-mounted contract is
-  built for takeover.
+  out-of-tree takeover replaces it — the composer does so through the
+  `conversation.composer` chain slot (see `ui-composer`), whose
+  fallback-stays-mounted contract keeps the stock bar's state alive behind
+  the takeover.
 
 ## Mounting
 
 Development — no profile mutation, rows anchored to this directory:
 
 ```sh
-pnpm --filter '@zitro/dsh-oot-*' run bundle
-pnpm dsh web --patch ./out-of-tree/cordis.patch.yml
+pnpm run build:oot
+pnpm dsh web --patch ./out-of-tree/cordis.patch.yml   # a custom DSH_HOME works as usual
 ```
 
 Installable — bundle rows resolve through the profile's node_modules:
 
 ```sh
-pnpm --filter '@zitro/dsh-oot-*' run bundle
+pnpm run build:oot
 pnpm dsh plugin --profile web add ./out-of-tree/web-profile
 ```
 
@@ -62,8 +64,8 @@ pnpm dsh plugin --profile web add ./out-of-tree/web-profile
 
 ```sh
 pnpm exec vitest run --config out-of-tree/vitest.config.ts   # OOT suites
-pnpm exec tsc -b out-of-tree/tsconfig.client.json            # OOT typecheck
-pnpm --filter '@zitro/dsh-oot-*' run bundle                  # client bundles
+pnpm run check:oot                                           # typecheck (src + tests, per package)
+pnpm run build:oot                                           # client bundles
 ```
 
 Package names use the `@zitro/dsh-oot-*` scope (never `@deepseek-ai/dsh-*`)

@@ -1,0 +1,179 @@
+.card {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  border: 1px solid rgba(127, 127, 127, 0.25);
+  border-radius: 12px;
+  padding: 10px 12px;
+  background: var(--dsw-surface, inherit);
+}
+
+.overlayAnchor {
+  position: relative;
+}
+
+.notice {
+  padding: 6px 10px;
+  border-radius: 6px;
+  background: rgba(220, 38, 38, 0.12);
+  color: var(--dsw-danger, #dc2626);
+  font-size: 0.9em;
+}
+
+.editableWrap {
+  position: relative;
+}
+
+/* One scrollport, one text surface: the editable grows with its content;
+   .scroll — capped at 14 lines — is the only thing that scrolls. */
+.editable {
+  overflow-y: auto;
+  max-height: calc(14 * 1.6em);
+  min-height: 1.6em;
+  line-height: 1.6;
+  outline: none;
+  white-space: pre-wrap;
+  overflow-wrap: break-word;
+  word-break: break-word;
+  caret-color: inherit;
+}
+
+.editable:empty::after,
+.editable.blank::after {
+  content: '';
+}
+
+.placeholder {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: flex-start;
+  pointer-events: none;
+  color: rgba(127, 127, 127, 0.7);
+  max-height: calc(14 * 1.6em);
+  overflow: hidden;
+}
+
+.dock {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.controls {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.spring {
+  flex: 1;
+}
+
+.send,
+.stop {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  color: var(--dsw-surface, #fff);
+  background: var(--dsw-accent, #2563eb);
+}
+
+.stop {
+  background: var(--dsw-danger, #dc2626);
+}
+
+.send:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.menu {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 100%;
+  margin-bottom: 4px;
+  max-height: 280px;
+  overflow-y: auto;
+  border: 1px solid rgba(127, 127, 127, 0.3);
+  border-radius: 8px;
+  background: var(--dsw-surface, #fff);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.18);
+  z-index: 10;
+}
+
+.menuGroup {
+  padding: 4px 0;
+}
+
+.menuGroupTitle {
+  padding: 2px 10px;
+  font-size: 0.75em;
+  opacity: 0.6;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.menuRow,
+.menuRowActive {
+  display: flex;
+  width: 100%;
+  gap: 8px;
+  align-items: baseline;
+  padding: 4px 10px;
+  border: none;
+  background: none;
+  cursor: pointer;
+  text-align: left;
+  font: inherit;
+}
+
+.menuRowActive {
+  background: rgba(127, 127, 127, 0.18);
+}
+
+.menuName {
+  font-family: ui-monospace, monospace;
+  font-size: 0.9em;
+}
+
+.menuDescription {
+  opacity: 0.65;
+  font-size: 0.85em;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.menuPending {
+  padding: 4px 10px;
+  opacity: 0.5;
+}
+
+.attachments {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.attachment {
+  padding: 0;
+  border: 1px solid rgba(127, 127, 127, 0.3);
+  border-radius: 6px;
+  background: none;
+  cursor: pointer;
+  overflow: hidden;
+}
+
+.attachmentThumb {
+  display: block;
+  width: 48px;
+  height: 48px;
+  object-fit: cover;
+}

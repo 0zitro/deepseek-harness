@@ -23,6 +23,7 @@
   "license": "MIT",
   "dependencies": {
     "@zitro/dsh-oot-ui-actions": "workspace:^",
+    "@zitro/dsh-oot-ui-composer": "workspace:^",
     "@zitro/dsh-oot-ui-overlay": "workspace:^",
     "@zitro/dsh-oot-ui-stock-actions": "workspace:^",
     "@zitro/dsh-oot-ui-widgets": "workspace:^"

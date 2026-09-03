@@ -607,6 +607,76 @@ importers:
         specifier: ^18.2.0
         version: 18.3.1
 
+  out-of-tree/ui-composer:
+    dependencies:
+      '@lezer/common':
+        specifier: ^1.2.3
+        version: 1.5.2
+      '@lezer/highlight':
+        specifier: ^1.2.1
+        version: 1.2.3
+      '@lezer/markdown':
+        specifier: ^1.4.3
+        version: 1.7.2
+      '@zitro/dsh-oot-ui-actions':
+        specifier: workspace:^
+        version: link:../ui-actions
+      katex:
+        specifier: ^0.16.47
+        version: 0.16.47
+      use-sync-external-store:
+        specifier: 1.2.0
+        version: 1.2.0(react@18.3.1)
+    devDependencies:
+      '@deepseek-ai/cordis':
+        specifier: workspace:^
+        version: link:../../vendor/cordis
+      '@deepseek-ai/dsh-client-locale':
+        specifier: workspace:^
+        version: link:../../packages/client/locale
+      '@deepseek-ai/dsh-client-store':
+        specifier: workspace:^
+        version: link:../../packages/client/store
+      '@deepseek-ai/dsh-client-test-runtime':
+        specifier: workspace:^
+        version: link:../../packages/test-support/client-runtime
+      '@deepseek-ai/dsh-client-ui-conversation':
+        specifier: workspace:^
+        version: link:../../packages/client/ui-conversation
+      '@deepseek-ai/dsh-client-ui-input-trigger':
+        specifier: workspace:^
+        version: link:../../packages/client/ui-input-trigger
+      '@deepseek-ai/dsh-client-ui-primitives':
+        specifier: workspace:^
+        version: link:../../packages/client/ui-primitives
+      '@deepseek-ai/dsh-client-ui-renderer':
+        specifier: workspace:^
+        version: link:../../packages/client/ui-renderer
+      '@deepseek-ai/dsh-client-ui-session':
+        specifier: workspace:^
+        version: link:../../packages/client/ui-session
+      '@deepseek-ai/dsh-client-ui-settings':
+        specifier: workspace:^
+        version: link:../../packages/client/ui-settings
+      '@deepseek-ai/dsh-client-ui-slots':
+        specifier: workspace:^
+        version: link:../../packages/client/ui-slots
+      '@types/katex':
+        specifier: ~0.16.7
+        version: 0.16.8
+      '@types/react':
+        specifier: ~18.3.1
+        version: 18.3.31
+      '@types/use-sync-external-store':
+        specifier: ^1.5.0
+        version: 1.5.0
+      esbuild:
+        specifier: ^0.25.0
+        version: 0.25.12
+      react:
+        specifier: ^18.2.0
+        version: 18.3.1
+
   out-of-tree/ui-overlay:
     devDependencies:
       '@deepseek-ai/cordis':
@@ -639,6 +709,9 @@ importers:
       '@zitro/dsh-oot-ui-actions':
         specifier: workspace:^
         version: link:../ui-actions
+      '@zitro/dsh-oot-ui-composer':
+        specifier: workspace:^
+        version: link:../ui-composer
       '@zitro/dsh-oot-ui-overlay':
         specifier: workspace:^
         version: link:../ui-overlay
@@ -664,6 +737,9 @@ importers:
       '@zitro/dsh-oot-ui-actions':
         specifier: workspace:^
         version: link:../ui-actions
+      '@zitro/dsh-oot-ui-composer':
+        specifier: workspace:^
+        version: link:../ui-composer
       '@zitro/dsh-oot-ui-overlay':
         specifier: workspace:^
         version: link:../ui-overlay
@@ -11691,6 +11767,15 @@ packages:
       typescript:
         optional: true
 
+  '@lezer/common@1.5.2':
+    resolution: {integrity: sha512-sxQE460fPZyU3sdc8lafxiPwJHBzZRy/udNFynGQky1SePYBdhkBl1kOagA9uT3pxR8K09bOrmTUqA9wb/PjSQ==}
+
+  '@lezer/highlight@1.2.3':
+    resolution: {integrity: sha512-qXdH7UqTvGfdVBINrgKhDsVTJTxactNNxLk7+UMwZhU13lMHaOBlJe9Vqp907ya56Y3+ed2tlqzys7jDkTmW0g==}
+
+  '@lezer/markdown@1.7.2':
+    resolution: {integrity: sha512-iTkYvoVcKt3WkeL7qUDyXHONZEwLio4wj8KTNi2dnjQEXBZKMV63BpQrPqfsM+OkvuRbiSTAcycYAsQzLhRNoQ==}
+
   '@mermaid-js/mermaid-mindmap@9.3.0':
     resolution: {integrity: sha512-IhtYSVBBRYviH1Ehu8gk69pMDF8DSRqXBRDMWrEfHoaMruHeaP2DXA3PBnuwsMaCdPQhlUUcy/7DBLAEIXvCAw==}
 
@@ -17277,6 +17362,17 @@ snapshots:
       lexical: 0.49.0(typescript@6.0.3)
     optionalDependencies:
       typescript: 6.0.3
+
+  '@lezer/common@1.5.2': {}
+
+  '@lezer/highlight@1.2.3':
+    dependencies:
+      '@lezer/common': 1.5.2
+
+  '@lezer/markdown@1.7.2':
+    dependencies:
+      '@lezer/common': 1.5.2
+      '@lezer/highlight': 1.2.3
 
   '@mermaid-js/mermaid-mindmap@9.3.0':
     dependencies:

@@ -23,3 +23,6 @@
 
     - id: oot-ui-stock-actions
       name: './ui-stock-actions/lib/index.js'
+
+    - id: oot-ui-composer
+      name: './ui-composer/lib/index.js'

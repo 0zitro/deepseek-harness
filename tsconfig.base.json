@@ -238,6 +238,8 @@
       "@zitro/dsh-oot-ui-overlay/client": ["./out-of-tree/ui-overlay/src/client/index.ts"],
       "@zitro/dsh-oot-ui-stock-actions": ["./out-of-tree/ui-stock-actions/src"],
       "@zitro/dsh-oot-ui-stock-actions/client": ["./out-of-tree/ui-stock-actions/src/client/index.ts"],
+      "@zitro/dsh-oot-ui-composer": ["./out-of-tree/ui-composer/src"],
+      "@zitro/dsh-oot-ui-composer/client": ["./out-of-tree/ui-composer/src/client/index.ts"],
       // BEGIN generated package aliases — pnpm run gen-tsconfig-paths
       "@deepseek-ai/dsh-acp": ["./packages/acp/acp/src"],
       "@deepseek-ai/dsh-acp-app": ["./packages/bundle/acp-app/src"],
