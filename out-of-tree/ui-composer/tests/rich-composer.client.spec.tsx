@@ -81,6 +81,7 @@ function mountChrome(
   const useNoticesReal = useStoreOf(noticeStore)
 
   const props = {
+    sessionId: 'session-1' as never,
     session: options.session ?? {},
     useInput: useInputReal,
     useNotices: useNoticesReal,
@@ -116,7 +117,10 @@ function mountChrome(
     const el = screen.getByRole('textbox')
     return el as HTMLDivElement
   }
-  return { shell, triggers, inputStore, noticeStore, utils, editable, props }
+  const registeredFaces = (props.rich.service as unknown as {
+    register: ReturnType<typeof vi.fn>
+  }).register.mock.calls.at(-1)![1] as { send(gesture: 'enter' | 'accelerated'): void; undo(): void; redo(): void }
+  return { shell, triggers, inputStore, noticeStore, utils, editable, props, registeredFaces }
 }
 
 describe('the editing surface', () => {
@@ -154,11 +158,16 @@ describe('the editing surface', () => {
 })
 
 describe('submit gestures', () => {
-  it('submits on Enter with the resolved delivery mode', async () => {
-    const { editable, shell } = mountChrome()
+  it('submits through the composer.send action, not a hardcoded Enter', async () => {
+    const { editable, shell, registeredFaces } = mountChrome()
     editable().textContent = 'go'
     await waitFor(() => { expect(shell.setDraft).toHaveBeenCalled() })
+    // Plain Enter at the element level does NOTHING: the gesture belongs to
+    // the `composer.send` binding (unbound, it falls to the browser).
     fireEvent.keyDown(editable(), { key: 'Enter' })
+    expect(shell.submit).not.toHaveBeenCalled()
+    // The action run routes through the service to the mounted surface.
+    registeredFaces.send('enter')
     expect(shell.submit).toHaveBeenCalledWith('queue')
   })
 
@@ -207,16 +216,16 @@ describe('the trigger pipeline', () => {
 })
 
 describe('source-level undo', () => {
-  it('walks a edit back and forward with the selection restored', async () => {
-    const { editable } = mountChrome()
+  it('walks the source-level undo stack through the composer.undo action face', async () => {
+    const { editable, registeredFaces } = mountChrome()
     const el = editable()
     el.textContent = 'one'
     await waitFor(() => { expect(el.textContent).toBe('one') })
     el.textContent = 'one two'
     await waitFor(() => { expect(el.textContent).toBe('one two') })
-    fireEvent.keyDown(el, { key: 'z', ctrlKey: true })
+    registeredFaces.undo()
     await waitFor(() => { expect(el.textContent).toBe('one') })
-    fireEvent.keyDown(el, { key: 'z', ctrlKey: true, shiftKey: true })
+    registeredFaces.redo()
     await waitFor(() => { expect(el.textContent).toBe('one two') })
   })
 })

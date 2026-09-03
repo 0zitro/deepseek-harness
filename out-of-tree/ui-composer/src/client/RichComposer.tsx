@@ -10,19 +10,26 @@
  * menu fed by the input-trigger controller's stores, notices, image intake
  * through the shell, and send/stop.
  */
-import { memo, useEffect, useRef, useState, type KeyboardEvent as ReactKeyboardEvent, type ReactNode } from 'react'
+import { memo, useEffect, useRef, useState, type ComponentProps, type KeyboardEvent as ReactKeyboardEvent, type ReactNode } from 'react'
 import type {
-  InjectFace, PropsLocale, PropsRuntime,
+  InjectFace, PropsLocale, PropsRuntime, TranslateNS,
 } from '@deepseek-ai/dsh-client-ui-slots'
 import type {
   ComposerAttachment, InputState, SessionInput,
 } from '@deepseek-ai/dsh-client-ui-conversation/client'
 import type { InputTriggerController } from '@deepseek-ai/dsh-client-ui-input-trigger/client'
+import type { ModelSelection } from '@deepseek-ai/dsh-api-session-controller/types'
+import type { ModelDirectoryState } from '@deepseek-ai/dsh-client-ui-model-selection/client'
+import type { SnapshotStore } from '@deepseek-ai/dsh-client-store'
+import type { PermissionSelectProps } from '@deepseek-ai/dsh-client-ui-conversation/client'
+import { ContextMeter, PermissionSelect } from '@deepseek-ai/dsh-client-ui-conversation/client'
+import { PlanChip } from '@deepseek-ai/dsh-client-ui-plan/client'
+import { ModelSelect } from '@deepseek-ai/dsh-client-ui-model-selection/client'
 import { useStoreOf } from './useStore.ts'
 import type { InputSubmitMode, SubmitGesture } from './policy.ts'
 import { attach, type ComposerControl } from './editor/attach.ts'
 import { TriggerMenu } from './TriggerMenu.tsx'
-import type { RichComposerRegistry } from './service.ts'
+import type { RichComposerRegistry, SendGesture } from './service.ts'
 import { FocusScope } from '@zitro/dsh-oot-ui-actions/client'
 import css from './rich-composer.module.css'
 
@@ -57,6 +64,23 @@ export interface RichComposerInjected {
     service: RichComposerRegistry
     stop: () => void
     resolveMode(running: boolean, gesture: SubmitGesture, steeringAvailable: boolean): InputSubmitMode
+    /** Run a slash command in this session (the Access chip's write path). */
+    command(line: string): Promise<boolean>
+    /** The model seat face, or undefined where the resolver service is absent. */
+    model: {
+      available: boolean
+      directory: SnapshotStore<ModelDirectoryState>
+      load(): void
+      select(selection: ModelSelection): Promise<boolean>
+    } | undefined
+    /** Execute `/plan off` (the plan chip's exit path); null = no local failure text. */
+    exitPlanMode(): Promise<string | null>
+    /** The conversation namespace's translate (the stock chrome components read it). */
+    conversationT: TranslateNS<'conversation'>
+    /** The plan namespace's translate. */
+    planT: TranslateNS<'plan'>
+    /** The model namespace's translate. */
+    modelT: TranslateNS<'model'>
   }
 }
 
@@ -67,10 +91,11 @@ export type RichComposerProps =
   & PropsLocale<'rich-composer'>
 
 export const RichComposer = memo(function RichComposer({
-  sessionId, session, useInput, useProjection, useNotices,
+  sessionId, session, useSessions, useSessionPendingInteraction, useWorkspaces,
+  useSession, useConversation, useInput, inputActions, useProjection, useNotices,
   rich, t,
 }: RichComposerProps) {
-  const { shell, conversation, triggers, stop, resolveMode, publishMenuOpen, service } = rich
+  const { shell, conversation, triggers, stop, resolveMode, publishMenuOpen, service, command, model, exitPlanMode, conversationT, planT, modelT } = rich
   const input = useInput(state => state)
   const imageLimits = useProjection('imageLimits')
 
@@ -82,6 +107,8 @@ export const RichComposer = memo(function RichComposer({
 
   const machineBusy = input.phase === 'adjudicating' || input.phase === 'submitting'
   const running = session?.running ?? false
+  const locked = machineBusy
+  const permissions = useProjection('permissions') as PermissionSelectProps['value']
   const attachments = conversation.draftImages(input.imageIds)
   const canSteer = !machineBusy && empty && running && (session?.subagent ?? null) === null
     && input.queue.some(row => row.placement === 'queued')
@@ -139,7 +166,7 @@ export const RichComposer = memo(function RichComposer({
   }, [input])
 
   /** Submit from a keyboard or button gesture, with the delivery mode resolved. */
-  const submitWith = (gesture: SubmitGesture): void => {
+  const submitWith = (gesture: SendGesture): void => {
     if (machineBusy) return
     const steeringAvailable = (session?.subagent ?? null) === null
     if (gesture === 'accelerated' && canSteer) {
@@ -148,6 +175,39 @@ export const RichComposer = memo(function RichComposer({
     }
     if (empty) return
     shell.submit(resolveMode(running, gesture, steeringAvailable))
+  }
+
+  // The plan seat's props: the full standard kit the seat's runtime share
+  // declares, cast across the augmentation difference between this package's
+  // program and the seat component's own.
+  const planChipProps = {
+    useProjection,
+    useSessions,
+    useSessionPendingInteraction,
+    useWorkspaces,
+    useSession,
+    sessionId,
+    useConversation,
+    useInput,
+    inputActions,
+    locked,
+    exitPlanMode,
+    t: planT,
+  } as unknown as ComponentProps<typeof PlanChip>
+
+  /** The + control: toggle the command menu at the caret (stock semantics). */
+  const toggleCommands = (): void => {
+    if (triggers === undefined) return
+    const selection = controlRef.current?.selection()
+    const draft = shell.state.getSnapshot().draft
+    const start = selection?.start ?? draft.length
+    triggers.toggleSource('command', {
+      trigger: '/',
+      query: '',
+      quoted: false,
+      position: draft.slice(0, start).trim() === '' ? 'leading' : 'inline',
+      span: { start, end: selection?.end ?? start, draftRev: shell.state.getSnapshot().draftRev },
+    })
   }
 
   const intakeImages = (files: readonly File[]): void => {
@@ -179,17 +239,21 @@ export const RichComposer = memo(function RichComposer({
   // The faces close over live refs, so one registration lasts the mount.
   const facesRef = useRef({ submitWith, machineBusy })
   facesRef.current = { submitWith, machineBusy }
+  void sessionId
   useEffect(() => {
     if (sessionId === undefined) return
     return service.register(sessionId, {
-      send: () => { facesRef.current.submitWith('enter') },
+      send: (gesture) => { facesRef.current.submitWith(gesture) },
       queue: () => { if (!facesRef.current.machineBusy) shell.submit('queue') },
       steer: () => {
         if (!facesRef.current.machineBusy) shell.submit('steer')
       },
       undo: () => { controlRef.current?.undo() },
       redo: () => { controlRef.current?.redo() },
-      dismissPopup: () => { shell.dismissPopup() },
+      dismissPopup: () => {
+        triggers?.dismiss()
+        shell.dismissPopup()
+      },
       arbitrate: (key) => { shell.arbitrate(key, false) },
     })
   }, [sessionId, service, shell])
@@ -203,8 +267,11 @@ export const RichComposer = memo(function RichComposer({
   const onKeyDown = (event: ReactKeyboardEvent<HTMLDivElement>): void => {
     const e = event.nativeEvent
     if (e.isComposing || e.defaultPrevented) return
-    // The trigger menu owns its keys while it is open; the shell's arbitration
-    // delegates to the pipeline and answers 'pass' when none is live.
+    // A keybinding claimed the gesture one pass up (the dispatcher runs
+    // window-capture, before this element handler): its action ran; yield.
+    // The trigger menu's own keys were claimed by the palette actions the
+    // same way while it is open; the arbitration below is the standalone
+    // fallback for compositions without the action dispatcher.
     const arbitrateKey = e.key === 'ArrowUp' ? 'up'
       : e.key === 'ArrowDown' ? 'down'
         : e.key === 'Enter' ? 'enter'
@@ -219,11 +286,17 @@ export const RichComposer = memo(function RichComposer({
       event.preventDefault()
       return
     }
-    if (e.key === 'Enter' && !e.shiftKey) {
-      // Shift+Enter is the browser's own line break; the composer draws the line.
+    if (e.key === 'Enter' && !e.shiftKey && (e.ctrlKey || e.metaKey)) {
+      // The accelerated chord is a composer-native gesture: on an empty draft
+      // it steers the queue; otherwise it submits with the opposite delivery
+      // preference. Plain Enter belongs to the `composer.send` action.
       event.preventDefault()
-      submitWith(e.ctrlKey || e.metaKey ? 'accelerated' : 'enter')
+      submitWith('accelerated')
     }
+    // Plain Enter and Shift+Enter are deliberately unhandled here: plain
+    // Enter belongs to the `composer.send` binding (unbound, it falls to the
+    // browser and breaks the line), and Shift+Enter is the browser's own
+    // line break — the composer draws the line.
   }
 
   const notice = useNotices(value => value)
@@ -277,7 +350,33 @@ export const RichComposer = memo(function RichComposer({
         </div>
       ) : null}
       <div className={css.controls}>
-        <div className={css.spring} />
+        <div className={css.tools}>
+          <button
+            type="button"
+            className={css.add}
+            aria-label={t('commands')}
+            aria-haspopup="listbox"
+            disabled={triggers === undefined}
+            onMouseDown={(event) => { event.preventDefault() }}
+            onClick={toggleCommands}
+          >
+            <PlusGlyph />
+          </button>
+          <PermissionSelect value={permissions} locked={locked} command={command} t={conversationT} />
+          <PlanChip {...planChipProps} />
+        </div>
+        <div className={css.trailing}>
+        {model !== undefined ? (
+          <ModelSelect
+            locked={locked}
+            available={model.available}
+            directory={model.directory}
+            load={model.load}
+            select={model.select}
+            t={modelT}
+          />
+        ) : null}
+        <ContextMeter useProjection={useProjection} t={conversationT} />
         {running ? (
           <button
             type="button"
@@ -300,6 +399,7 @@ export const RichComposer = memo(function RichComposer({
             <SendGlyph />
           </button>
         )}
+        </div>
       </div>
       </div>
     </div>
@@ -330,6 +430,14 @@ function bytesText(bytes: number): string {
   if (bytes >= 1024 * 1024) return `${Math.round(bytes / (1024 * 1024))} MB`
   if (bytes >= 1024) return `${Math.round(bytes / 1024)} KB`
   return `${bytes} B`
+}
+
+function PlusGlyph(): ReactNode {
+  return (
+    <svg width="14" height="14" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+      <path d="M8 3v10M3 8h10" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
+    </svg>
+  )
 }
 
 function SendGlyph(): ReactNode {

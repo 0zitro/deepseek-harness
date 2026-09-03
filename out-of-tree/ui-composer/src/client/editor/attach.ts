@@ -211,23 +211,12 @@ export function attach(win: Window, options: AttachOptions): ComposerControl {
     redecorate()
   }
 
-  el.addEventListener('keydown', (event) => {
-    const e = event as KeyboardEvent
-    if (!(e.ctrlKey || e.metaKey) || composing) return
-    const k = (e.key || '').toLowerCase()
-    const undo = k === 'z' && !e.shiftKey
-    const redo = (k === 'z' && e.shiftKey) || k === 'y'
-    if (!undo && !redo) return
-    e.preventDefault()
-    e.stopImmediatePropagation() // pre-empt the broken native undo, and any ancestor handler
-    if (undo) {
-      const target = history.undo()
-      if (target !== null) restore(target)
-    } else {
-      const target = history.redo()
-      if (target !== null) restore(target)
-    }
-  }, true)
+  // Undo/redo KEYBINDINGS live in the action system (`composer.undo` /
+  // `composer.redo`, registered by the plugin): gestures are data, and a
+  // rebind must move the gesture, not fight a hardcoded handler. This file
+  // keeps the undo STACK and the programmatic `undo()`/`redo()` verbs; the
+  // standalone harness (tests/browser/entry.ts) binds the default chords
+  // itself where no dispatcher exists.
 
   // --- horizontal arrows: entering and leaving an object ------------------------------------
 

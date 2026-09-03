@@ -19,9 +19,6 @@
     },
     {
       "path": "../ui-overlay"
-    },
-    {
-      "path": "../ui-composer"
     }
   ]
 }

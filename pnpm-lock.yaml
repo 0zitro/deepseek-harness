@@ -631,6 +631,9 @@ importers:
       '@deepseek-ai/cordis':
         specifier: workspace:^
         version: link:../../vendor/cordis
+      '@deepseek-ai/dsh-api-session-controller':
+        specifier: workspace:^
+        version: link:../../packages/api/session-controller
       '@deepseek-ai/dsh-client-locale':
         specifier: workspace:^
         version: link:../../packages/client/locale
@@ -646,6 +649,12 @@ importers:
       '@deepseek-ai/dsh-client-ui-input-trigger':
         specifier: workspace:^
         version: link:../../packages/client/ui-input-trigger
+      '@deepseek-ai/dsh-client-ui-model-selection':
+        specifier: workspace:^
+        version: link:../../packages/client/ui-model-selection
+      '@deepseek-ai/dsh-client-ui-plan':
+        specifier: workspace:^
+        version: link:../../packages/client/ui-plan
       '@deepseek-ai/dsh-client-ui-primitives':
         specifier: workspace:^
         version: link:../../packages/client/ui-primitives
@@ -661,6 +670,9 @@ importers:
       '@deepseek-ai/dsh-client-ui-slots':
         specifier: workspace:^
         version: link:../../packages/client/ui-slots
+      '@deepseek-ai/dsh-plan-mode':
+        specifier: workspace:^
+        version: link:../../packages/plan/plan-mode
       '@types/katex':
         specifier: ~0.16.7
         version: 0.16.8
@@ -712,9 +724,6 @@ importers:
       '@zitro/dsh-oot-ui-actions':
         specifier: workspace:^
         version: link:../ui-actions
-      '@zitro/dsh-oot-ui-composer':
-        specifier: workspace:^
-        version: link:../ui-composer
       '@zitro/dsh-oot-ui-overlay':
         specifier: workspace:^
         version: link:../ui-overlay

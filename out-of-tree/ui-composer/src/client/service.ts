@@ -10,19 +10,25 @@ import type { Context } from '@deepseek-ai/cordis'
 import type { ISessions } from '@deepseek-ai/dsh-api-session-controller/client'
 import type { SessionId } from '@deepseek-ai/dsh-session/types'
 
+/** The submit gesture an action run carries: plain Enter, or the accelerated chord. */
+export type SendGesture = 'enter' | 'accelerated'
+
 /** The verbs one mounted rich composer surface answers. */
 export interface RichComposerFaces {
-  /** Submit with the preference-resolved delivery mode. */
-  send(): void
+  /**
+   * Submit with the preference-resolved delivery mode.
+   * @param gesture - plain Enter or the accelerated chord.
+   */
+  send(gesture: SendGesture): void
   /** Submit in queue mode regardless of preference. */
   queue(): void
-  /** Submit in steer mode, or steer the queue on an empty draft. */
+  /** Submit in steer mode. */
   steer(): void
   /** Walk the source-level undo stack back one step. */
   undo(): void
   /** Walk the source-level undo stack forward one step. */
   redo(): void
-  /** Dismiss the trigger menu (any interaction outside the box). */
+  /** Dismiss the trigger menu and the popupSelect shell. */
   dismissPopup(): void
   /** Keyboard arbitration while the menu is open. */
   arbitrate(key: 'up' | 'down' | 'enter' | 'escape' | 'tab'): void
@@ -30,8 +36,11 @@ export interface RichComposerFaces {
 
 /** The outward face of the rich composer service: the action verbs. */
 export interface RichComposerServiceFace {
-  /** Submit with the preference-resolved delivery mode. */
-  send(): void
+  /**
+   * Submit with the preference-resolved delivery mode.
+   * @param gesture - plain Enter (default) or the accelerated chord.
+   */
+  send(gesture?: SendGesture): void
   /** Submit in queue mode regardless of preference. */
   queue(): void
   /** Submit in steer mode. */
@@ -90,9 +99,12 @@ export class RichComposerService extends Service implements RichComposerServiceF
     return id === undefined ? undefined : this.surfaces.get(id)
   }
 
-  /** Submit with the preference-resolved delivery mode. */
-  send(): void {
-    this.current()?.send()
+  /**
+   * Submit with the preference-resolved delivery mode.
+   * @param gesture - plain Enter (default) or the accelerated chord.
+   */
+  send(gesture: SendGesture = 'enter'): void {
+    this.current()?.send(gesture)
   }
 
   /** Submit in queue mode regardless of preference. */

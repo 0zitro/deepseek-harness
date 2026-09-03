@@ -23,7 +23,6 @@
       "inject": [
         "@zitro/dsh-oot-ui-actions",
         "@zitro/dsh-oot-ui-overlay",
-        "@zitro/dsh-oot-ui-composer",
         "@deepseek-ai/dsh-client-locale"
       ],
       "platform": "web"
@@ -37,15 +36,13 @@
   "license": "MIT",
   "peerDependencies": {
     "@deepseek-ai/cordis": "workspace:^",
-    "@deepseek-ai/dsh-client-locale": "workspace:^",
-    "@zitro/dsh-oot-ui-composer": "workspace:^"
+    "@deepseek-ai/dsh-client-locale": "workspace:^"
   },
   "devDependencies": {
     "@deepseek-ai/cordis": "workspace:^",
     "@deepseek-ai/dsh-client-locale": "workspace:^",
     "@deepseek-ai/dsh-client-test-runtime": "workspace:^",
     "@zitro/dsh-oot-ui-actions": "workspace:^",
-    "@zitro/dsh-oot-ui-composer": "workspace:^",
     "@zitro/dsh-oot-ui-overlay": "workspace:^"
   },
   "files": [

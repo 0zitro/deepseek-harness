@@ -208,6 +208,49 @@
   flex: 1;
 }
 
+/* Toolbar groups (stock .tools/.trailing): attach + access + plan left;
+   model, meter and send pinned right. */
+.tools,
+.trailing {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+}
+
+.tools {
+  gap: 16px;
+}
+
+.trailing {
+  flex: none;
+  margin-left: auto;
+  gap: 12px;
+}
+
+/* Attach circle (stock .add): 28px, selector fill, primary glyph. */
+.add {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 28px;
+  height: 28px;
+  border: none;
+  border-radius: 999px;
+  corner-shape: round;
+  background: var(--dsw-specific-selector);
+  color: var(--dsw-alias-label-primary);
+  cursor: pointer;
+}
+
+.add:hover:not(:disabled) {
+  background: var(--dsw-alias-interactive-bg-hover-solid);
+}
+
+.add:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
 /* Primary send (stock `.primary`): 34px info-fill circle, white glyph. */
 .send,
 .stop {

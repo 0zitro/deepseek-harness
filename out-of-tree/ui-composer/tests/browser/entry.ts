@@ -5,8 +5,22 @@ import { selectionOffsets } from '../../src/client/editor/selection.ts'
 
 const el = document.querySelector<HTMLDivElement>('#composer')
 if (el !== null) {
-  attach(window, { el, onEdit: () => {} })
+  const control = attach(window, { el, onEdit: () => {} })
+  ;(window as unknown as { __ccxControl?: unknown }).__ccxControl = control
   el.focus()
+  // The action dispatcher is absent in this standalone harness: bind the
+  // default undo/redo chords the plugin would register.
+  el.addEventListener('keydown', (event) => {
+    if (!(event.ctrlKey || event.metaKey)) return
+    const k = (event.key || '').toLowerCase()
+    const undo = k === 'z' && !event.shiftKey
+    const redo = (k === 'z' && event.shiftKey) || k === 'y'
+    if (!undo && !redo) return
+    event.preventDefault()
+    event.stopPropagation()
+    if (undo) control.undo()
+    else control.redo()
+  }, true)
 }
 
 declare global {
