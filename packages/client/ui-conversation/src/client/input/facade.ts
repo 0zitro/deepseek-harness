@@ -263,10 +263,13 @@ export class SessionInputShell implements SessionInput {
   /**
    * Replace the whole draft (persisted-draft seed and programmatic writes).
    * Placeholder-sanitized; newlines split paragraphs; the caret lands at the
-   * end. Merged into history so a seed is not an undoable step of its own.
+   * end unless the caller owns the visible caret (a mounted-hidden shell
+   * editor must not steal the document selection from its driving surface).
+   * Merged into history so a seed is not an undoable step of its own.
    * @param text - the full next draft.
+   * @param caretToEnd - place the shell editor's selection at the end (default).
    */
-  setDraft(text: string): void {
+  setDraft(text: string, caretToEnd = true): void {
     const clean = text.replace(REFERENCE_PLACEHOLDER_RE, '')
     if (clean === this.projection.clipboardText) return
     this.editor.update(() => {
@@ -277,7 +280,7 @@ export class SessionInputShell implements SessionInput {
         if (line !== '') paragraph.append($createTextNode(line))
         root.append(paragraph)
       }
-      root.selectEnd()
+      if (caretToEnd) root.selectEnd()
     }, { discrete: true, tag: HISTORY_MERGE_TAG })
   }
 

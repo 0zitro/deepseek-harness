@@ -664,6 +664,9 @@ importers:
       '@types/katex':
         specifier: ~0.16.7
         version: 0.16.8
+      '@types/node':
+        specifier: ^22.20.0
+        version: 22.20.0
       '@types/react':
         specifier: ~18.3.1
         version: 18.3.31

@@ -35,3 +35,10 @@ re-rendered from a takeover); the `rich-composer` settings namespace's
 `enabled` toggle declines the election and restores the stock bar. Stock
 gestures for the surface ship in `@zitro/dsh-oot-ui-stock-actions` through
 the `ctx.composer` service this package provides.
+
+Known limitations: the held-text read layer does not yet normalize every
+caret position Chromium reports around a folded island inside a
+plaintext-only editable (island-adjacent reads can disagree with the visual
+caret by the island's span); the enter/leave edge contract is therefore not
+browser-pinned yet, and the click sweep relies on glyph boxes rather than
+read positions.

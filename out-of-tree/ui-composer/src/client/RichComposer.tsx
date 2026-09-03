@@ -102,7 +102,10 @@ export const RichComposer = memo(function RichComposer({
       onEdit: (text) => {
         pushed.current = text
         setEmpty(text === '')
-        shell.setDraft(text)
+        // false: this surface owns the visible caret; the shell's editor is
+        // mounted-hidden behind the chain overlay, and selecting into it
+        // would steal focus on every keystroke.
+        shell.setDraft(text, false)
       },
       afterDecorate: (text, caret) => {
         if (triggers === undefined) return
@@ -116,6 +119,14 @@ export const RichComposer = memo(function RichComposer({
       controlRef.current = null
     }
   }, [shell, triggers])
+
+  // Unlock (mount / session switch / busy settling) returns focus to the
+  // editable — the stock bar's contract, kept: typing continues without a
+  // click after a send completes or a session changes.
+  useEffect(() => {
+    if (machineBusy) return
+    editableRef.current?.focus({ preventScroll: true })
+  }, [sessionId, machineBusy])
 
   // Adopt shell-side draft changes this surface did not make: a persisted
   // seed, a pick insert, a send-clear. Replacing the buffer wholesale is the
@@ -267,13 +278,20 @@ export const RichComposer = memo(function RichComposer({
       <div className={css.controls}>
         <div className={css.spring} />
         {running ? (
-          <button type="button" className={css.stop} onClick={() => { stop() }} aria-label={t('stop')}>
+          <button
+            type="button"
+            className={css.stop}
+            onMouseDown={(event) => { event.preventDefault() }}
+            onClick={() => { stop() }}
+            aria-label={t('stop')}
+          >
             <StopGlyph />
           </button>
         ) : (
           <button
             type="button"
             className={css.send}
+            onMouseDown={(event) => { event.preventDefault() }}
             onClick={() => { submitWith('enter') }}
             disabled={machineBusy || empty}
             aria-label={t('send')}

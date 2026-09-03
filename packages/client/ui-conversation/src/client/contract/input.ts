@@ -180,8 +180,15 @@ export interface InputTarget {
 
 /** Per-session input facade owned by the conversation wiring layer. */
 export interface SessionInput extends InputTarget {
-  /** Replace the whole draft (persisted-draft seed and programmatic writes). */
-  setDraft(text: string): void
+  /**
+   * Replace the whole draft (persisted-draft seed and programmatic writes).
+   * @param text - the full next draft.
+   * @param caretToEnd - place the shell editor's selection at the end
+   *   (default). A surface that owns the visible caret passes false: the
+   *   shell editor may be mounted-hidden, and selecting into it steals the
+   *   document selection — and with it focus — from the driving surface.
+   */
+  setDraft(text: string, caretToEnd?: boolean): void
   /** Append ordered browser-owned image ids; busy admission phases refuse. */
   addImages(ids: readonly DraftAttachmentId[]): boolean
   /** Remove one browser-owned image id; busy admission phases refuse. */

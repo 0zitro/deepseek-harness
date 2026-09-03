@@ -144,10 +144,13 @@ export function offsetOf(el: Element, container: Node, containerOffset: number):
       // The boundary is a text node: reaching it IS the answer.
       if (node === boundary) return count + Math.min(containerOffset, node.nodeValue?.length ?? 0)
       if (boundary.nodeType === 1) {
+        // The position sits immediately before the boundary element: every
+        // node that precedes it counts, and the first node inside its subtree
+        // or after it ends the walk. (`compareDocumentPosition` answers where
+        // the ARGUMENT sits relative to the receiver — FOLLOWING means the
+        // walked node is after the boundary, CONTAINED_BY means inside it.)
         const pos = boundary.compareDocumentPosition(node)
-        // The node sits inside the boundary's subtree, or after it in document order: either way
-        // the boundary position is at or before this node, and the count so far is the answer.
-        if (pos & Node.DOCUMENT_POSITION_CONTAINED_BY || pos & Node.DOCUMENT_POSITION_PRECEDING) break
+        if (pos & Node.DOCUMENT_POSITION_FOLLOWING || pos & Node.DOCUMENT_POSITION_CONTAINED_BY) break
       }
     }
     count += heldValue(node, el).length

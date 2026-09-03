@@ -126,10 +126,13 @@ describe('the editing surface', () => {
     expect(screen.getByText(en.placeholder)).toBeTruthy()
   })
 
-  it('pushes every edit into the shell as the single writer', async () => {
+  it('pushes every edit into the shell without stealing focus', async () => {
     const { editable, shell } = mountChrome()
     editable().textContent = 'hello'
-    await waitFor(() => { expect(shell.setDraft).toHaveBeenCalledWith('hello') })
+    // caretToEnd=false: the shell's editor is mounted-hidden behind the
+    // chain overlay; selecting into it would take the document selection —
+    // and focus — away from this surface on every keystroke.
+    await waitFor(() => { expect(shell.setDraft).toHaveBeenCalledWith('hello', false) })
   })
 
   it('decorates what is typed: a folded math atom replaces the source on screen', async () => {

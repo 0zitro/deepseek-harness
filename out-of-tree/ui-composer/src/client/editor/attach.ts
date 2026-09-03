@@ -427,6 +427,38 @@ export function attach(win: Window, options: AttachOptions): ComposerControl {
     edging = { key: e.key, focus: target, rung: 2 }
   }, true)
 
+  // --- Backspace/Delete at a folded object's edge ----------------------------------------------
+  //
+  // A folded object is one thing the browser will not edit into, and a
+  // deletion at its edge should take it entire — the same property an arrow
+  // and a select-all delete rest on. The browser's own answer at the edge of
+  // a contenteditable=false island inside a plaintext-only editable is not
+  // that: it may take the drawing and leave the hidden source standing. The
+  // edge cases are claimed here; every other deletion is the browser's own.
+  el.addEventListener('keydown', (event) => {
+    const e = event as KeyboardEvent
+    if (e.defaultPrevented || e.isComposing) return
+    const backspace = e.key === 'Backspace'
+    if (!backspace && e.key !== 'Delete') return
+    if (e.ctrlKey || e.metaKey || e.altKey || e.shiftKey) return
+
+    const sel = selectionOffsets(win, el)
+    if (sel === null || sel.start !== sel.end) return
+
+    const objects = foldablesIn(heldText(el), drawWithAddress)
+      .filter((object) => object.from !== opened?.from)
+    // Backspace at the far edge deletes the object whole; Delete at the near
+    // edge does. The open object is excluded: its source is ordinary text.
+    const object = backspace
+      ? objects.find((one) => one.to === sel.focus)
+      : objects.find((one) => one.from === sel.focus)
+    if (object === undefined) return
+
+    e.preventDefault()
+    e.stopPropagation()
+    replace(win, el, object.from, object.to, '')
+  }, true)
+
   // --- pointer: a region is what a region is FOR, which is editing ------------------------------
 
   const lift = (): void => {

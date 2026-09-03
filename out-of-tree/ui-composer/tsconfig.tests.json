@@ -11,7 +11,8 @@
   "compilerOptions": {
     "rootDir": ".",
     "outDir": "lib/check",
-    "tsBuildInfoFile": "lib/check/tsconfig.tests.tsbuildinfo"
+    "tsBuildInfoFile": "lib/check/tsconfig.tests.tsbuildinfo",
+    "types": ["client-build-environment", "node"]
   },
   "include": [
     "src",
