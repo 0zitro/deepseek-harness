@@ -1,0 +1,40 @@
+// Per-package build-mode check program over src + tests. References
+// (repeated from ./tsconfig.json — `extends` does not carry them) give
+// cross-package imports project redirects to built declarations, so no
+// upstream source enters this program; rootDir "." keeps own src+tests
+// inside it. Composite programs may emit declarations — the outDir keeps
+// any such emit inside the gitignored lib/ tree, never beside sources.
+//
+//     tsc -b tsconfig.tests.json
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "rootDir": ".",
+    "outDir": "lib/check",
+    "tsBuildInfoFile": "lib/check/tsconfig.tests.tsbuildinfo"
+  },
+  "include": [
+    "src",
+    "tests"
+  ],
+  "references": [
+    {
+      "path": "../../packages/test-support/client-runtime"
+    },
+    {
+      "path": "../../vendor/cordis"
+    },
+    {
+      "path": "../../packages/client/locale"
+    },
+    {
+      "path": "../ui-actions"
+    },
+    {
+      "path": "../ui-overlay"
+    },
+    {
+      "path": "../ui-composer"
+    }
+  ]
+}

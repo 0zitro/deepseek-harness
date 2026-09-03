@@ -26,7 +26,8 @@
   },
   "scripts": {
     "bundle": "tsc -b . && tsdown",
-    "watch": "tsdown --watch"
+    "watch": "tsdown --watch",
+    "check": "tsc -p tsconfig.tests.json"
   },
   "license": "MIT",
   "peerDependencies": {
