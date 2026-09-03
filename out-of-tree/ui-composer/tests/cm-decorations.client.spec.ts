@@ -62,7 +62,21 @@ describe('the decoration builder: marks', () => {
   it('paints a closed emphasis from the parse tree with its markers dimmed', () => {
     const { decorations } = build('a *em* b')
     expect(classesAt(decorations, 3)).toContain('ccx-md-em')
-    expect(classesAt(decorations, 2)).toEqual(['ccx-md-marker'])
+    // A delimiter wears its construct's classes as well as the dim.
+    expect(classesAt(decorations, 2)).toEqual(['ccx-md-marker', 'ccx-md-em'])
+  })
+
+  it('lets a code span\'s backticks and a fence\'s backticks wear the code look', () => {
+    const span = build('a `code` b')
+    expect(classesAt(span.decorations, 2)).toEqual(['ccx-md-marker', 'ccx-md-code'])
+    expect(classesAt(span.decorations, 3)).toEqual(['ccx-md-code'])
+    const fence = build('```js\nx\n```')
+    expect(classesAt(fence.decorations, 0)).toEqual(['ccx-md-marker', 'ccx-md-fence'])
+    expect(classesAt(fence.decorations, 3)).toEqual(['ccx-md-fence'])
+    // A dangling backtick run wears the code look too, live.
+    const open = build('a `dangling tail')
+    expect(classesAt(open.decorations, 2)).toEqual(['ccx-md-marker', 'ccx-md-code'])
+    expect(classesAt(open.decorations, 4)).toContain('ccx-md-code')
   })
 
   it('paints a dangling opener without the closer, live', () => {
@@ -96,8 +110,8 @@ describe('the decoration builder: marks', () => {
   it('leaves plain text undecorated over a deliberately messy document', () => {
     const src = '# Head\n\n_start **bold `tick` tail\n\n$\\frac{a}{b}$ and [link](/x "t")\n```\nfence\n```'
     const { decorations } = build(src)
-    // The `#` is a dimmed marker; the heading text wears the heading class.
-    expect(classesAt(decorations, 0)).toEqual(['ccx-md-marker'])
+    // The `#` is a dimmed bold marker; the heading text wears the heading class.
+    expect(classesAt(decorations, 0)).toEqual(['ccx-md-marker', 'ccx-md-heading'])
     expect(classesAt(decorations, 2)).toContain('ccx-md-heading')
     // It computes over the whole document without throwing.
     expect(build(src)).toBeDefined()

@@ -98,13 +98,19 @@ export function buildDecorations(src: string, inputs: DecorationInputs): BuiltDe
     if (!cls[i]!.includes(c)) cls[i]!.push(c)
   }
 
-  // Pass 1 -- Lezer: closed & nested constructs, with delimiter runs as markers.
+  // Pass 1 -- Lezer: closed & nested constructs, with delimiter runs as
+  // markers. A delimiter wears its construct's classes as well as the dim:
+  // a code span's backticks are code (monospace, inside the pill), a fence's
+  // backticks are fence, a heading's `#` is bold.
   const walk = (node: LezerNode, stack: readonly string[]): void => {
     let pos = node.from
     for (let ch = node.firstChild; ch !== null; ch = ch.nextSibling) {
       for (let i = pos; i < ch.from; i++) for (const c of stack) add(i, c)
       if (ch.name.endsWith('Mark')) {
-        for (let i = ch.from; i < ch.to; i++) mark[i] = true
+        for (let i = ch.from; i < ch.to; i++) {
+          mark[i] = true
+          for (const c of stack) add(i, c)
+        }
       } else {
         if (ch.name === 'FencedCode') fences.push(ch)
         const c = NODE_CLASS[ch.name]
@@ -162,13 +168,17 @@ export function buildDecorations(src: string, inputs: DecorationInputs): BuiltDe
       // path even before the closing `)`/`]`. A bare `[Z` (no completed label) is not here.
       if ((line[i] === '(' || line[i] === '[') && i > 0 && line[i - 1] === ']' && mark[base + i - 1]) {
         mark[g] = true
+        add(g, 'url')
         for (let k = i + 1; k < L; k++) add(base + k, 'url')
         continue
       }
       const bt = /^`+/.exec(line.slice(i))
       if (bt !== null) {
         const ticks = bt[0]
-        for (let k = 0; k < ticks.length; k++) mark[base + i + k] = true
+        for (let k = 0; k < ticks.length; k++) {
+          mark[base + i + k] = true
+          add(base + i + k, 'code')
+        }
         for (let k = i + ticks.length; k < L; k++) add(base + k, 'code')
         i += ticks.length - 1
         continue
@@ -178,7 +188,10 @@ export function buildDecorations(src: string, inputs: DecorationInputs): BuiltDe
         const boundary = i === 0 || /\s/.test(line[i - 1] ?? '') || mark[base + i - 1]
         const after = line[i + d.length]
         if (boundary && after !== undefined && !/\s/.test(after)) {
-          for (let k = 0; k < d.length; k++) mark[base + i + k] = true
+          for (let k = 0; k < d.length; k++) {
+            mark[base + i + k] = true
+            add(base + i + k, c)
+          }
           for (let k = i + d.length; k < L; k++) add(base + k, c)
         }
         i += d.length - 1
@@ -207,15 +220,17 @@ export function buildDecorations(src: string, inputs: DecorationInputs): BuiltDe
   }
 
   // Coalesce runs of identical (marker | sorted class-set + colour) into mark
-  // decorations. Hidden characters keep their marks (a widget wraps in them);
-  // a marker carries no classes and no colour.
+  // decorations. A marker wears its classes too (the delimiter-of-construct
+  // rule above) but never a colour; hidden characters keep their marks (a
+  // widget wraps in them).
   const key = (i: number): string =>
-    (mark[i] ? '\x00' : cls[i]!.slice().sort().join(',') + '\x01' + (color[i] ?? ''))
+    (mark[i] ? '\x00' + cls[i]!.slice().sort().join(',') : cls[i]!.slice().sort().join(',') + '\x01' + (color[i] ?? ''))
   for (let i = 0; i < n;) {
     const k = key(i)
     let j = i + 1
     while (j < n && key(j) === k) j++
-    const worn = mark[i] ? ['ccx-md-marker'] : cls[i]!.slice().sort().map((c) => `ccx-md-${c}`)
+    const worn = cls[i]!.slice().sort().map((c) => `ccx-md-${c}`)
+    if (mark[i]) worn.unshift('ccx-md-marker')
     const hue = mark[i] ? null : color[i] ?? null
     // A plain run wears nothing: no mark decoration, no empty class to query past.
     if (worn.length > 0 || hue !== null) {
