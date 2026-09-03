@@ -113,6 +113,18 @@ describe('the CodeMirror surface', () => {
     expect(host.querySelectorAll('.cm-line')).toHaveLength(2)
   })
 
+  it('breaks the line without copying indentation', () => {
+    const { host, surface } = mount()
+    surface.view.dispatch({
+      changes: { from: 0, insert: '  indented' },
+      selection: { anchor: '  indented'.length },
+    })
+    const content = host.querySelector('.cm-content') as HTMLElement
+    content.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true }))
+    // The default keymap's Enter would have written two spaces the writer never typed.
+    expect(surface.held()).toBe('  indented\n')
+  })
+
   it('takes files from a paste and never lets them into the buffer', () => {
     const { host, calls, surface } = mount()
     const content = host.querySelector('.cm-content') as HTMLElement

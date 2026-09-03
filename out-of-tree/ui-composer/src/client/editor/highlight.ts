@@ -61,10 +61,17 @@ function colorsOf(lang: string, code: string): (string | null)[] {
   const colors: (string | null)[] = new Array(code.length).fill(null)
   let at = 0
   for (const spans of lines) {
-    for (const span of spans) colorsOfRun(colors, at, span)
+    // Runs are laid left to right within their line: each starts where the
+    // one before it ended. Painting them all from the line's start would let
+    // the last long run's colour swallow every shorter one before it.
+    let column = at
+    for (const span of spans) {
+      colorsOfRun(colors, column, span)
+      column += span.text.length
+    }
     // Runs never span a line break, so the newline separating one source line from the next is
     // the characters the line's runs did not cover: advance past them.
-    const covered = spans.reduce((sum, span) => sum + span.text.length, 0)
+    const covered = column - at
     const lineEnd = code.indexOf('\n', at)
     const lineLength = lineEnd === -1 ? code.length - at : lineEnd - at + 1
     at += Math.max(covered, lineLength)

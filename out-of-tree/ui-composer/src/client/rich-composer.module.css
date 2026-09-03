@@ -79,6 +79,25 @@
   user-select: none;
 }
 
+/* The drawn caret and selection (drawSelection replaces the native ones, so
+ * a caret-color on the content is moot): CodeMirror's base theme paints a
+ * black caret and light-editor greys; the stock composer's caret is the
+ * business token and its selection the neutral veil the folded-atom state
+ * always used. The .cm-editor-chained rule outranks the base theme's
+ * focused-state selector. */
+.surface :global(.cm-cursor),
+.surface :global(.cm-dropCursor) {
+  border-left-color: var(--dsw-alias-state-business-primary);
+}
+
+.surface :global(.cm-selectionBackground) {
+  background: rgba(127, 127, 127, 0.3);
+}
+
+.surface :global(.cm-editor.cm-focused > .cm-scroller > .cm-selectionLayer .cm-selectionBackground) {
+  background: rgba(127, 127, 127, 0.3);
+}
+
 /* The live markdown decoration (ported from the reference composer's
  * injected sheet; `.ccx-md-folded`/`.ccx-md-taken` are gone — hiding is a
  * replace decoration and CodeMirror draws the selection over widgets

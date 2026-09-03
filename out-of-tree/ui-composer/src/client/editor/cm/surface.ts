@@ -64,6 +64,18 @@ export interface RichSurface {
 }
 
 /**
+ * A plain newline: the default keymap's Enter copies the previous line's
+ * indentation, which would write leading spaces the writer never typed into
+ * the markdown source (a continued fence body, an indented closing fence).
+ * @param view - the view the keypress landed in.
+ * @returns true — the gesture is consumed.
+ */
+function plainNewline(view: EditorView): boolean {
+  view.dispatch(view.state.replaceSelection('\n'), { scrollIntoView: true })
+  return true
+}
+
+/**
  * Mount the rich editing surface into one host element.
  * @param options - the host, the initial text, and the surface callbacks.
  * @returns the control the component drives.
@@ -87,6 +99,9 @@ export function createRichSurface(options: RichSurfaceOptions): RichSurface {
         placeholder(options.placeholderText),
         richDecorations(colorFor),
         keymap.of([...defaultKeymap, ...historyKeymap]),
+        // Above the default keymap, whose Enter indents; this is a markdown
+        // source buffer, and a newline is just a newline in it.
+        Prec.high(keymap.of([{ key: 'Enter', run: plainNewline }])),
         EditorView.contentAttributes.of({
           'aria-label': options.ariaLabel,
           'aria-multiline': 'true',
