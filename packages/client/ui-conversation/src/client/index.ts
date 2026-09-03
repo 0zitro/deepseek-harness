@@ -33,12 +33,6 @@ export type {
   ConversationPromptSnapshot, RequestInspectionSnapshot, RequestPromptChange, RequestPromptInspection, RequestPromptInspector, RequestView,
 } from './contract/request-inspection.ts'
 export { inspectRequestPrompt } from './contract/request-inspection.ts'
-// Composer chrome components, exported for takeover composers that render
-// their own toolbar (the seats' faces are buildable from root services).
-export { PermissionSelect } from './skeleton/PermissionSelect.tsx'
-export type { PermissionSelectProps } from './skeleton/PermissionSelect.tsx'
-export { ContextMeter } from './skeleton/ContextMeter.tsx'
-export type { ContextMeterProps } from './skeleton/ContextMeter.tsx'
 export type { ConversationStoreState, ConversationViewRequest, ViewTab } from './contract/views.ts'
 
 export { ConversationNodeAssembler } from './conversation/assembler.ts'
@@ -69,6 +63,7 @@ export type {
   PickOutcome, ReferenceInsert, SessionInput, SessionInputResolver, SubmitImageAttachment,
   SubmitOutcome, TokenSpan,
 } from './contract/input.ts'
+export type { ComposerEditorOwnerProps } from './contract/slots.ts'
 export type { ComposerBlock, ComposerBlocks } from './contract/composer-blocks.ts'
 
 declare module '@deepseek-ai/cordis' {

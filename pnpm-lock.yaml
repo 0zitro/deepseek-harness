@@ -661,21 +661,12 @@ importers:
       '@deepseek-ai/dsh-client-test-runtime':
         specifier: workspace:^
         version: link:../../packages/test-support/client-runtime
-      '@deepseek-ai/dsh-client-ui-chat':
-        specifier: workspace:^
-        version: link:../../packages/client/ui-chat
       '@deepseek-ai/dsh-client-ui-conversation':
         specifier: workspace:^
         version: link:../../packages/client/ui-conversation
       '@deepseek-ai/dsh-client-ui-input-trigger':
         specifier: workspace:^
         version: link:../../packages/client/ui-input-trigger
-      '@deepseek-ai/dsh-client-ui-model-selection':
-        specifier: workspace:^
-        version: link:../../packages/client/ui-model-selection
-      '@deepseek-ai/dsh-client-ui-plan':
-        specifier: workspace:^
-        version: link:../../packages/client/ui-plan
       '@deepseek-ai/dsh-client-ui-primitives':
         specifier: workspace:^
         version: link:../../packages/client/ui-primitives
@@ -691,9 +682,6 @@ importers:
       '@deepseek-ai/dsh-client-ui-slots':
         specifier: workspace:^
         version: link:../../packages/client/ui-slots
-      '@deepseek-ai/dsh-plan-mode':
-        specifier: workspace:^
-        version: link:../../packages/plan/plan-mode
       '@deepseek-ai/dsh-session':
         specifier: workspace:^
         version: link:../../packages/core/session

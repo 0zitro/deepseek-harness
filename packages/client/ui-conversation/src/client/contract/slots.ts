@@ -135,6 +135,15 @@ declare module '@deepseek-ai/dsh-client-ui-slots' {
     'conversation.input.right': { kind: 'list'; scope: 'session' }
     /** Resident composer body, including the no-Session inert state. */
     'conversation.composer.bar': { kind: 'single'; scope: 'session-maybe'; owner: ComposerBarOwnerProps }
+    /**
+     * The composer's text-editing surface inside the bar's scrollport. The
+     * stock entry binds the session shell's Lexical editor; a takeover entry
+     * replaces only this surface — the bar's chrome (toolbar, seats,
+     * accessory) is unaffected. Owner carries everything the surface needs
+     * to mirror the stock editor's two states: the live machine-bound editor
+     * and the no-session workspace-picker trigger.
+     */
+    'conversation.composer.editor': { kind: 'single'; scope: 'session'; owner: ComposerEditorOwnerProps }
     /** Optional draft-image rail and drop target. */
     'conversation.input.attachments': {
       kind: 'single'
@@ -291,10 +300,32 @@ export type ComposerBarProps =
     | 'conversation.input.attachments' | 'conversation.input.overlay'
     | 'conversation.input.left' | 'conversation.input.plan'
     | 'conversation.input.right' | 'conversation.input.model'
-    | 'conversation.composer.dock'
+    | 'conversation.composer.dock' | 'conversation.composer.editor'
   >
   & InjectFace<ComposerBarInjected>
   & PropsLocale<'conversation'>
+
+/** Owner share of the composer's text-editing surface. */
+export interface ComposerEditorOwnerProps {
+  /** The shell-owned Lexical editor; null in the workspace-picker state. */
+  editor: import('lexical').LexicalEditor | null
+  /** Whether keystrokes are accepted right now. */
+  editable: boolean
+  /** Disabled tint for the surface (block-inactive sessions). */
+  editorDisabled: boolean
+  /** Machine phase for `data-phase` styling. */
+  phase: import('./input.ts').InputState['phase'] | 'inert'
+  /** Resolved placeholder copy (also the surface's accessible name). */
+  placeholderText: string
+  /** Claim ghost hint, pre-quoted for the `--dsh-composer-hint` variable; null = none. */
+  hint: string | null
+  /** No-session state: the surface is the workspace-picker trigger. */
+  workspaceTrigger: boolean
+  /** Whether the workspace picker is open (trigger `aria-expanded`). */
+  workspacePickerOpen: boolean
+  /** Picker-trigger key handling (workspace state only). */
+  onWorkspaceKeyDown: ((event: import('react').KeyboardEvent<HTMLDivElement>) => void) | undefined
+}
 
 /** Owner values used to elect a composer takeover. */
 export interface ComposerChainProps {

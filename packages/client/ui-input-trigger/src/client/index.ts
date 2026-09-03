@@ -29,9 +29,6 @@ export type {
   TriggerGuard, TriggerPosition,
 } from '../types.ts'
 export type { DetectTrigger, ExactMatch, MenuEvent, MenuReduce, MenuState, TriggerHit } from '../core/contract.ts'
-// The pure detector face, for surfaces that own their own draft buffer and
-// feed the controller directly (see InputTriggerController.track).
-export { detectTrigger } from '../core/detect.ts'
 export type { InputTriggerServiceContract } from './contract.ts'
 
 declare module '@deepseek-ai/cordis' {

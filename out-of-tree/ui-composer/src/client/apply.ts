@@ -12,15 +12,10 @@
  * user-rebindable through the keybindings settings.
  */
 import type { Context } from '@deepseek-ai/cordis'
-import type {
-  ComposerChainProps, IConversation,
-} from '@deepseek-ai/dsh-client-ui-conversation/client'
+import type { IConversation } from '@deepseek-ai/dsh-client-ui-conversation/client'
 import type { ISessions } from '@deepseek-ai/dsh-api-session-controller/client'
 import type { InputTriggerController } from '@deepseek-ai/dsh-client-ui-input-trigger/client'
 import type { SessionId } from '@deepseek-ai/dsh-session/types'
-import type { ModelSelection } from '@deepseek-ai/dsh-api-session-controller/types'
-import type { ModelDirectoryState } from '@deepseek-ai/dsh-client-ui-model-selection/client'
-import type { SnapshotStore } from '@deepseek-ai/dsh-client-store'
 import type { KeybindingKey, UiActionId } from '@zitro/dsh-oot-ui-actions/client'
 import { createSnapshotStore } from '@deepseek-ai/dsh-client-store'
 // Type-only: pulls the settings-scope Context merge (ctx.settingsScope).
@@ -33,7 +28,7 @@ import type {} from '@deepseek-ai/dsh-client-locale/client'
 import type {} from '@zitro/dsh-oot-ui-actions/client'
 import { RICH_COMPOSER_SETTINGS_NAMESPACE, type RichComposerSettings } from '../index.ts'
 import { bindPolicy } from './policy.ts'
-import { RichComposer, type RichComposerInjected } from './RichComposer.tsx'
+import { RichEditorSurface, type RichEditorInjected } from './EditorSurface.tsx'
 import { RichComposerService } from './service.ts'
 import { en, NS, zh } from './locales.ts'
 
@@ -165,23 +160,22 @@ export function apply(ctx: Context): void {
     run: () => { composer.arbitrate('enter') },
   }), 'rich-composer: palette select action')
 
-  slots.inject('conversation.composer', () => slots.register({
-    name: 'conversation.composer',
+  // The editor seat: shadows the stock Lexical surface (lowest priority
+  // renders on a single slot). The bar keeps its whole chrome — this entry
+  // replaces ONLY the text-editing surface. The `enabled` settings toggle
+  // switches the surface itself between the decorated editor and a plain
+  // binding of the stock shell editor, without touching registrations.
+  slots.inject('conversation.composer.editor', () => slots.register({
+    name: 'conversation.composer.editor',
     priority: -5,
     locale: NS,
-    // Business-owned interactions keep the composers that render them: the
-    // question and approval entries tried after this one elect on the pending
-    // carrier, and this selector declining is what lets them.
-    select: ({ pendingInteraction }: ComposerChainProps): true | null =>
-      pendingInteraction === undefined && enabled.getSnapshot() ? true : null,
-    inject: (sessionId: SessionId): RichComposerInjected => ({
-      hooks: { notices: conversation.input.shell(sessionId).notices },
-      rich: richFaces(sessionId),
+    inject: (sessionId: SessionId): RichEditorInjected => ({
+      rich: richFaces(sessionId, enabled),
     }),
-  }, RichComposer))
+  }, RichEditorSurface))
 
   /** The per-session faces, resolved lazily so boot order stays free. */
-  function richFaces(sessionId: SessionId): RichComposerInjected['rich'] {
+  function richFaces(sessionId: SessionId, enabled: ReturnType<typeof createSnapshotStore<boolean>>): RichEditorInjected['rich'] {
     return {
       shell: conversation.input.shell(sessionId),
       conversation: {
@@ -192,58 +186,12 @@ export function apply(ctx: Context): void {
       triggers: triggersOf(sessionId),
       publishMenuOpen,
       service: composer,
-      stop: () => {
-        sessions.binding(sessionId)?.session.cancel().catch(() => {
-          // Stop failure is published through Session promptError.
-        })
-      },
       resolveMode: (running, gesture, steeringAvailable) =>
         policy.resolve(running, gesture, steeringAvailable),
-      command: async (line) => {
-        const session = sessions.binding(sessionId)?.session
-        if (session === undefined) return false
-        const result = await session.command(line)
-        return result.ok && result.value.matched
-      },
-      model: modelFace(sessionId),
-      exitPlanMode: async () => {
-        const result = await ctx.remote.commands.execute(sessionId, '/plan off', [])
-        if (!result.ok) return `${result.error.message} (${result.error.code})`
-        if (result.value === undefined) return 'unknown command: /plan off'
-        return null
-      },
-      conversationT: ctx.locale.bind('conversation'),
-      planT: ctx.locale.bind('plan'),
-      modelT: ctx.locale.bind('model'),
+      enabled,
     }
   }
 
-  /** The model seat face from the shared resolver, or undefined without it. */
-  function modelFace(sessionId: SessionId): RichComposerInjected['rich']['model'] {
-    const resolver = ctx.get('modelDirectories') as
-      | {
-          directoryFor(id: SessionId): {
-            store: SnapshotStore<ModelDirectoryState>
-            load(): void | Promise<unknown>
-            select(sel: ModelSelection): Promise<unknown>
-          }
-        }
-      | undefined
-    if (resolver === undefined) return undefined
-    const directory = resolver.directoryFor(sessionId)
-    const available = sessions.subagentAddress(sessionId) === undefined
-    return {
-      available,
-      directory: directory.store,
-      load: () => {
-        if (available) void Promise.resolve(directory.load()).catch(() => { /* surfaced on the store */ })
-      },
-      select: async (selection) => {
-        if (!available) return false
-        return directory.select(selection).then(() => true, () => false)
-      },
-    }
-  }
 
   /** The session's trigger controller, or undefined where no provider is installed. */
   function triggersOf(sessionId: SessionId): InputTriggerController | undefined {

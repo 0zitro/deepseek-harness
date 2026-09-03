@@ -1,8 +1,8 @@
 /** Rich composer browser half. */
 
 export { apply, inject } from './apply.ts'
-export { RichComposer } from './RichComposer.tsx'
-export type { RichComposerInjected, RichComposerProps } from './RichComposer.tsx'
+export { RichEditorSurface } from './EditorSurface.tsx'
+export type { RichEditorInjected, RichEditorProps, RichNotice } from './EditorSurface.tsx'
 export { NS } from './locales.ts'
 export type { RichComposerKey } from './locales.ts'
 export { resolveMode, bindPolicy } from './policy.ts'

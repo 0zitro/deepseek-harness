@@ -59,6 +59,20 @@
   margin-top: 8px;
 }
 
+/* Auto-grow anchor (stock .grow): the contenteditable sets the height; the
+   placeholder rides it absolutely. */
+.grow {
+  position: relative;
+}
+
+.placeholder {
+  position: absolute;
+  inset: 4px 8px auto 16px;
+  color: var(--dsw-alias-label-caption);
+  pointer-events: none;
+  user-select: none;
+}
+
 /* The contenteditable draft surface (stock `.input` metrics). */
 .editable {
   box-sizing: border-box;

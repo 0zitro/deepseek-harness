@@ -363,6 +363,37 @@ export const InputBar = memo(function InputBar({
         ? t('placeholder.steerQueue')
         : planActive ? t('placeholder.plan') : t('placeholder.default'))
 
+  // The stock editing surface: the shell editor bound to a resident div,
+  // chips as decorator portals, and the empty-draft placeholder. Also the
+  // no-session render, where the editor seat (strict session scope) is not
+  // dispatched and the surface is the workspace-picker trigger.
+  const stockEditor = (
+    <>
+      <ComposerContentEditable
+        editor={workspaceTrigger ? null : editor}
+        editable={editable}
+        className={clsx(css.input, editorDisabled && css.inputDisabled)}
+        data-phase={input?.phase ?? 'inert'}
+        aria-disabled={editorDisabled || undefined}
+        data-placeholder={placeholderText}
+        // The placeholder was the textarea's accessible name; a div's
+        // data attribute is not, so the label restores it.
+        aria-label={workspaceTrigger ? t('hero.chooseWorkspace') : placeholderText}
+        aria-haspopup={workspaceTrigger ? 'menu' : undefined}
+        aria-expanded={workspaceTrigger ? workspacePickerOpen : undefined}
+        tabIndex={workspaceTrigger ? 0 : undefined}
+        onKeyDown={workspaceTrigger ? onWorkspaceKeyDown : undefined}
+        style={hint === null ? undefined : { '--dsh-composer-hint': JSON.stringify(hint) } as CSSProperties}
+      />
+      {empty && !claimActive && (
+        <div aria-hidden className={css.placeholder} data-composer-placeholder>
+          {placeholderText}
+        </div>
+      )}
+      <DecoratorPortals editor={workspaceTrigger ? null : editor} />
+    </>
+  )
+
   return (
     <div className={clsx(css.root, variant === 'hero' && css.hero)}>
       {toast !== null && (
@@ -412,28 +443,23 @@ export const InputBar = memo(function InputBar({
             browser's own. */}
         <div ref={scrollRef} className={css.scroll} data-input-scroll>
           <div className={css.grow}>
-            <ComposerContentEditable
-              editor={workspaceTrigger ? null : editor}
-              editable={editable}
-              className={clsx(css.input, editorDisabled && css.inputDisabled)}
-              data-phase={input?.phase ?? 'inert'}
-              aria-disabled={editorDisabled || undefined}
-              data-placeholder={placeholderText}
-              // The placeholder was the textarea's accessible name; a div's
-              // data attribute is not, so the label restores it.
-              aria-label={workspaceTrigger ? t('hero.chooseWorkspace') : placeholderText}
-              aria-haspopup={workspaceTrigger ? 'menu' : undefined}
-              aria-expanded={workspaceTrigger ? workspacePickerOpen : undefined}
-              tabIndex={workspaceTrigger ? 0 : undefined}
-              onKeyDown={workspaceTrigger ? onWorkspaceKeyDown : undefined}
-              style={hint === null ? undefined : { '--dsh-composer-hint': JSON.stringify(hint) } as CSSProperties}
-            />
-            {empty && !claimActive && (
-              <div aria-hidden className={css.placeholder} data-composer-placeholder>
-                {placeholderText}
-              </div>
-            )}
-            <DecoratorPortals editor={workspaceTrigger ? null : editor} />
+            {sessionId === undefined
+              ? stockEditor
+              : renderSlot('conversation.composer.editor', {
+                editor: workspaceTrigger ? null : editor,
+                editable,
+                editorDisabled,
+                phase: input?.phase ?? 'inert',
+                placeholderText,
+                hint,
+                workspaceTrigger,
+                workspacePickerOpen,
+                onWorkspaceKeyDown: workspaceTrigger ? onWorkspaceKeyDown : undefined,
+              }, {
+              // The stock surface: the shell editor bound to a resident div,
+              // chips as decorator portals, and the empty-draft placeholder.
+                fallback: stockEditor,
+              })}
           </div>
         </div>
         <div className={css.row}>
