@@ -1,8 +1,10 @@
 // @vitest-environment jsdom
 /**
- * The editor surface over fakes: the editable drives the shell as its session
- * plane, shell-side changes are adopted back, the accelerated chord submits,
- * and the surface registers its verbs into the service the actions reach.
+ * The editor seat entry over fakes: it mounts the CodeMirror surface, adopts
+ * shell-side draft changes back, leaves an unbound plain Enter to the editor
+ * (the send action owns the gesture, not the surface), steers on the
+ * accelerated chord, binds the stock editor when the takeover is off, and
+ * registers its verbs into the service the actions reach.
  */
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
@@ -11,6 +13,18 @@ import type { InputState } from '@deepseek-ai/dsh-client-ui-conversation/client'
 import type { InputTriggerController } from '@deepseek-ai/dsh-client-ui-input-trigger/client'
 import { RichEditorSurface, type RichEditorProps } from '../src/client/EditorSurface.tsx'
 import { en } from '../src/client/locales.ts'
+
+vi.stubGlobal('ResizeObserver', class {
+  observe(): void {}
+  unobserve(): void {}
+  disconnect(): void {}
+})
+
+// jsdom's Range lacks layout geometry; CodeMirror's measure pass reads it in
+// a rAF callback that would otherwise surface as an unhandled rejection.
+Range.prototype.getClientRects = function getClientRects(): DOMRectList {
+  return [] as unknown as DOMRectList
+}
 
 afterEach(cleanup)
 
@@ -34,10 +48,10 @@ function mountSurface(options: { draft?: string; queued?: boolean } = {}) {
     removeImage: vi.fn(),
     dismissPopup: vi.fn(),
   }
-  const inputStore = createSnapshotStore<InputState>({
-    ...stateOf(options.draft ?? ''),
-    queue: options.queued === true ? ([{ id: 'q1', placement: 'queued' }] as unknown as InputState['queue']) : [],
-  })
+  const editor = {
+    setRootElement: vi.fn(),
+    setEditable: vi.fn(),
+  }
   const triggers = {
     track: vi.fn(),
     dismiss: vi.fn(),
@@ -48,7 +62,7 @@ function mountSurface(options: { draft?: string; queued?: boolean } = {}) {
   const registered = { faces: undefined as unknown as Record<string, (...args: unknown[]) => unknown> }
   const props = {
     sessionId: 'session-1' as never,
-    editor: null,
+    editor,
     editable: true,
     editorDisabled: false,
     phase: 'plain',
@@ -81,47 +95,46 @@ function mountSurface(options: { draft?: string; queued?: boolean } = {}) {
   } as unknown as RichEditorProps
 
   render(<RichEditorSurface {...props} />)
-  const editable = () => screen.getByRole('textbox') as HTMLDivElement
-  return { shell, triggers, inputStore, enabledStore, editable, registered }
+  const content = () => document.querySelector('.cm-content') as HTMLElement
+  return { shell, triggers, enabledStore, content, registered, editor }
 }
 
 describe('the rich editor surface', () => {
-  it('renders the editable with the stock placeholder copy', () => {
+  it('mounts the CodeMirror editor with the stock placeholder copy', () => {
     mountSurface()
-    expect(screen.getByRole('textbox')).toBeTruthy()
+    expect(document.querySelector('.cm-editor')).not.toBeNull()
     expect(screen.getByText(en.placeholder)).toBeTruthy()
   })
 
-  it('pushes every edit into the shell without stealing focus', async () => {
-    const { editable, shell } = mountSurface()
-    editable().textContent = 'hello'
-    await waitFor(() => { expect(shell.setDraft).toHaveBeenCalledWith('hello', false) })
-  })
-
-  it('decorates typed maths into a fold with a marked drawing', async () => {
-    const { editable } = mountSurface()
-    editable().textContent = 'a $x^2$ b'
+  it('adopts a shell-side draft change it did not make, decorated', async () => {
+    const { shell, content } = mountSurface()
+    shell.state.set({ ...shell.state.getSnapshot(), draft: 'a $x^2$ b', draftRev: 5 })
     await waitFor(() => {
-      expect(editable().querySelector('[data-ccx-atom]')).not.toBeNull()
-      expect(editable().querySelector('[data-ccx-draw]')).not.toBeNull()
+      // The document carries the source; the drawing stands in for it.
+      expect(content().querySelector('[data-ccx-draw]')).not.toBeNull()
+      expect(content().querySelector('[data-ccx-atom]')).not.toBeNull()
     })
+    expect(content().textContent).not.toContain('$x^2$')
   })
 
-  it('adopts a shell-side draft change it did not make', async () => {
-    const { shell, editable } = mountSurface()
-    shell.state.set({ ...shell.state.getSnapshot(), draft: 'recalled text', draftRev: 5 })
-    await waitFor(() => { expect(editable().textContent).toContain('recalled text') })
+  it('binds the stock editor when the takeover is toggled off', async () => {
+    const { enabledStore, editor } = mountSurface()
+    enabledStore.set(false)
+    await waitFor(() => { expect(editor.setRootElement).toHaveBeenCalled() })
+    expect(editor.setEditable).toHaveBeenCalledWith(true)
+    expect(document.querySelector('.cm-editor')).toBeNull()
   })
 
-  it('plain Enter does nothing at element level: the send action owns it', () => {
-    const { editable, shell } = mountSurface()
-    fireEvent.keyDown(editable(), { key: 'Enter' })
+  it('plain Enter is the editor\'s: it breaks the line, and the surface does not send', () => {
+    const { shell, content } = mountSurface()
+    fireEvent.keyDown(content(), { key: 'Enter' })
+    expect(document.querySelectorAll('.cm-line')).toHaveLength(2)
     expect(shell.submit).not.toHaveBeenCalled()
   })
 
   it('the accelerated chord steers the queue on an empty draft', () => {
-    const { editable, shell } = mountSurface({ queued: true })
-    fireEvent.keyDown(editable(), { key: 'Enter', ctrlKey: true })
+    const { shell, content } = mountSurface({ queued: true })
+    fireEvent.keyDown(content(), { key: 'Enter', ctrlKey: true })
     expect(shell.steerQueue).toHaveBeenCalled()
     expect(shell.submit).not.toHaveBeenCalled()
   })

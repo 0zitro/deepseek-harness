@@ -1,6 +1,6 @@
 {
   "name": "@zitro/dsh-oot-ui-composer",
-  "description": "Rich composer takeover: live markdown decoration, math sub-editors, source-level undo, over the SessionInputShell plane",
+  "description": "Rich composer editor: a CodeMirror 6 surface in the stock composer seat, live markdown decoration with KaTeX math folds, over the SessionInputShell plane",
   "version": "0.0.0",
   "private": true,
   "type": "module",
@@ -42,6 +42,9 @@
   },
   "license": "MIT",
   "dependencies": {
+    "@codemirror/commands": "^6.11.0",
+    "@codemirror/state": "^6.7.2",
+    "@codemirror/view": "6.43.10",
     "@lezer/common": "^1.2.3",
     "@lezer/highlight": "^1.2.1",
     "@lezer/markdown": "^1.4.3",

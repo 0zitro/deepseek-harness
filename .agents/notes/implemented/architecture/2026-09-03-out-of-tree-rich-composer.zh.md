@@ -4,6 +4,8 @@ Status: implemented
 
 [English](2026-09-03-out-of-tree-rich-composer.md) | 中文
 
+部分被 [CodeMirror 6 表面](2026-09-03-out-of-tree-rich-composer-cm6-surface.zh.md)取代（同日）：编辑核心、所持文本遍历与补偿层已消亡，槽位是 `conversation.composer.editor` 而非 chain slot；下文的引擎决策（文法、字形映射、会话平面）原样延续。
+
 ## 问题
 
 原生 web composer 是纯文本 Lexical 编辑器：Markdown 只在发送后渲染、数学只在消息流里渲染，而 fork 的键绑定子系统刻意推迟了所有 `composer.*` 手势，因为没有接缝让外部表面驱动会话输入。第一版键绑定分支还在另一个宿主上（`claude-code-katex-patcher`）造过一个带装饰的数学 composer，其光标机制——进入/离开仲裁、点击到字形偏移映射、逐位置撤销——在那里被逐一测量成型，弃之可惜。

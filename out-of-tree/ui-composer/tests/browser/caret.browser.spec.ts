@@ -1,25 +1,26 @@
 /**
- * The caret machinery in a real Chromium: keys in, text and held-text
- * selection offsets out. What jsdom cannot answer — where the browser puts
- * the caret around an atom, whether a click sweep reaches every glyph's
- * offset, whether a vertical move keeps its column — is exactly what this
- * suite asks. Skips (not fails) where no Chromium is installed.
+ * The editing surface in a real Chromium: real keys in, document text and
+ * caret head out. What jsdom cannot answer — whether the browser's own line
+ * breaks survive, whether a fold is atomic to the keys, whether a click sweep
+ * reaches glyph offsets — is exactly what this suite asks, pinned as
+ * regressions for the glitches the decorate-in-place core shipped with.
+ * Skips (not fails) where no Chromium is installed.
  */
 import { describe, expect, it, beforeAll, afterAll } from 'vitest'
 import { build } from 'esbuild'
 import { browserAvailable, openPage, writePage, PAGE_SCRIPT, type Page } from './harness.ts'
 
-/** The in-page state: held text plus its selection as offsets. */
-interface State { text: string; sel: { start: number; end: number; focus: number; backward: boolean } | null }
+/** The in-page state: document text plus the caret head. */
+interface State { text: string; head: number }
 
 let page: Page | null = null
 
 beforeAll(async () => {
   page = await openPage()
   if (page === null) return
-  // Bundle the editor core from source; the one ui-primitives import (the
-  // shared highlighter) is stubbed — this suite asks about the caret, not
-  // colours, and the stub keeps the bundle self-contained.
+  // Bundle the surface from source; the one ui-primitives import (the shared
+  // highlighter) is stubbed — this suite asks about the caret, not colours,
+  // and the stub keeps the bundle self-contained.
   const dir = new URL('.', import.meta.url).pathname
   const stub = `${dir}primitives-stub.ts`
   const result = await build({
@@ -32,7 +33,7 @@ beforeAll(async () => {
   })
   const js = (result.outputFiles[0]?.text ?? '') + PAGE_SCRIPT
   const html = `
-    <div id="composer" contenteditable="plaintext-only" aria-multiline="true" style="min-width:400px;padding:8px;font-size:14px;outline:1px solid #999;"></div>
+    <div id="composer" style="min-width:400px;padding:8px;font-size:14px;outline:1px solid #999;"></div>
   `
   const url = writePage(html, js)
   await page.goto(url)
@@ -46,21 +47,12 @@ afterAll(async () => { await page?.close() })
 /** The state the page reports. */
 async function state(): Promise<State> {
   if (page === null) throw new Error('no browser')
-  return JSON.parse(await page.evaluate<string>('window.__ccxState()')) as State
-}
-
-/** The state once it has stopped changing: decoration's async selection
- * pass (selectionchange → validate → rebuild → restore) must land before an
- * assertion reads the caret — a fixed sleep races it, observation does not. */
-async function settled(): Promise<State> {
-  let prev = await state()
-  for (let tries = 0; tries < 20; tries++) {
-    await new Promise(resolve => setTimeout(resolve, 40))
-    const now = await state()
-    if (JSON.stringify(now) === JSON.stringify(prev)) return now
-    prev = now
+  const reported = await page.evaluate<string | undefined>('window.__ccxState()')
+  if (reported === undefined) {
+    const errors = await page.evaluate<string[]>('window.__ccxErrs ?? []')
+    throw new Error(`__ccxState failed: ${errors.join(' | ') || 'no page error recorded'}`)
   }
-  return prev
+  return JSON.parse(reported) as State
 }
 
 /** The physical key behind a printable char: punctuation rides a shifted digit. */
@@ -68,18 +60,25 @@ function physicalOf(ch: string): { code: string; keyCode: number; shift: boolean
   if (ch === ' ') return { code: 'Space', keyCode: 32, shift: false }
   if (/[a-z]/.test(ch)) return { code: `Key${ch.toUpperCase()}`, keyCode: ch.toUpperCase().charCodeAt(0), shift: false }
   if (/[0-9]/.test(ch)) return { code: `Digit${ch}`, keyCode: ch.charCodeAt(0), shift: false }
-  const shifted: Record<string, { digit: string; keyCode: number }> = {
-    $: { digit: '4', keyCode: 52 }, '^': { digit: '6', keyCode: 54 },
-    '+': { digit: 'Equal', keyCode: 187 }, '=': { digit: 'Equal', keyCode: 187 },
+  const shifted: Record<string, { code: string; keyCode: number }> = {
+    $: { code: 'Digit4', keyCode: 52 },
+    '^': { code: 'Digit6', keyCode: 54 },
+    '+': { code: 'Equal', keyCode: 187 },
+    '=': { code: 'Equal', keyCode: 187 },
+    '`': { code: 'Backquote', keyCode: 192 },
   }
   const map = shifted[ch]
-  if (map !== undefined) return { code: `Digit${map.digit}`.replace('DigitEqual', 'Equal'), keyCode: map.keyCode, shift: true }
+  if (map !== undefined) return { ...map, shift: true }
   return { code: 'Comma', keyCode: 188, shift: false }
 }
 
 /** Type a string one character at a time, as a keyboard would. */
 async function type(text: string): Promise<void> {
   for (const ch of text) {
+    if (ch === '\n') {
+      await press('Enter', 13)
+      continue
+    }
     const physical = physicalOf(ch)
     await page?.key({ key: ch, code: physical.code, keyCode: physical.keyCode, text: ch, shift: physical.shift })
   }
@@ -87,21 +86,97 @@ async function type(text: string): Promise<void> {
 }
 
 async function press(key: string, keyCode: number, options: { shift?: boolean; ctrl?: boolean } = {}): Promise<void> {
-  await page?.key({ key, code: key, keyCode, ...options })
+  // As a real keyboard reports them: a shifted letter's key value is its
+  // uppercase (what chord bindings resolve through), its code is Key<name>.
+  const reported = options.shift === true && /^[a-z]$/.test(key) ? key.toUpperCase() : key
+  const code = /^[a-zA-Z]$/.test(key) ? `Key${key.toUpperCase()}` : key
+  await page?.key({ key: reported, code, keyCode, ...options })
   await page?.settle()
 }
 
-describe.skipIf(!browserAvailable())('caret machinery in Chromium', () => {
-  it('accepts typed text and reports it as the held text', async () => {
+/** One editor-history group gap: the default newGroupDelay is 500ms. */
+const groupGap = (): Promise<void> => new Promise(resolve => setTimeout(resolve, 650))
+
+describe.skipIf(!browserAvailable())('the CodeMirror surface in Chromium', () => {
+  it('accepts typed text and reports it as the document with the caret at its end', async () => {
     if (page === null) return
+    await page.evaluate('window.__ccxSeed("")')
     await page.evaluate('window.__ccxFocus()')
     await type('hello world')
     const now = await state()
     expect(now.text).toBe('hello world')
-    expect(now.sel?.focus).toBe(11)
+    expect(now.head).toBe(11)
   })
 
-  it('folds typed maths into an atom with a marked drawing', async () => {
+  it('breaks the line on a plain Enter and types on past it (the x-Enter-y regression)', async () => {
+    if (page === null) return
+    await page.evaluate('window.__ccxSeed("")')
+    await page.evaluate('window.__ccxFocus()')
+    await type('x')
+    await press('Enter', 13)
+    const broke = await state()
+    expect(broke.text).toBe('x\n')
+    expect(broke.head).toBe(2)
+    await type('y')
+    const after = await state()
+    expect(after.text).toBe('x\ny')
+    expect(after.head).toBe(3)
+  })
+
+  it('opens a fence with Enter and types its body (the ```-Enter regression)', async () => {
+    if (page === null) return
+    await page.evaluate('window.__ccxSeed("")')
+    await page.evaluate('window.__ccxFocus()')
+    await type('```')
+    await press('Enter', 13)
+    const opened = await state()
+    expect(opened.text).toBe('```\n')
+    expect(opened.head).toBe(4)
+    await type('js\nconst x = 1')
+    await press('Enter', 13)
+    await type('```')
+    const fenced = await state()
+    expect(fenced.text).toBe('```\njs\nconst x = 1\n```')
+    expect(fenced.head).toBe(fenced.text.length)
+  })
+
+  it('keeps a trailing line through caret moves (the ephemeral-line regression)', async () => {
+    if (page === null) return
+    await page.evaluate('window.__ccxSeed("```js\\nconst \\n```\\n")')
+    await page.evaluate('window.__ccxFocus()')
+    await page.settle()
+    const seed = await state()
+    expect(seed.text).toBe('```js\nconst \n```\n')
+    expect(seed.head).toBe(seed.text.length)
+    await press('ArrowLeft', 37)
+    const left = await state()
+    expect(left.text).toBe(seed.text)
+    expect(left.head).toBe(seed.text.length - 1)
+    await press('ArrowRight', 39)
+    const back = await state()
+    expect(back.text).toBe(seed.text)
+    expect(back.head).toBe(seed.text.length)
+  })
+
+  it('types into the middle line of a fence without the caret jumping', async () => {
+    if (page === null) return
+    await page.evaluate('window.__ccxSeed("```js\\nconst \\n```")')
+    await page.evaluate('window.__ccxFocus()')
+    await page.settle()
+    await press('ArrowUp', 38)
+    // Column 3 of the closing fence line lands mid-'const '; End finishes the line.
+    const reached = await state()
+    expect(reached.head).toBe('```js\ncon'.length)
+    await press('End', 35)
+    const lined = await state()
+    expect(lined.head).toBe('```js\nconst '.length)
+    await type('x = 1')
+    const typed = await state()
+    expect(typed.text).toBe('```js\nconst x = 1\n```')
+    expect(typed.head).toBe('```js\nconst x = 1'.length)
+  })
+
+  it('folds typed maths into a drawing that stands in for the source', async () => {
     if (page === null) return
     await page.evaluate('window.__ccxSeed("")')
     await page.evaluate('window.__ccxFocus()')
@@ -112,17 +187,10 @@ describe.skipIf(!browserAvailable())('caret machinery in Chromium', () => {
       "document.querySelector('[data-ccx-atom]') !== null && document.querySelector('[data-ccx-draw]') !== null",
     )
     expect(has).toBe(true)
-    // The held text carries the source; the DOM holds it hidden beside the drawing.
-    const dom = await page.evaluate<string>("document.querySelector('#composer').textContent ?? ''")
-    expect(dom).toContain('$x^2$')
+    // The document carries the source; the drawing replaced it on the screen.
+    const dom = await page.evaluate<string>("document.querySelector('#composer .cm-content')?.textContent ?? ''")
+    expect(dom).not.toContain('$x^2$')
   })
-
-  // KNOWN GAP (README: known limitations): the enter/leave edge interplay —
-  // opening a folded object from its edge without moving the caret — rides
-  // Chromium's caret normalization around contenteditable=false islands in a
-  // plaintext-only editable, positions the read layer does not yet normalize
-  // faithfully. Unpinned until that normalization table lands; the fold,
-  // sweep, column, delete-whole, and undo contracts above are pinned.
 
   it('answers a click sweep inside a folded expression with glyph offsets', async () => {
     if (page === null) return
@@ -138,11 +206,11 @@ describe.skipIf(!browserAvailable())('caret machinery in Chromium', () => {
       await page.click(box.x + (box.width * i) / 10, box.y + box.height / 2)
       await page.settle()
       const now = await state()
-      const focus = now.sel?.focus ?? -1
-      if (focus > 0 && focus < 10) reached.add(focus)
+      const head = now.head
+      if (head > 0 && head < 18) reached.add(head)
     }
-    // Every click over the expression resolves INSIDE it, to more than one
-    // glyph offset across the sweep — the map's whole point.
+    // Every click over the expression opens it INSIDE, to more than one glyph
+    // offset across the sweep — the map's whole point.
     expect(reached.size).toBeGreaterThanOrEqual(2)
   })
 
@@ -151,15 +219,15 @@ describe.skipIf(!browserAvailable())('caret machinery in Chromium', () => {
     await page.evaluate('window.__ccxSeed("start\\n$x$ tail")')
     await page.evaluate('window.__ccxFocus()')
     await press('End', 35, { ctrl: true })
-    const before = (await state()).sel?.focus
+    const before = (await state()).head
     await press('ArrowUp', 38)
     await press('ArrowDown', 40)
-    const after = (await state()).sel?.focus
+    const after = (await state()).head
     expect(before).toBe('start\n$x$ tail'.length)
     expect(after).toBe(before)
   })
 
-  it('deletes a folded object whole from either edge', async () => {
+  it('deletes a folded object whole from its far edge', async () => {
     if (page === null) return
     await page.evaluate('window.__ccxSeed("a $x^2$ b")')
     await page.evaluate('window.__ccxFocus()')
@@ -168,26 +236,26 @@ describe.skipIf(!browserAvailable())('caret machinery in Chromium', () => {
     // Three backspaces: 'b', the space, then the atom's far edge — the last
     // takes the whole object, leaving 'a '.
     for (let step = 0; step < 3; step++) await press('Backspace', 8)
-    const after = await settled()
+    const after = await state()
     expect(after.text).toBe('a ')
-    expect(after.sel?.focus).toBe(2)
+    expect(after.head).toBe(2)
     const atomGone = await page.evaluate('document.querySelector("[data-ccx-atom]") === null')
     expect(atomGone).toBe(true)
   })
 
-  it('walks the source-level undo stack with the caret restored', async () => {
+  it('walks the history by word groups, the caret restored', async () => {
     if (page === null) return
     await page.evaluate('window.__ccxSeed("")')
     await page.evaluate('window.__ccxFocus()')
-    await type('one two')
+    await type('one')
+    await groupGap()
+    await type(' two')
     expect((await state()).text).toBe('one two')
-    // One undo drops the whole trailing word-group (' two'), the reference's
-    // coalescing rule: whitespace ends a group and the word after it is one.
     await press('z', 90, { ctrl: true })
-    expect((await settled()).text).toBe('one')
+    expect((await state()).text).toBe('one')
     await press('z', 90, { ctrl: true, shift: true })
-    const redone = await settled()
+    const redone = await state()
     expect(redone.text).toBe('one two')
-    expect(redone.sel?.focus).toBe(7)
+    expect(redone.head).toBe(7)
   })
 })

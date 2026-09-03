@@ -21,7 +21,7 @@ Note](../.agents/notes/implemented/architecture/2026-09-03-out-of-tree-plugin-pa
 | `@zitro/dsh-oot-ui-widgets` | Shared widget library (reserved-room runs, sortable/resizable tables) served as a dynamic module-table row via `dsh.client.external` |
 | `@zitro/dsh-oot-ui-overlay` | Overlay manager (LIFO mount order, DOM-event bridge) + `OverlayScope` primitive |
 | `@zitro/dsh-oot-ui-stock-actions` | Stock action set binding gestures to the surfaces above |
-| `@zitro/dsh-oot-ui-composer` | Rich composer takeover: live markdown decoration, math sub-editors, source-level undo, over the stock session shell |
+| `@zitro/dsh-oot-ui-composer` | Rich composer editor: a CodeMirror 6 surface in the `conversation.composer.editor` seat, live markdown decoration with KaTeX math folds, over the stock session shell |
 | `@zitro/dsh-oot-web-profile` | Installable patch bundle inserting the rows above |
 
 ## Architecture
@@ -39,10 +39,10 @@ Note](../.agents/notes/implemented/architecture/2026-09-03-out-of-tree-plugin-pa
   rebindable action, not a hardcoded Escape handler.
 - **Stock surfaces are untouched day one**: upstream components keep their own
   Escape listeners. Each surface migrates onto the dispatcher only when an
-  out-of-tree takeover replaces it — the composer does so through the
-  `conversation.composer` chain slot (see `ui-composer`), whose
-  fallback-stays-mounted contract keeps the stock bar's state alive behind
-  the takeover.
+  out-of-tree takeover replaces it — the composer does so by electing the
+  `conversation.composer.editor` seat (see `ui-composer`): the stock bar
+  keeps its whole chrome and swaps only the editing surface, whose gestures
+  the composer registers as its own actions.
 
 ## Mounting
 

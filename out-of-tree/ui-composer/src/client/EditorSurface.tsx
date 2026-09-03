@@ -5,20 +5,23 @@
  * trigger menu — and renders this component where its Lexical editor used to
  * bind. Two modes:
  *
- * - **Enabled** (the takeover): one plaintext editable whose text is the full
- *   markdown source, decorated live by the ported reference machinery. The
- *   surface is the single writer — every edit pushes into the session shell
- *   via `setDraft(text, false)` — and the shell's Lexical editor runs
- *   headless, so its keymap is dormant and nothing steals the caret.
+ * - **Enabled** (the takeover): a CodeMirror 6 editor whose document is the
+ *   full markdown source, decorated live by the ported reference machinery.
+ *   The browser never edits the buffer — CodeMirror turns input into
+ *   transactions — and the surface is the single writer: every document
+ *   change pushes into the session shell via `setDraft(text, false)`, while
+ *   the shell's Lexical editor runs headless with a dormant keymap.
  * - **Disabled** (the settings toggle off): a plain div bound to the shell
  *   editor as its Lexical root — the stock editing behavior, stock keymap
  *   included — with none of the decoration.
  *
  * The `composer.*` actions this plugin registers are responsive here: the
- * keybinding dispatcher claims bound gestures (window capture) before the
- * element handlers run, and the handlers yield on `defaultPrevented`.
+ * keybinding dispatcher claims bound gestures (window capture) before any
+ * CodeMirror handler runs, and the surface's own `onKey` claims the
+ * composer-native ones (menu arbitration, space, the accelerated chord) that
+ * arrive unclaimed.
  */
-import { memo, useEffect, useRef, useLayoutEffect, type KeyboardEvent as ReactKeyboardEvent } from 'react'
+import { memo, useEffect, useRef } from 'react'
 import type {
   InjectFace, PropsLocale, PropsRuntime,
 } from '@deepseek-ai/dsh-client-ui-slots'
@@ -26,8 +29,7 @@ import type { InputTriggerController } from '@deepseek-ai/dsh-client-ui-input-tr
 import { FocusScope } from '@zitro/dsh-oot-ui-actions/client'
 import type { SnapshotStore } from '@deepseek-ai/dsh-client-store'
 import type { ComposerAttachment, InputState } from '@deepseek-ai/dsh-client-ui-conversation/client'
-import { attach, type ComposerControl } from './editor/attach.ts'
-import { heldText } from './editor/text.ts'
+import { createRichSurface, type RichSurface } from './editor/cm/surface.ts'
 import type { RichComposerRegistry, SendGesture } from './service.ts'
 import { useStoreOf } from './useStore.ts'
 import css from './rich-composer.module.css'
@@ -80,71 +82,17 @@ export const RichEditorSurface = memo(function RichEditorSurface({
   const { shell, conversation, triggers, resolveMode, publishMenuOpen, service, enabled: enabledStore } = rich
   const enabled = useStoreOf(enabledStore)(value => value)
   const machineBusy = phase === 'adjudicating' || phase === 'submitting'
-  // Subscribed shell state: emptiness (placeholder) and the adoption pass.
+  // Subscribed shell state: the adoption pass reads the draft and its rev.
   const shellState = useStoreOf(shell.state)(value => value)
 
   const editableRef = useRef<HTMLDivElement | null>(null)
-  const controlRef = useRef<ComposerControl | null>(null)
+  const controlRef = useRef<RichSurface | null>(null)
   const machineBusyRef = useRef(machineBusy)
   machineBusyRef.current = machineBusy
 
-  // Drive the editor (enabled mode): one attach per editable. Every edit is
-  // pushed into the shell (single writer, caret untouched), and the real
-  // caret feeds the trigger pipeline after the shell's own tracking ran.
-  useEffect(() => {
-    if (!enabled) return
-    const el = editableRef.current
-    if (el === null) return
-    const control = attach(window, {
-      el,
-      onEdit: (text) => {
-        // false: this surface owns the visible caret; the shell's editor is
-        // headless here, and any selection it took would land nowhere.
-        shell.setDraft(text, false)
-      },
-      afterDecorate: (text, caret) => {
-        if (triggers === undefined) return
-        const rev = shell.state.getSnapshot().draftRev
-        triggers.track(text, caret ?? text.length, { tier: machineBusyRef.current ? 'claimed' : 'plain' }, rev)
-      },
-    })
-    controlRef.current = control
-    return () => {
-      control.dispose()
-      controlRef.current = null
-    }
-  }, [enabled, shell, triggers])
-
-  // Adopt shell-side draft changes this surface did not make: a persisted
-  // seed, a pick insert, a send-clear. Every own push also bumps the rev, so
-  // the rev alone cannot tell echo from external change — the buffer text
-  // does: when the surface's held text already says the same thing, the
-  // rev bump was the push itself and adopting would slam the caret to the
-  // end of a buffer the writer is mid-way through.
-  const lastRev = useRef(-1)
-  useEffect(() => {
-    if (!enabled) return
-    if (shellState.draftRev === lastRev.current) return
-    lastRev.current = shellState.draftRev
-    const el = editableRef.current
-    if (el !== null && heldText(el) === shellState.draft) return
-    controlRef.current?.adopt(shellState.draft, false)
-  }, [shellState, enabled])
-
-  // Disabled mode: bind the shell editor's root to this div — the stock
-  // editing surface, stock keymap included.
-  useLayoutEffect(() => {
-    if (enabled) return
-    const el = editableRef.current
-    if (el === null || editor === null) return
-    editor.setRootElement(el)
-    editor.setEditable(editable)
-    return () => { editor.setRootElement(null) }
-  }, [enabled, editor, editable])
-
   /** Submit from the accelerated chord (plain Enter is the send action's). */
   const submitWith = (gesture: SendGesture): void => {
-    if (machineBusy) return
+    if (machineBusyRef.current) return
     const state = shell.state.getSnapshot()
     const empty = state.draft === ''
     if (gesture === 'accelerated' && empty) {
@@ -156,7 +104,7 @@ export const RichEditorSurface = memo(function RichEditorSurface({
   }
 
   const intakeImages = (files: readonly File[]): void => {
-    if (files.length === 0 || machineBusy) return
+    if (files.length === 0 || machineBusyRef.current) return
     try {
       const images = conversation.createDraftImages(files)
       if (!shell.addImages(images.map(image => image.id))) {
@@ -167,36 +115,97 @@ export const RichEditorSurface = memo(function RichEditorSurface({
     }
   }
 
-  const onKeyDown = (event: ReactKeyboardEvent<HTMLDivElement>): void => {
-    const e = event.nativeEvent
-    if (e.isComposing || e.defaultPrevented) return
-    if (!enabled) return // disabled mode: the stock keymap owns everything
-    // The trigger menu's keys are claimed by the palette actions (window
-    // capture) while it is open; the arbitration here is the standalone
-    // fallback for compositions without the action dispatcher.
+  // Gesture policy, claimed before CodeMirror's handlers. The keybinding
+  // dispatcher has already taken everything bound (window capture); what runs
+  // here is the standalone fallback for compositions without it, plus the
+  // composer-native gestures no binding ever owns.
+  const claimKey = (e: KeyboardEvent): boolean => {
+    if (e.isComposing) return false
+    // The trigger menu's keys are claimed by the palette actions while it is
+    // open; this arbitration is the fallback for when no dispatcher did.
     const arbitrateKey = e.key === 'ArrowUp' ? 'up'
       : e.key === 'ArrowDown' ? 'down'
         : e.key === 'Enter' ? 'enter'
           : e.key === 'Escape' ? 'escape'
             : e.key === 'Tab' ? 'tab'
               : null
-    if (arbitrateKey !== null && shell.arbitrate(arbitrateKey, e.isComposing) !== 'pass') {
-      event.preventDefault()
-      return
-    }
-    if (e.key === ' ' && !machineBusy && shell.space()) {
-      event.preventDefault()
-      return
-    }
+    if (arbitrateKey !== null && shell.arbitrate(arbitrateKey, e.isComposing) !== 'pass') return true
+    if (e.key === ' ' && !machineBusyRef.current && shell.space()) return true
     if (e.key === 'Enter' && !e.shiftKey && (e.ctrlKey || e.metaKey)) {
       // The accelerated chord is a composer-native gesture: empty draft steers
       // the queue; otherwise submit with the opposite delivery preference.
       // Plain Enter belongs to the `composer.send` binding — unbound, it
       // falls to the browser and breaks the line.
-      event.preventDefault()
       submitWith('accelerated')
+      return true
     }
+    return false
   }
+
+  // The live values the mounted callbacks must not grow stale on: the surface
+  // is created once per editable, the policy under it moves with the render.
+  const policy = useRef({ claimKey, intakeImages })
+  policy.current = { claimKey, intakeImages }
+
+  // Enabled mode: mount CodeMirror. Declared BEFORE the disabled-mode binding
+  // so a mode flip orders correctly — React runs cleanups in declaration
+  // order, then the effects, so CodeMirror tears down before the stock editor
+  // binds the same div, and the stock editor unbinds before CodeMirror mounts.
+  useEffect(() => {
+    if (!enabled) return
+    const el = editableRef.current
+    if (el === null) return
+    const control = createRichSurface({
+      host: el,
+      doc: shell.state.getSnapshot().draft,
+      placeholderText,
+      ariaLabel: placeholderText,
+      onEdit: (text) => {
+        // false: this surface owns the visible caret; the shell's editor is
+        // headless here, and any selection it took would land nowhere.
+        shell.setDraft(text, false)
+      },
+      onCaret: (text, head) => {
+        if (triggers === undefined) return
+        const rev = shell.state.getSnapshot().draftRev
+        triggers.track(text, head, { tier: machineBusyRef.current ? 'claimed' : 'plain' }, rev)
+      },
+      onFiles: (files) => { policy.current.intakeImages(files) },
+      onKey: (event) => policy.current.claimKey(event),
+    })
+    controlRef.current = control
+    return () => {
+      control.dispose()
+      controlRef.current = null
+    }
+  }, [enabled, shell, triggers, placeholderText])
+
+  // Adopt shell-side draft changes this surface did not make: a persisted
+  // seed, a pick insert, a send-clear. Every own push also bumps the rev, so
+  // the rev alone cannot tell echo from external change — the document does:
+  // when the editor already holds the text, the rev bump was the push itself
+  // and adopting would slam the caret to the end of a buffer the writer is
+  // midway through.
+  const lastRev = useRef(-1)
+  useEffect(() => {
+    if (!enabled) return
+    if (shellState.draftRev === lastRev.current) return
+    lastRev.current = shellState.draftRev
+    const control = controlRef.current
+    if (control !== null && control.held() === shellState.draft) return
+    control?.adopt(shellState.draft)
+  }, [shellState, enabled])
+
+  // Disabled mode: bind the shell editor's root to this div — the stock
+  // editing surface, stock keymap included.
+  useEffect(() => {
+    if (enabled) return
+    const el = editableRef.current
+    if (el === null || editor === null) return
+    editor.setRootElement(el)
+    editor.setEditable(editable)
+    return () => { editor.setRootElement(null) }
+  }, [enabled, editor, editable])
 
   // The surface's verbs, registered into the service stock keybindings reach.
   const facesRef = useRef({ submitWith, machineBusy })
@@ -243,41 +252,20 @@ export const RichEditorSurface = memo(function RichEditorSurface({
     )
   }
 
-  const empty = shellState.draft === ''
   return (
     <FocusScope name="composer">
       <div className={css.grow}>
-      {empty && (
-        <div aria-hidden className={css.placeholder} data-composer-placeholder>
-          {placeholderText}
-        </div>
-      )}
-      <div
-        ref={editableRef}
-        className={css.editable}
-        contentEditable="plaintext-only"
-        aria-multiline="true"
-        role="textbox"
-        aria-label={placeholderText}
-        aria-disabled={editorDisabled || undefined}
-        data-phase={phase}
-        data-placeholder={placeholderText}
-        spellCheck={false}
-        onKeyDown={onKeyDown}
-        onPaste={(event) => {
-          const files = [...event.nativeEvent.clipboardData?.files ?? []]
-          if (files.length > 0) {
-            event.preventDefault()
-            intakeImages(files)
-          }
-        }}
-        onDragOver={(event) => { event.preventDefault() }}
-        onDrop={(event) => {
-          event.preventDefault()
-          const files = [...event.nativeEvent.dataTransfer?.files ?? []]
-          if (files.length > 0) intakeImages(files)
-        }}
-      />
+        <div
+          ref={editableRef}
+          className={enabled ? css.surface : css.editable}
+          contentEditable={enabled ? undefined : 'plaintext-only'}
+          aria-label={placeholderText}
+          aria-multiline="true"
+          role={enabled ? undefined : 'textbox'}
+          aria-disabled={editorDisabled || undefined}
+          data-phase={phase}
+          spellCheck={false}
+        />
       </div>
     </FocusScope>
   )

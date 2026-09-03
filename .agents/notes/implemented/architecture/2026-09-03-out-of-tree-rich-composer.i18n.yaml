@@ -2,5 +2,5 @@
 # side as of the last confirmed-consistent state. Both languages carry equal authority;
 # after editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write .agents/notes/implemented/architecture/2026-09-03-out-of-tree-rich-composer.md
-2026-09-03-out-of-tree-rich-composer.md: 64c1ea6fb993d633d0a8e00868c2d7eb36b082b3
-2026-09-03-out-of-tree-rich-composer.zh.md: 87ae2467d42d2d1da4e416dca5fced02d4b8d028
+2026-09-03-out-of-tree-rich-composer.md: f27e9d19d8226a63301df347030e6d627c71d7de
+2026-09-03-out-of-tree-rich-composer.zh.md: bfe1a28daa732329248def8330d68fa10cc42757

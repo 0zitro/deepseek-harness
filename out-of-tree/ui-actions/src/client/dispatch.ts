@@ -66,7 +66,10 @@ export function dispatchKeydown(
   if (!isRecordableKey(event.key)) return
   const matched = matcher.feed(event)
   if (matched === null && matcher.progress === null) return
+  // Both: an editor mounted under the window must never even see a claimed
+  // gesture — its handlers do not all honor `defaultPrevented`.
   event.preventDefault()
+  event.stopPropagation()
   if (matched !== null) runMatched(matched, actions)
 }
 

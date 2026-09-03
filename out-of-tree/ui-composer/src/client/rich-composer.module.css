@@ -1,79 +1,18 @@
-/* The rich composer's chrome, drawn with the stock composer's tokens and
- * metrics (packages/client/ui-conversation InputBar.module.css is the design
- * source: 22px capsule card, centered column, 34px info-fill send circle,
- * 20px menu with the prominent elevation). Token names are the theme's
- * `--dsw-alias-*` / `--dsw-specific-*` vocabulary; the layout variables
- * (`--dsh-composer-*`) are declared by the conversation shell upstream. */
+/* The rich composer's editing surface, drawn with the stock composer's
+ * tokens and metrics (packages/client/ui-conversation InputBar.module.css is
+ * the design source). Token names are the theme's `--dsw-alias-*` /
+ * `--dsw-specific-*` vocabulary; the layout variables
+ * (`--dsh-composer-*`) are declared by the conversation shell upstream.
+ * CodeMirror's own classes and the markdown decoration classes are reached
+ * through :global() — they are not names this module owns. */
 
-/* Outer column: centers the card and applies the shared side clearance —
-   the stock `.root` mirror (the chain slot renders where the bar rendered). */
-.root {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  padding: 0 var(--dsh-composer-side-clearance) 8px;
-}
-
-.notice {
-  width: 100%;
-  max-width: var(--dsh-composer-card-max-width);
-  margin-bottom: 6px;
-  padding: 4px 8px;
-  border-radius: 8px;
-  background: var(--dsw-alias-interactive-bg-hover);
-  color: var(--dsw-alias-label-secondary);
-  font-size: 12px;
-  line-height: 18px;
-}
-
-/* The capsule: same card chrome as the stock composer. */
-.card {
-  box-sizing: border-box;
-  position: relative; /* menu anchor positioning context */
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-  width: 100%;
-  max-width: var(--dsh-composer-card-max-width);
-  padding-top: 10px;
-  border: 0;
-  --dsw-elevation-stroke-color: var(--dsw-alias-border-l2);
-  border-radius: 22px;
-  background: var(--dsw-specific-input-major);
-  box-shadow: var(--dsw-elevation-soft);
-  font-size: var(--dsh-content-font-size, 14px);
-  line-height: calc(24px + var(--dsh-content-font-delta, 0px));
-  --dsh-scrollbar-thumb: var(--dsw-alias-scrollbar-bg-l2);
-  --dsh-scrollbar-thumb-hover: var(--dsw-alias-scrollbar-hover-l2);
-}
-
-/* The draft's scrollport: the only scrolling box, capped like the stock bar. */
-.editableWrap {
-  position: relative;
-  max-height: var(--dsh-composer-text-max-height);
-  overflow-y: auto;
-  margin-right: 4px;
-}
-
-.editableWrap::-webkit-scrollbar-track {
-  margin-top: 8px;
-}
-
-/* Auto-grow anchor (stock .grow): the contenteditable sets the height; the
-   placeholder rides it absolutely. */
+/* Auto-grow anchor (stock .grow): the editor sets the height. */
 .grow {
   position: relative;
 }
 
-.placeholder {
-  position: absolute;
-  inset: 4px 8px auto 16px;
-  color: var(--dsw-alias-label-caption);
-  pointer-events: none;
-  user-select: none;
-}
-
-/* The contenteditable draft surface (stock `.input` metrics). */
+/* The workspace-trigger surface: a stock plaintext editable (no CodeMirror,
+   no decoration) with the stock `.input` metrics. */
 .editable {
   box-sizing: border-box;
   min-height: 52px;
@@ -89,209 +28,117 @@
   caret-color: var(--dsw-alias-state-business-primary);
 }
 
-.placeholder {
-  position: absolute;
-  inset: 4px 8px auto 16px;
+/* The CodeMirror host: carries the stock typography down to the scroller. */
+.surface {
+  font-family: var(--dsw-font-family);
+  font-size: inherit;
+  line-height: inherit;
+  color: var(--dsw-alias-label-primary);
+}
+
+.surface :global(.cm-editor) {
+  background: transparent;
+}
+
+.surface :global(.cm-editor.cm-focused) {
+  outline: none;
+}
+
+/* The draft's scrollport: the only scrolling box, capped like the stock bar. */
+.surface :global(.cm-scroller) {
+  font-family: inherit;
+  font-size: inherit;
+  line-height: inherit;
+  max-height: var(--dsh-composer-text-max-height);
+  overflow-y: auto;
+  --dsh-scrollbar-thumb: var(--dsw-alias-scrollbar-bg-l2);
+  --dsh-scrollbar-thumb-hover: var(--dsw-alias-scrollbar-hover-l2);
+}
+
+/* The editable itself (stock `.input` metrics). */
+.surface :global(.cm-content) {
+  padding: 4px 8px 0 16px;
+  min-height: 52px;
+  caret-color: var(--dsw-alias-state-business-primary);
+  word-break: break-word;
+  overflow-wrap: anywhere;
+}
+
+.surface :global(.cm-content:focus) {
+  outline: none;
+}
+
+.surface :global(.cm-line) {
+  padding: 0;
+  font-family: inherit;
+}
+
+.surface :global(.cm-placeholder) {
   color: var(--dsw-alias-label-caption);
   pointer-events: none;
   user-select: none;
 }
 
-/* Trigger menu: the stock MenuView capsule, answered with the same tokens.
- * Anchored above the card, edge to edge with it (the card is the anchor). */
-.menu {
-  position: absolute;
-  bottom: calc(100% + 4px);
-  left: 0;
-  right: 0;
-  z-index: 100;
-  max-height: 320px;
-  overflow: hidden;
-  --dsh-scrollbar-thumb: var(--dsw-alias-scrollbar-bg-l2);
-  --dsh-scrollbar-thumb-hover: var(--dsw-alias-scrollbar-hover-l2);
-  padding: 4px;
-  display: flex;
-  flex-direction: column;
-  border: 0;
-  border-radius: 20px;
-  background: var(--dsw-specific-menu);
-  --dsw-elevation-stroke-color: var(--dsw-alias-border-l1);
-  box-shadow: var(--dsw-elevation-prominent);
+/* The live markdown decoration (ported from the reference composer's
+ * injected sheet; `.ccx-md-folded`/`.ccx-md-taken` are gone — hiding is a
+ * replace decoration and CodeMirror draws the selection over widgets
+ * itself). */
+.surface :global(.ccx-md-marker) {
+  opacity: 0.45;
 }
 
-.menuViewport {
-  display: flex;
-  flex-direction: column;
-  min-height: 0;
-  overflow-y: auto;
+.surface :global(.ccx-md-strong) {
+  font-weight: 700;
 }
 
-.menuGroup {
-  display: flex;
-  flex-direction: column;
+.surface :global(.ccx-md-em) {
+  font-style: italic;
 }
 
-.menuGroupTitle {
-  flex: none;
-  min-height: 26px;
-  padding: 6px 10px 2px;
-  color: var(--dsw-alias-label-caption);
-  font-size: 12px;
-  line-height: 18px;
+.surface :global(.ccx-md-strike) {
+  text-decoration: line-through;
 }
 
-.menuRow,
-.menuRowActive {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  width: 100%;
-  min-height: 40px;
-  padding: 8px 10px;
-  border: none;
-  border-radius: 10px;
-  background: transparent;
-  cursor: pointer;
-  font-size: 14px;
-  line-height: 22px;
-  color: var(--dsw-alias-label-primary);
-  text-align: left;
-  font-family: var(--dsw-font-family);
+.surface :global(.ccx-md-link) {
+  text-decoration: underline;
+  color: var(--dsw-link, currentColor);
 }
 
-.menuRowActive {
-  background: var(--dsw-alias-interactive-bg-hover);
+.surface :global(.ccx-md-url) {
+  opacity: 0.6;
 }
 
-.menuName {
-  flex: none;
-  font-weight: 500;
+.surface :global(.ccx-md-heading) {
+  font-weight: 700;
 }
 
-.menuDescription {
-  flex: 1;
-  min-width: 0;
-  color: var(--dsw-alias-label-secondary);
-  font-size: 12px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+.surface :global(.ccx-md-code),
+.surface :global(.ccx-md-fence) {
+  font-family: ui-monospace, monospace;
 }
 
-.menuPending {
-  padding: 8px 10px;
-  color: var(--dsw-alias-label-caption);
+.surface :global(.ccx-md-code) {
+  background: rgba(127, 127, 127, 0.16);
+  border-radius: 3px;
 }
 
-/* Attachment rail (drop / paste intake preview). */
-.attachments {
-  display: flex;
-  gap: 6px;
-  flex-wrap: wrap;
-  padding: 0 16px;
+/* What a folded expression draws: a region the caret reaches through. */
+.surface :global(.ccx-md-draw) {
+  cursor: text;
 }
 
-.attachment {
-  padding: 0;
-  border: 1px solid var(--dsw-alias-border-l2);
-  border-radius: 8px;
-  background: none;
-  cursor: pointer;
-  overflow: hidden;
-}
-
-.attachmentThumb {
-  display: block;
-  width: 48px;
-  height: 48px;
-  object-fit: cover;
-}
-
-/* Control row (stock `.row`): 2px top shift, container for the chips. */
-.controls {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  padding: 2px 8px 6px;
-  min-width: 0;
-}
-
-.spring {
-  flex: 1;
-}
-
-/* Toolbar groups (stock .tools/.trailing): attach + access + plan left;
-   model, meter and send pinned right. */
-.tools,
-.trailing {
-  display: flex;
-  align-items: center;
-  min-width: 0;
-}
-
-.tools {
-  gap: 16px;
-}
-
-.trailing {
-  flex: none;
-  margin-left: auto;
-  gap: 12px;
-}
-
-/* Attach circle (stock .add): 28px, selector fill, primary glyph. */
-.add {
-  display: grid;
-  place-items: center;
-  flex: none;
-  width: 28px;
-  height: 28px;
-  border: none;
-  border-radius: 999px;
-  corner-shape: round;
-  background: var(--dsw-specific-selector);
-  color: var(--dsw-alias-label-primary);
-  cursor: pointer;
-}
-
-.add:hover:not(:disabled) {
-  background: var(--dsw-alias-interactive-bg-hover-solid);
-}
-
-.add:disabled {
-  opacity: 0.5;
-  cursor: default;
-}
-
-/* Primary send (stock `.primary`): 34px info-fill circle, white glyph. */
-.send,
-.stop {
-  display: grid;
-  place-items: center;
-  flex: none;
-  width: 34px;
-  height: 34px;
-  border: none;
-  border-radius: 999px;
-  corner-shape: round;
-  background: var(--dsw-alias-button-info-fill);
-  color: #fff;
-  cursor: pointer;
-  transition: background-color 100ms ease;
-  transform: translateY(-2px);
-}
-
-.send:hover:not(:disabled) {
-  background: var(--dsw-alias-button-info-hover);
-}
-
-.send:disabled {
-  opacity: 0.4;
-  cursor: default;
-}
-
-.stop {
-  background: var(--dsw-alias-state-business-primary);
+/* What a folded link says beside itself. */
+.surface :global(.ccx-md-note) {
+  margin-left: 0.4em;
+  padding: 0 0.35em;
+  border-radius: 3px;
+  background: rgba(127, 127, 127, 0.16);
+  opacity: 0.6;
+  font-size: 0.9em;
+  font-style: normal;
+  font-weight: 400;
+  text-decoration: none;
+  white-space: pre;
+  user-select: none;
+  -webkit-user-select: none;
 }

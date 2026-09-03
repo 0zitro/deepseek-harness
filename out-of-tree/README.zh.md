@@ -13,14 +13,14 @@ Note](../.agents/notes/implemented/architecture/2026-09-03-out-of-tree-plugin-pa
 | `@zitro/dsh-oot-ui-widgets` | 共享控件库（预留空间 run、可排序/可调宽表格），经 `dsh.client.external` 作为动态 module-table 行提供 |
 | `@zitro/dsh-oot-ui-overlay` | 浮层管理器（LIFO 挂载顺序、DOM 事件桥）+ `OverlayScope` 原语 |
 | `@zitro/dsh-oot-ui-stock-actions` | 把手势绑定到上述表面的内置动作集 |
-| `@zitro/dsh-oot-ui-composer` | 富文本 composer 接管：实时 Markdown 装饰、数学子编辑器、源码级撤销，建立在原生会话 shell 之上 |
+| `@zitro/dsh-oot-ui-composer` | 富文本 composer 编辑器：当选 `conversation.composer.editor` 槽的 CodeMirror 6 表面，实时 Markdown 装饰加 KaTeX 数学折叠，建立在原生会话 shell 之上 |
 | `@zitro/dsh-oot-web-profile` | 插入上述行的可安装 patch bundle |
 
 ## 架构
 
 - **中央分发**：每个 out-of-tree 表面都不绑定按键。`ui-actions` 独占一个 window 级捕获阶段 keydown 监听，对照共享上下文映射（`data-focus-scope` 派生加上 `overlayOpen` 等显式键）求值 when 子句，并运行匹配到的已注册动作。哪个手势触发什么只是数据：默认值来自动作注册，用户的逐席位覆盖持久化在 `keybindings` 设置命名空间，在设置页的录制器里编辑。
 - **浮层**：`ui-overlay` 通过 DOM 事件跟踪已挂载的 `OverlayScope` 元素的 LIFO 顺序（这座桥让无 Cordis 依赖的原语可以在任何组件树里使用），发布 `overlayOpen`，并为可重绑的 `overlay.close` 动作应答 `closeTop()`。
-- **原生表面第一天不动**：上游组件保留自己的 Escape 监听。每个表面只在被 out-of-tree 接管替换时才迁移到 dispatcher 上——composer 经 `conversation.composer` chain slot 完成（见 `ui-composer`），其"fallback 保持挂载"的契约让原生 bar 的状态在接管后仍存活。
+- **原生表面第一天不动**：上游组件保留自己的 Escape 监听。每个表面只在被 out-of-tree 接管替换时才迁移到 dispatcher 上——composer 通过当选 `conversation.composer.editor` 槽完成（见 `ui-composer`）：原生 bar 保留全部 chrome，只换编辑表面，该表面的手势由 composer 注册为自己的动作。
 
 ## 挂载
 

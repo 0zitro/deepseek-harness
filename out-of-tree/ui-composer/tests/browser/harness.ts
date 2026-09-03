@@ -185,23 +185,10 @@ export async function openPage(): Promise<Page | null> {
   }
 }
 
-/** The page the editor drives: one editable div plus the state reporter. */
+/** The page the editor drives: one host div plus the state reporter. */
 export const PAGE_SCRIPT = `
-window.__ccxState = () => JSON.stringify({
-  text: window.__ccxText(),
-  sel: window.__ccxSel(),
-})
 window.__ccxErrs = []
 window.addEventListener('error', (e) => window.__ccxErrs.push(String(e.message) + ' @ ' + (e.filename || '') + ':' + e.lineno))
-window.__ccxRaw = () => {
-  const s = getSelection()
-  if (!s || s.rangeCount === 0) return null
-  return { node: s.focusNode?.nodeName, text: s.focusNode?.textContent?.slice(0, 12), off: s.focusOffset }
-}
-window.__ccxLog = []
-document.addEventListener('selectionchange', () => {
-  try { window.__ccxLog.push(window.__ccxSel()?.focus ?? 'null') } catch { window.__ccxLog.push('err') }
-})
 window.__ccxBox = (selector) => {
   const el = document.querySelector(selector)
   if (!el) return null

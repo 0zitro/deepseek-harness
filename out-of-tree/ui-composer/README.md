@@ -2,43 +2,57 @@
 
 English | [中文](README.zh.md)
 
-The rich composer takeover: one plaintext editable whose text is the full
-markdown source, decorated live — emphasis and code from an incremental
-@lezer/markdown parse with a dangling-opener pass (a lone `_` italics its
-tail, `_**` stacks, and code contexts suppress every modifier because the
-grammar, not a scan, says what is code), math folded into typeset KaTeX with
-a glyph-to-source offset map, and fenced code coloured by the client's shared
-Shiki singleton.
+The rich composer editor: a CodeMirror 6 surface elected into the
+`conversation.composer.editor` seat, whose document is the full markdown
+source and whose look is a live decoration of it. The browser never edits
+the buffer — CodeMirror turns input into transactions on its own document
+and renders the decorations — so the entire class of bugs a
+decorate-in-place editable ships with (line-break stand-ins, caret-affinity
+mapping, selection round-trips, adoption echo) is structurally gone rather
+than patched.
 
-Architecture ported from the katex-patcher reference composer, with two
-deliberate departures. The reference read offsets with `Range.toString()`,
-which forced a math engine whose output owns no text; here offsets are
-measured by a held-text tree walk that skips the marked drawing subtree, so
-KaTeX's HTML output owning text costs nothing — the hidden source stays in
-the held text (hiding never removes), the drawing stays out of it. And where
-the reference enumerated its engine's layout permutations wholesale, this
-port writes down the one KaTeX inversion that matters (`.msupsub` stacks
-scripts top-down where the source writes them the other way) and lets the
-LCS alignment fail safe — fewer anchors, never a wrong one.
+The decoration engine is ported from the katex-patcher reference composer:
+emphasis and code from an incremental @lezer/markdown parse with a
+dangling-opener pass (a lone `_` italics its tail, `_**` stacks, and code
+contexts suppress every modifier because the grammar, not a scan, says what
+is code), math folded into typeset KaTeX with a glyph-to-source offset map,
+and fenced code coloured by the client's shared Shiki singleton. A fold is a
+replace decoration with a widget; the folded spans are atomic ranges, so the
+caret crosses them whole and a delete at an edge takes the object entire.
+Open is derived from the caret on every rebuild — an object the caret sits
+strictly inside is drawn as its markdown source, a click on a drawing opens
+it at the glyph under the pointer, and leaving re-folds it.
 
-The session plane is the stock `SessionInputShell`: the surface is the single
-writer (every edit pushed via `setDraft`), shell-side changes (persisted
-seeds, pick inserts, send-clears) are adopted back, and submission, queueing,
+One deliberate departure from the reference remains. Where the reference
+enumerated its math engine's layout permutations wholesale, this port writes
+down the one KaTeX inversion that matters (`.msupsub` stacks scripts
+top-down where the source writes them the other way) and lets the LCS
+alignment fail safe — fewer anchors, never a wrong one. The reference's
+`Range.toString()` offset constraint is moot here: document offsets are
+CodeMirror's own, and the drawing's glyphs carry source offsets as
+attributes for the pointer path.
+
+The session plane is the stock `SessionInputShell`: the surface is the
+single writer (every document change pushed via `setDraft`), shell-side
+changes (persisted seeds, pick inserts, send-clears) are adopted back in one
+transaction gated on document-versus-draft, and submission, queueing,
 steering, notices, image intake, and draft persistence are inherited. Undo
-lives over the source — `(text, selection)` snapshots with per-position
-stacks for recalled messages — because the decoration rewrites the DOM every
-keystroke and native undo tracks the projection.
+is CodeMirror's history over the source.
 
-A chain entry owns its whole chrome (the slot system authorizes child
-rendering per declaring entry, so the stock bar's chrome slots cannot be
-re-rendered from a takeover); the `rich-composer` settings namespace's
-`enabled` toggle declines the election and restores the stock bar. Stock
-gestures for the surface ship in `@zitro/dsh-oot-ui-stock-actions` through
-the `ctx.composer` service this package provides.
+The composer registers its own actions (`composer.*`, `commandPalette.*`)
+through the `ctx.composer` service this package provides — a component owns
+its gestures. The keybinding dispatcher claims bound gestures at window
+capture before any editor handler runs; an unbound gesture falls to the
+editor (plain Enter breaks the line), and the accelerated chord steers an
+empty draft. The `rich-composer` settings namespace's `enabled` toggle
+declines the election: the same div binds the stock Lexical editor as its
+root, restoring the stock editing behavior without touching registrations.
 
-Known limitations: the held-text read layer does not yet normalize every
-caret position Chromium reports around a folded island inside a
-plaintext-only editable (island-adjacent reads can disagree with the visual
-caret by the island's span); the enter/leave edge contract is therefore not
-browser-pinned yet, and the click sweep relies on glyph boxes rather than
-read positions.
+Known limitations: arrows skip a folded object rather than opening it (a
+click opens it — an Obsidian-style open-on-arrow pass is future work);
+per-position undo stacks for recalled messages are deferred until upstream
+grows message-recall navigation; GFM tables and task lists decorate as
+plain text (`@lezer/gfm` is unreachable from this deployment's registry
+mirror). The `@codemirror/*` dependencies are pinned to the reviewed
+2026-08-31 release train, `@codemirror/view` exactly (its next release
+post-dates the repository's supply-chain release-age window).

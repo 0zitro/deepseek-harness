@@ -4,6 +4,8 @@ Status: implemented
 
 English | [中文](2026-09-03-out-of-tree-rich-composer.zh.md)
 
+Partially superseded by [the CodeMirror 6 surface](2026-09-03-out-of-tree-rich-composer-cm6-surface.md) (same day): the editing core, held-text walk, and compensation layer are gone, and the seat is `conversation.composer.editor` rather than the chain slot; the engine decisions below (grammar, glyph map, session plane) carry forward unchanged.
+
 ## Problem
 
 The stock web composer is a plain-text Lexical editor: markdown renders only after send, math only in the transcript, and the fork's keybindings subsystem deliberately deferred every `composer.*` gesture because no seam let an outside surface drive the session's input. The first keybindings branch had also built a decorated math composer for a different host (`claude-code-katex-patcher`), whose caret machinery — enter/leave arbitration, click-to-glyph offset mapping, per-position undo — was measured into shape there and was too valuable to leave behind.
