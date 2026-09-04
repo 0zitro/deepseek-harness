@@ -129,9 +129,12 @@ export function buildDecorations(src: string, inputs: DecorationInputs): BuiltDe
   // is hidden. The edges are not inside -- a caret resting at one reads the
   // object as the folded thing it is, so a delete at an edge takes it whole.
   // Every other one folds: its syntax is replaced away, a maths span draws
-  // its glyphs, a link keeps its label and says its title beside it.
+  // its glyphs, a link keeps its label and says its title beside it. A span
+  // crossing a line break never folds — an inline replace decoration cannot
+  // span lines, so the object shows as its source until it collapses to one.
   for (const link of linksIn(src)) {
     if (inputs.head > link.from && inputs.head < link.to) continue
+    if (src.slice(link.from, link.to).includes('\n')) continue
     for (let i = link.from; i < link.label.from; i++) hidden[i] = true
     for (let i = link.label.to; i < link.to; i++) hidden[i] = true
     for (let i = link.label.from; i < link.label.to; i++) add(i, 'link')
@@ -146,8 +149,9 @@ export function buildDecorations(src: string, inputs: DecorationInputs): BuiltDe
   }
   for (const one of mathsIn(src)) {
     if (inputs.head > one.from && inputs.head < one.to) continue
+    if (src.slice(one.from, one.to).includes('\n')) continue
     for (let i = one.from; i < one.to; i++) hidden[i] = true
-    const widget = Decoration.replace({ widget: new MathWidget(one.from, one.latex, one.display, one.at) })
+    const widget = Decoration.replace({ widget: new MathWidget(one.from, one.to, one.latex, one.display, one.at) })
     ranges.push(widget.range(one.from, one.to))
     atoms.push(widget.range(one.from, one.to))
   }

@@ -37,6 +37,35 @@ import katex from 'katex'
 /** Where an anchor is written, read back by whatever asks what the glyph under a pointer says. */
 export const AT = 'data-ccx-at'
 
+/** Where the glyph's source ends. A caret column between two glyphs lands at the nearer
+ * BOUNDARY — a glyph's left edge is where its source starts, its right edge where that source
+ * ends — so both edges carry their offset into the text the composer holds. */
+export const END = 'data-ccx-end'
+
+/** The caret stops of a LaTeX source, as one unit per command: `\\cmd` is one
+ * giant character, so a position inside it never exists — the caret stands
+ * before the whole command or after it. Whitespace and ordinary characters
+ * stop everywhere they occur; the units are the grammar's own tokens, never
+ * font metrics. */
+const STOP_UNIT = /\\(?:begin|end)\s*\{[^{}]*\}|\\[a-zA-Z]+|\\.|[\s\S]/gy
+
+/**
+ * Every offset of a LaTeX source a caret may stand at, ascending: all of them
+ * except the interiors of multi-character units (commands, `\begin{…}`
+ * groups), which offer only their two edges.
+ * @param latex - the expression's source.
+ */
+export function caretStops(latex: string): number[] {
+  const inner = new Set<number>()
+  STOP_UNIT.lastIndex = 0
+  for (let read = STOP_UNIT.exec(latex); read !== null; read = STOP_UNIT.exec(latex)) {
+    for (let i = read.index + 1; i < read.index + read[0].length; i++) inner.add(i)
+  }
+  const stops: number[] = []
+  for (let i = 0; i <= latex.length; i++) if (!inner.has(i)) stops.push(i)
+  return stops
+}
+
 /**
  * Typeset one expression with KaTeX, over the same engine and stylesheet the message renderer
  * ships.
@@ -57,10 +86,14 @@ export function typeset(latex: string, display: boolean): Element {
   const made = new DOMParser().parseFromString(html, 'text/html')
   const drawn = made.querySelector('.katex')
   if (drawn !== null) return drawn
-  // KaTeX answered with no `.katex` root at all: fall back to the parsed body rather than drawing
-  // nothing, since a folded object that draws nothing would take itself off the screen while
-  // leaving itself in the message.
-  return made.body
+  // KaTeX answered with no `.katex` root at all (some error renderings): wrap the
+  // parsed body's CHILDREN in a span rather than returning the body element itself —
+  // a body in the middle of an editable lays out as a block and shatters the line.
+  // A folded object that draws nothing would take itself off the screen while
+  // leaving itself in the message, so something is always drawn.
+  const span = made.createElement('span')
+  span.append(...made.body.childNodes)
+  return span
 }
 
 /**
@@ -130,12 +163,12 @@ export function glyphs(drawn: Element): Glyph[] {
 
 /**
  * Which offset of the source each glyph draws, given the characters the layout drew in its own
- * order.
+ * order, and where that glyph's source run ENDS.
  * @param latex - the expression's source.
  * @param chars - one character per glyph, in the layout's order.
- * @returns one source offset per glyph; unpaired glyphs take the gap they sit in.
+ * @returns one source start/end pair per glyph; unpaired glyphs take the gap they sit in.
  */
-export const anchored = (latex: string, chars: readonly string[]): number[] => {
+export const anchoredPairs = (latex: string, chars: readonly string[]): { at: number; end: number }[] => {
   const tokens = printing(latex)
   const drawn = chars.map(draws)
 
@@ -170,12 +203,26 @@ export const anchored = (latex: string, chars: readonly string[]): number[] => {
     if (kth >= 0) {
       const token = tokens[kth]!
       gap = token.at + token.width
-      return token.at
+      return { at: token.at, end: token.at + token.width }
     }
     while (gap < latex.length && /\s/.test(latex[gap] ?? '')) gap++
-    return gap
+    // The glyph takes the gap it sits in: from past the last claimed source to
+    // where the next printable token begins — a command's glyph owns the whole
+    // command, so its right edge is after it.
+    const next = tokens.find((token) => token.at >= gap)
+    return { at: gap, end: next !== undefined ? next.at : latex.length }
   })
 }
+
+/**
+ * Which offset of the source each glyph draws, given the characters the layout drew in its own
+ * order.
+ * @param latex - the expression's source.
+ * @param chars - one character per glyph, in the layout's order.
+ * @returns one source offset per glyph; unpaired glyphs take the gap they sit in.
+ */
+export const anchored = (latex: string, chars: readonly string[]): number[] =>
+  anchoredPairs(latex, chars).map((pair) => pair.at)
 
 /**
  * Write onto each glyph of a drawn expression the offset of the source it draws.
@@ -192,9 +239,38 @@ export const anchored = (latex: string, chars: readonly string[]): number[] => {
  */
 export const address = (latex: string, drawn: Element, base: number): void => {
   const written = glyphs(drawn)
-  const at = anchored(latex, written.map((one) => one.ch))
+  const at = anchoredPairs(latex, written.map((one) => one.ch))
 
-  for (const [nth, glyph] of written.entries()) glyph.el.setAttribute(AT, String(base + (at[nth] ?? 0)))
+  for (const [nth, glyph] of written.entries()) {
+    glyph.el.setAttribute(AT, String(base + (at[nth]?.at ?? 0)))
+    glyph.el.setAttribute(END, String(base + (at[nth]?.end ?? 0)))
+  }
+}
+
+/**
+ * Split every multi-character text node of a drawing into one span per
+ * character. KaTeX groups kerned neighbours into shared text runs, and an
+ * anchor needs a single place: a run's characters offer no boundary of their
+ * own, so the tail of `rulez` (`ez`) draws with no way in. Splitting changes
+ * nothing about the layout — the kerns KaTeX expresses live on spans, not
+ * inside text nodes — while every glyph becomes a node of its own, carrying
+ * its own two edges.
+ * @param drawn - the typesetter's output, modified in place.
+ */
+function splitGlyphRuns(drawn: Element): void {
+  const walker = drawn.ownerDocument.createTreeWalker(drawn, NodeFilter.SHOW_TEXT)
+  const runs: Text[] = []
+  for (let node = walker.nextNode(); node !== null; node = walker.nextNode()) {
+    if ((node.nodeValue ?? '').length > 1) runs.push(node as Text)
+  }
+  for (const run of runs) {
+    for (const ch of Array.from(run.nodeValue ?? '')) {
+      const one = run.ownerDocument.createElement('span')
+      one.textContent = ch
+      run.parentNode?.insertBefore(one, run)
+    }
+    run.remove()
+  }
 }
 
 /**
@@ -205,6 +281,7 @@ export const address = (latex: string, drawn: Element, base: number): void => {
  */
 export const drawWithAddress = (latex: string, display: boolean, at: number): Element => {
   const drawn = typeset(latex, display)
+  splitGlyphRuns(drawn)
   address(latex, drawn, at)
   return drawn
 }

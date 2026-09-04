@@ -8,7 +8,7 @@
  */
 
 import { describe, expect, it } from 'vitest'
-import { anchored, address, printing, typeset, glyphs, drawWithAddress } from '../src/client/editor/math.ts'
+import { anchored, anchoredPairs, address, caretStops, printing, typeset, glyphs, drawWithAddress } from '../src/client/editor/math.ts'
 import { foldablesIn } from '../src/client/editor/segments.ts'
 
 describe('printing', () => {
@@ -107,5 +107,53 @@ describe('address over real KaTeX', () => {
     const imported = objects[0]?.draws?.(document)
     expect(imported?.ownerDocument).toBe(document)
     expect(glyphs(imported!).length).toBeGreaterThan(0)
+  })
+})
+
+describe('anchoredPairs', () => {
+  it('answers a command glyph with the whole command as its span', () => {
+    expect(anchoredPairs('\\pi', ['π'])).toEqual([{ at: 0, end: 3 }])
+  })
+
+  it('answers an ordinary glyph with the one character it draws', () => {
+    expect(anchoredPairs('x+1', ['x', '+', '1'])).toEqual([
+      { at: 0, end: 1 },
+      { at: 1, end: 2 },
+      { at: 2, end: 3 },
+    ])
+  })
+})
+
+describe('caretStops', () => {
+  it('treats a command as one giant character: only its two edges exist', () => {
+    expect(caretStops('\\;')).toEqual([0, 2])
+    expect(caretStops('\\LaTeX')).toEqual([0, 6])
+  })
+
+  it('stops everywhere whitespace and ordinary characters occur', () => {
+    expect(caretStops('a b')).toEqual([0, 1, 2, 3])
+    expect(caretStops(' \\LaTeX \\; rulez \\;\\;\\; ')).toEqual([
+      0, 1, 7, 8, 10, 11, 12, 13, 14, 15, 16, 17, 19, 21, 23, 24,
+    ])
+  })
+})
+
+describe('the error rendering', () => {
+  it('never returns a body: the drawing stays inline', () => {
+    // Error-mode KaTeX output has no `.katex` root, taking the fallback path.
+    const drawn = typeset('](#test2 "', false)
+    expect(drawn.tagName).toBe('SPAN')
+    expect(drawn.querySelector('.katex-error')).not.toBeNull()
+  })
+
+  it('stamps both boundaries of every glyph: where its source starts and ends', () => {
+    const latex = 'x+1'
+    const drawn = typeset(latex, false)
+    address(latex, drawn, 10)
+    const written = glyphs(drawn)
+    expect(written.length).toBeGreaterThan(0)
+    for (const glyph of written) {
+      expect(Number(glyph.el.getAttribute('data-ccx-at'))).toBeLessThan(Number(glyph.el.getAttribute('data-ccx-end')))
+    }
   })
 })

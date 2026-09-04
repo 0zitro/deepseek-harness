@@ -20,7 +20,7 @@ import {
   defaultKeymap, history, historyKeymap, redo, undo,
 } from '@codemirror/commands'
 import { createColorFor, type ColorFor } from '../highlight.ts'
-import { AT } from '../math.ts'
+import { AT, END } from '../math.ts'
 import { linksIn, mathsIn } from '../segments.ts'
 import { richDecorations, requestColors } from './decorations.ts'
 
@@ -89,31 +89,80 @@ const entered = (one: MathSpan): { left: number; right: number } => ({
 })
 
 /**
- * Open the folded maths that begins at `from`, caret at the glyph nearest a
- * horizontal position — the one place three gestures meet (a press on a
- * drawing, a vertical move whose column fell inside one). Placing the
- * selection inside the span IS the opening: open is derived from the caret,
- * so one dispatch both shows the source and lands the caret in it.
+ * Open the folded maths spanning [from, to), caret at the source position a
+ * horizontal position lands on — the one place three gestures meet (a press
+ * on a drawing, a vertical move whose column fell inside one).
+ *
+ * The mapping is TOTAL: every position over the drawing lands somewhere in
+ * the source. Each stamped glyph pins two exact boundaries — its left edge
+ * where its source starts, its right edge where that source ends — and the
+ * stretches no glyph covers (spacing commands like `\;`, the room around a
+ * construct) interpolate between their neighbours, out to the drawing's own
+ * edges at the interior's bounds. Atomicity falls out of monotonicity: the
+ * boundaries are read in drawing order with their offsets clamped
+ * non-decreasing, so a multi-glyph command (`\LaTeX`, a stacked delimiter)
+ * whose glyphs all carry the same command span never maps a position inside
+ * it outside it — while a command that draws several PAIRED glyphs (the
+ * scripts of a big operator) keeps their individual positions. This is the
+ * pseudo text layer the reference built MathJax for, derived from KaTeX's
+ * own laid-out glyph rects instead.
  * @param view - the view the drawing lives in.
  * @param from - where the span begins in the document.
+ * @param to - where the span ends in the document.
  * @param x - the horizontal position the gesture was aimed at.
  * @returns true when a drawing answered and the caret moved into it.
  */
-function openMathAt(view: EditorView, from: number, x: number): boolean {
+function openMathAt(view: EditorView, from: number, to: number, x: number): boolean {
   const box = view.dom.querySelector(`[data-ccx-atom="${from}"]`)
   if (box === null) return false
+  const drawn = box.getBoundingClientRect()
 
-  const glyphs = [...box.querySelectorAll(`[${AT}]`)]
-    .map((one) => ({ at: Number(one.getAttribute(AT)), drawn: one.getBoundingClientRect() }))
-    .filter((one) => Number.isInteger(one.at) && one.drawn.width > 0)
+  const stamps = [...box.querySelectorAll(`[${AT}]`)].flatMap((one) => {
+    const rect = one.getBoundingClientRect()
+    const at = Number(one.getAttribute(AT))
+    const end = Number(one.getAttribute(END))
+    if (!Number.isInteger(at) || !Number.isInteger(end) || rect.width === 0) return []
+    return [
+      { x: rect.left, at },
+      { x: rect.right, at: end },
+    ]
+  })
+  if (stamps.length === 0) return false
 
-  // How far a point is from a glyph, which is zero for every point over it.
-  const away = (one: { drawn: DOMRect }): number =>
-    x < one.drawn.left ? one.drawn.left - x : x > one.drawn.right ? x - one.drawn.right : 0
+  // Drawing order, offsets never running backwards: the clamp is what makes a
+  // command's glyphs one unbreakable region carrying its whole source span.
+  stamps.sort((one, other) => one.x - other.x)
+  const marks = [{ x: drawn.left, at: from + 1 }]
+  for (const stamp of stamps) {
+    const previous = marks[marks.length - 1]!
+    marks.push({ x: stamp.x, at: Math.max(stamp.at, previous.at) })
+  }
+  marks.push({ x: drawn.right, at: to - 1 })
 
-  const struck = glyphs.length > 0
-    ? glyphs.reduce((near, one) => (away(one) < away(near) ? one : near)).at
-    : Number(box.getAttribute('data-ccx-atom'))
+  // Where x falls: on a mark, or between two, proportionally across the
+  // stretch no glyph pinned — then SNAPPED to the nearest caret stop, so a
+  // position inside a command (`\%;`) never exists: the caret stands before
+  // the whole command or after it, whichever the column was nearer.
+  const stops = (box.getAttribute('data-ccx-stops') ?? '')
+    .split(',').map(Number).filter((one) => Number.isInteger(one))
+  const snap = (at: number): number => {
+    if (stops.length === 0) return at
+    return stops.reduce((near, one) => (Math.abs(one - at) < Math.abs(near - at) ? one : near))
+  }
+  const place = (x: number): number => {
+    if (x <= marks[0]!.x) return marks[0]!.at
+    for (let i = 1; i < marks.length; i++) {
+      const later = marks[i]!
+      if (x <= later.x) {
+        const earlier = marks[i - 1]!
+        const across = later.x - earlier.x
+        const along = across <= 0 ? 0 : (x - earlier.x) / across
+        return Math.round(earlier.at + (later.at - earlier.at) * along)
+      }
+    }
+    return marks[marks.length - 1]!.at
+  }
+  const struck = Math.min(Math.max(snap(place(x)), from + 1), to - 1)
   if (!Number.isInteger(struck)) return false
 
   view.dispatch({ selection: { anchor: struck } })
@@ -178,10 +227,13 @@ const verticalIntoMath = (up: boolean) => (view: EditorView): boolean => {
   if (!(up ? cursorLineUp : cursorLineDown)(view)) return false
   const after = view.state.selection.main.head
   if (after === before) return true
+  // A vertical landing over a drawing is wherever the layout put it — an
+  // edge, or inside the replaced range itself — so the trigger is the span
+  // the landing fell into (or touched), not its edges alone.
   const one = mathsIn(view.state.doc.toString())
-    .find((m) => (m.from === after || m.to === after) && (before < m.from || before > m.to))
+    .find((m) => after >= m.from && after <= m.to && (before < m.from || before > m.to))
   if (one === undefined || coords === null) return true
-  openMathAt(view, one.from, coords.left)
+  openMathAt(view, one.from, one.to, coords.left)
   return true
 }
 
@@ -297,12 +349,13 @@ function strikeMath(event: Event, view: EditorView): boolean {
   const box = (target as Element).closest('[data-ccx-draw]')
   if (box === null || !view.dom.contains(box)) return false
   const from = Number(box.getAttribute('data-ccx-atom'))
-  if (!Number.isInteger(from)) return false
+  const to = Number(box.getAttribute('data-ccx-to'))
+  if (!Number.isInteger(from) || !Number.isInteger(to)) return false
 
   // The press is claimed, and its defaults with it: the browser's own
   // focus-on-click caret would land on the widget's edge and overwrite the
   // selection the stamp just placed.
   event.preventDefault()
   view.focus()
-  return openMathAt(view, from, (event as MouseEvent).clientX)
+  return openMathAt(view, from, to, (event as MouseEvent).clientX)
 }

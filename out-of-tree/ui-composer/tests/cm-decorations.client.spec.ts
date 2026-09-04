@@ -200,6 +200,19 @@ describe('the recognizers', () => {
     expect(mathsIn('price \\$5 and \\$6')).toEqual([])
   })
 
+  it('matches dollar runs only where they begin', () => {
+    // The second `$` of `$$` once re-opened as width-1 and folded `](#t "` across the
+    // link; and across line breaks, where an inline replace cannot go.
+    expect(mathsIn('[$$](#t "$ x $")').map((one) => one.latex)).not.toContain('](#t "')
+    expect(mathsIn('$$\nx\n$')).toEqual([])
+  })
+
+  it('leaves a span crossing a line break unfolded', () => {
+    const { decorations, atoms } = build('$x\ny$')
+    expect(foldAt(decorations, 1)).toBeNull()
+    expect(atoms.iter(0).value).toBeNull()
+  })
+
   it('reads a link\'s label and unescapes its title', () => {
     const links = linksIn('[label](/target "the \\"title")')
     expect(links[0]?.label).toEqual({ from: 1, to: 6 })

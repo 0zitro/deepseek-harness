@@ -48,8 +48,13 @@ const MATH: MarkdownConfig = {
   }],
 }
 
-/** The remark-math dollar rule: a run of width `w` closes against a run of the same width. */
+/** The remark-math dollar rule: a run of width `w` closes against a run of the same width,
+ * matched only where the run BEGINS — a later dollar of the same run never re-opens as a
+ * narrower one, which is what stops `[$$](#t "$ x $")` from folding `](#t "` as width-1 maths
+ * across the link, and `$$\nx\n$` from folding across the line break (an inline replace
+ * decoration cannot span lines). */
 function dollarSpan(cx: any, pos: number): number {
+  if (pos > 0 && cx.char(pos - 1) === DOLLAR) return -1
   let open = pos
   while (cx.char(open) === DOLLAR) open++
   const width = open - pos

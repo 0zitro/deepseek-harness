@@ -10,7 +10,7 @@
  */
 
 import { WidgetType } from '@codemirror/view'
-import { drawWithAddress } from '../math.ts'
+import { caretStops, drawWithAddress } from '../math.ts'
 
 /**
  * A folded maths span drawn as the glyphs it means.
@@ -22,12 +22,14 @@ import { drawWithAddress } from '../math.ts'
 export class MathWidget extends WidgetType {
   /**
    * @param from - where the span begins in the document.
+   * @param to - where the span ends in the document (the interior's far bound).
    * @param latex - the expression's source.
    * @param display - whether it asked to be display maths.
    * @param at - where the LaTeX begins in the document (the stamp base).
    */
   constructor(
     readonly from: number,
+    readonly to: number,
     readonly latex: string,
     readonly display: boolean,
     readonly at: number,
@@ -36,7 +38,7 @@ export class MathWidget extends WidgetType {
   }
 
   override eq(other: MathWidget): boolean {
-    return this.from === other.from && this.latex === other.latex
+    return this.from === other.from && this.to === other.to && this.latex === other.latex
       && this.display === other.display && this.at === other.at
   }
 
@@ -50,6 +52,10 @@ export class MathWidget extends WidgetType {
     const wrap = document.createElement('span')
     wrap.setAttribute('data-ccx-draw', '')
     wrap.setAttribute('data-ccx-atom', String(this.from))
+    wrap.setAttribute('data-ccx-to', String(this.to))
+    // The caret stops of the source, document-relative: where a position
+    // landed over the drawing may stand (commands whole, never inside).
+    wrap.setAttribute('data-ccx-stops', caretStops(this.latex).map((stop) => stop + this.at).join(','))
     wrap.appendChild(drawWithAddress(this.latex, this.display, this.at))
     return wrap
   }

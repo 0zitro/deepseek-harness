@@ -304,6 +304,102 @@ describe.skipIf(!browserAvailable())('the CodeMirror surface in Chromium', () =>
     expect(opened).toBe(true)
   })
 
+  it('lands a vertical move at the source boundary the column strikes', async () => {
+    if (page === null) return
+    await page.evaluate('window.__ccxSeed("abcdefghijklin\\n$ \\\\LaTeX \\\\; rulez $\\nabcdefghijklin")')
+    await page.evaluate('window.__ccxFocus()')
+    await page.settle()
+    // From the line below, column by column: every landing opens the span, the
+    // heads never run backwards as the column advances, and the widest column
+    // (the line's end) lands past the last glyph the drawing owns.
+    const heads: number[] = []
+    for (let column = 0; column <= 14; column += 2) {
+      // Each ArrowUp leaves the caret inside the span; come back to the line below.
+      await press('End', 35, { ctrl: true })
+      await press('Home', 36)
+      for (let step = 0; step < column; step++) await press('ArrowRight', 39)
+      const before = (await state()).head
+      expect(before).toBe(35 + column) // the caret walks the line below the span
+      await press('ArrowUp', 38)
+      const landed = (await state()).head
+      expect(landed).toBeGreaterThan(15)
+      expect(landed).toBeLessThan(35)
+      heads.push(landed)
+    }
+    for (let i = 1; i < heads.length; i++) expect(heads[i]!).toBeGreaterThanOrEqual(heads[i - 1]!)
+    // The end-of-line column lands deep in the tail glyphs (past `r`), at the
+    // boundary its width reached — the exact letter is the app font's to say.
+    expect(heads[heads.length - 1]).toBe(Math.max(...heads))
+    expect(heads[heads.length - 1]).toBeGreaterThan(28)
+  }, 30000)
+
+  it('maps a column into the trailing spacing commands, not just past the last glyph', async () => {
+    if (page === null) return
+    // The span is [15, 41): latex ` \LaTeX \; rulez \;\;\; ` with after-`z` at 32;
+    // the ` \;\;\; ` tail is (32, 41). The line below is one char wider than the
+    // drawing, so its widest columns may honestly land past the span on ` x`.
+    await page.evaluate('window.__ccxSeed("abcdefghijklin\\n$ \\\\LaTeX \\\\; rulez \\\\;\\\\;\\\\; $ x\\nabcdefghijklinnn")')
+    await page.evaluate('window.__ccxFocus()')
+    await page.settle()
+    const heads: number[] = []
+    for (let column = 0; column <= 15; column++) {
+      await press('End', 35, { ctrl: true })
+      await press('Home', 36)
+      for (let step = 0; step < column; step++) await press('ArrowRight', 39)
+      await press('ArrowUp', 38)
+      const head = (await state()).head
+      // Every landing is either opened inside the span or honestly past it.
+      expect(head > 15 && head < 41 || head >= 41).toBe(true)
+      heads.push(head)
+    }
+    for (let i = 1; i < heads.length; i++) expect(heads[i]!).toBeGreaterThanOrEqual(heads[i - 1]!)
+    // The columns over the spacing tail land INSIDE it — the totality this
+    // pins: past the last glyph, positions do not collapse onto after-`z`.
+    expect(Math.max(...heads.filter((one) => one < 41))).toBeGreaterThan(32)
+    // Atomicity: no landing ever stands inside a command — not within the
+    // `\;`s (34, 36, 38), not within `\LaTeX` (18-22). Commands are whole.
+    for (const head of heads) {
+      expect(head !== 34 && head !== 36 && head !== 38 && !(head > 17 && head < 23)).toBe(true)
+    }
+  }, 30000)
+
+  it('renders a link whose label holds $$ without a malformed fold', async () => {
+    if (page === null) return
+    await page.evaluate('window.__ccxSeed("[$$](#test2 \\"$ \\\\LaTeX $\\")")')
+    await page.evaluate('window.__ccxFocus()')
+    await page.settle()
+    // Dollar runs match only where they begin: the second `$` of the label once
+    // re-opened as width-1 maths across the link and drew a KaTeX error in three lines.
+    expect(await page.evaluate('document.querySelector(".katex-error") === null')).toBe(true)
+    expect(await page.evaluate('document.querySelector("[data-ccx-atom]") === null')).toBe(true)
+    expect(await page.evaluate('document.querySelectorAll(".cm-line").length')).toBe(1)
+  })
+
+  it('keeps the editor live through an unclosed display maths', async () => {
+    if (page === null) return
+    await page.evaluate('window.__ccxSeed("")')
+    await page.evaluate('window.__ccxFocus()')
+    await type('$$')
+    await press('Enter', 13)
+    await type('\\LaTeX')
+    await press('Enter', 13)
+    await type('$')
+    const typed = await state()
+    expect(typed.text).toBe('$$\n\\LaTeX\n$')
+    expect(typed.head).toBe(typed.text.length)
+    expect(await page.evaluate('document.querySelectorAll(".cm-line").length')).toBe(3)
+    // The wedged state this sequence once produced: arrows dead, the trailing
+    // `$` eaten by a DOM readback. Both stays and moves.
+    await press('ArrowUp', 38)
+    const up = await state()
+    expect(up.text).toBe('$$\n\\LaTeX\n$')
+    expect(up.head).toBeLessThan(up.text.length)
+    await press('ArrowUp', 38)
+    const top = await state()
+    expect(top.text).toBe('$$\n\\LaTeX\n$')
+    expect(top.head).toBeLessThan(up.head)
+  })
+
   it('walks the history by word groups, the caret restored', async () => {
     if (page === null) return
     await page.evaluate('window.__ccxSeed("")')
