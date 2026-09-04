@@ -11,13 +11,13 @@
  * gestures before this surface sees them at all).
  */
 
-import { EditorSelection, EditorState, Prec } from '@codemirror/state'
+import { EditorSelection, EditorState, Prec, type Extension } from '@codemirror/state'
 import {
   EditorView, drawSelection, dropCursor, keymap, placeholder,
 } from '@codemirror/view'
 import {
   cursorGroupBackward, cursorGroupForward, cursorLineDown, cursorLineUp,
-  defaultKeymap, history, historyKeymap, redo, undo,
+  defaultKeymap, history, historyField, historyKeymap, redo, undo,
 } from '@codemirror/commands'
 import { createColorFor, type ColorFor } from '../highlight.ts'
 import { AT, END, caretStops, drawWithAddress } from '../math.ts'
@@ -63,6 +63,11 @@ export interface RichSurface {
   undo(): void
   /** Redo one step, as the keyboard shortcut would. */
   redo(): void
+  /**
+   * A submission carried the buffer away: the text becomes a history entry
+   * (its undo stack riding along) and the composer starts a fresh draft.
+   */
+  sent(): void
   /** Stop and tear the editable down. */
   dispose(): void
 }
@@ -337,13 +342,40 @@ export function createRichSurface(options: RichSurfaceOptions): RichSurface {
   // rebuild repaints them.
   const colorFor: ColorFor = createColorFor(() => { requestColors(view) })
 
-  const view = new EditorView({
-    parent: options.host,
-    state: EditorState.create({
-      doc: options.doc,
-      selection: EditorSelection.single(options.doc.length),
-      extensions: [
-        history(),
+  // The send history: one serialized state per submission — text, selection,
+  // and the WHOLE undo stack of composing it — plus the draft the writer is
+  // on now. Every position keeps its own stack for the whole of its life:
+  // recalling an entry restores its editor wholesale, so undo walks the
+  // entry's own edits, and leaving it again saves whatever more was done.
+  // `at` names the position: -1 the draft, otherwise an entry's index.
+  interface Position { state: unknown; text: string | null }
+  const entries: Position[] = []
+  const draft: Position = { state: null, text: null }
+  let at = -1
+  const held = (): Position => (at === -1 ? draft : entries[at]!)
+
+  // A position serializes with its undo stack: fields ride along only when
+  // named, and the history field is the one an entry is.
+  const FIELDS = { history: historyField }
+  const serialize = (): unknown => view.state.toJSON(FIELDS)
+  const arrive = (position: Position): void => {
+    // A position never saved (a fresh draft) arrives as an empty editor with
+    // an empty stack — there is nothing to restore.
+    if (position.state === null) {
+      view.setState(EditorState.create({ doc: '', selection: EditorSelection.single(0), extensions }))
+      return
+    }
+    view.setState(EditorState.fromJSON(
+      position.state as Parameters<typeof EditorState.fromJSON>[0],
+      { extensions },
+      FIELDS,
+    ))
+  }
+
+  // The one extension set: the mounted state is built from it, and so is
+  // every history arrival — the same editor, whole.
+  const extensions: Extension[] = [
+    history(),
         drawSelection(),
         dropCursor(),
         EditorView.lineWrapping,
@@ -354,6 +386,11 @@ export function createRichSurface(options: RichSurfaceOptions): RichSurface {
         // source buffer, and a newline is just a newline in it), and whose
         // arrows walk the document without ever opening a folded maths.
         Prec.high(keymap.of([
+          // History first: at the buffer's edges the vertical arrows have no
+          // line to cross, and there the recall walks — every position its
+          // own undo stack riding in its serialized state.
+          { key: 'ArrowUp', run: historyWalk(-1) },
+          { key: 'ArrowDown', run: historyWalk(1) },
           { key: 'Enter', run: plainNewline },
           { key: 'ArrowRight', run: arrowIntoMath('from') },
           { key: 'ArrowLeft', run: arrowIntoMath('to') },
@@ -390,19 +427,50 @@ export function createRichSurface(options: RichSurfaceOptions): RichSurface {
           },
           mousedown(event, view) { return strikeMath(event, view) },
         })),
-        EditorView.updateListener.of((update) => {
-          if (update.docChanged) options.onEdit(update.state.doc.toString())
-          if (update.docChanged || update.selectionSet) {
-            options.onCaret(update.state.doc.toString(), update.state.selection.main.head)
-          }
-        }),
-      ],
+    EditorView.updateListener.of((update) => {
+      if (update.docChanged) options.onEdit(update.state.doc.toString())
+      if (update.docChanged || update.selectionSet) {
+        options.onCaret(update.state.doc.toString(), update.state.selection.main.head)
+      }
+    }),
+  ]
+  const view = new EditorView({
+    parent: options.host,
+    state: EditorState.create({
+      doc: options.doc,
+      selection: EditorSelection.single(options.doc.length),
+      extensions,
     }),
   })
 
   // The initial feed: the trigger pipeline learns the mounted text and caret
   // the same way it learns every later one.
   options.onCaret(options.doc, view.state.selection.main.head)
+
+  /**
+   * Walk the history one position in a direction: only at the buffer's
+   * extreme edge for that direction (where a vertical move has no line to
+   * cross) and only when a position lies that way — the draft sits past the
+   * newest entry, the oldest entry bounds the other end.
+   */
+  function historyWalk(step: number): (editor: EditorView) => boolean {
+    return (editor) => {
+      const main = editor.state.selection.main
+      if (!main.empty) return false
+      const atEdge = step < 0 ? main.head === 0 : main.head === editor.state.doc.length
+      if (!atEdge) return false
+      // Up always names an entry (the draft is the newest position there is
+      // nothing newer than); down may name the draft past the newest entry.
+      const target = at === -1
+        ? step < 0 ? entries.length - 1 : undefined
+        : step < 0 ? at - 1 : at + 1
+      if (target === undefined || target < 0 || target > entries.length) return false
+      held().state = serialize()
+      at = target === entries.length ? -1 : target
+      arrive(target === entries.length ? draft : entries[target]!)
+      return true
+    }
+  }
 
   return {
     view,
@@ -417,6 +485,20 @@ export function createRichSurface(options: RichSurfaceOptions): RichSurface {
     focus: () => { view.focus() },
     undo: () => { undo(view) },
     redo: () => { redo(view) },
+    sent: () => {
+      const text = view.state.doc.toString()
+      held().state = serialize()
+      held().text = text
+      // The buffer becomes an entry; a consecutive duplicate of the newest
+      // one is not two walks of the same message.
+      if (text !== '' && entries[entries.length - 1]?.text !== text) {
+        entries.push({ state: serialize(), text })
+      }
+      at = -1
+      draft.state = null
+      draft.text = null
+      arrive(draft)
+    },
     dispose: () => { view.destroy() },
   }
 }

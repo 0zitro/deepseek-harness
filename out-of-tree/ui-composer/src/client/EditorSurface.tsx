@@ -100,7 +100,10 @@ export const RichEditorSurface = memo(function RichEditorSurface({
       return
     }
     if (empty) return
+    // Submit first (it captures the draft into its event), then the carried
+    // text becomes a history entry and the composer starts a fresh draft.
     shell.submit(resolveMode(false, gesture, true))
+    controlRef.current?.sent()
   }
 
   const intakeImages = (files: readonly File[]): void => {
@@ -186,9 +189,20 @@ export const RichEditorSurface = memo(function RichEditorSurface({
   // when the editor already holds the text, the rev bump was the push itself
   // and adopting would slam the caret to the end of a buffer the writer is
   // midway through.
-  const lastRev = useRef(-1)
+  // The rev the surface last saw; null until the mount sync — the surface
+  // is CREATED from the shell's live snapshot, so the first effect run has
+  // nothing to adopt. Skipping it is what keeps a mounted-with-seed draft
+  // alive: the subscribed snapshot can lag the shell's editor (the seed
+  // publishes after the render that mounted this surface captured it), and
+  // adopting that stale empty draft would wipe the seed and, through the
+  // push-back, the persisted store itself.
+  const lastRev = useRef<number | null>(null)
   useEffect(() => {
     if (!enabled) return
+    if (lastRev.current === null) {
+      lastRev.current = shellState.draftRev
+      return
+    }
     if (shellState.draftRev === lastRev.current) return
     lastRev.current = shellState.draftRev
     const control = controlRef.current
@@ -214,9 +228,17 @@ export const RichEditorSurface = memo(function RichEditorSurface({
     if (sessionId === undefined) return
     return service.register(sessionId, {
       send: (gesture) => { facesRef.current.submitWith(gesture) },
-      queue: () => { if (!facesRef.current.machineBusy) shell.submit('queue') },
+      queue: () => {
+        if (!facesRef.current.machineBusy) {
+          shell.submit('queue')
+          controlRef.current?.sent()
+        }
+      },
       steer: () => {
-        if (!facesRef.current.machineBusy) shell.submit('steer')
+        if (!facesRef.current.machineBusy) {
+          shell.submit('steer')
+          controlRef.current?.sent()
+        }
       },
       undo: () => { controlRef.current?.undo() },
       redo: () => { controlRef.current?.redo() },

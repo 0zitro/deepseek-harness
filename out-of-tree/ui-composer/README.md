@@ -48,9 +48,7 @@ empty draft. The `rich-composer` settings namespace's `enabled` toggle
 declines the election: the same div binds the stock Lexical editor as its
 root, restoring the stock editing behavior without touching registrations.
 
-Known limitations: per-position undo stacks for recalled messages are
-deferred until upstream grows message-recall navigation (nothing for
-ArrowUp/ArrowDown at the buffer's edges to walk yet); GFM tables and task
+Known limitations: GFM tables and task
 lists decorate as plain text (`@lezer/gfm` is unreachable from this
 deployment's registry mirror). The `@codemirror/*` dependencies are pinned
 to the reviewed 2026-08-31 release train, `@codemirror/view` exactly (its
@@ -74,6 +72,10 @@ sought from MathJax, taken from KaTeX's own tree instead. Leaving runs
 the machinery backwards: the caret's offset snaps to the nearest caret
 stop, a hidden copy of the drawing supplies the owning glyph's corner,
 and the adjacent line answers for that column — the render's width, not
-the source's, so equal spans mirror to equal columns. The draft scroll is the stock bar's scrollport: the seat renders inside it, so its cap, its
+the source's, so equal spans mirror to equal columns. At the buffer's
+edges the vertical arrows walk the send history: every submission is a
+position carrying its whole serialized editor — text, selection, and undo
+stack — so recalling it restores its own undo, the draft is a position
+too, and consecutive duplicates of a message are one walk. The draft scroll is the stock bar's scrollport: the seat renders inside it, so its cap, its
 scrollbar, and its wheel chaining (forwarding the gesture to the
 conversation only at its own edges) behave exactly as the stock composer's.

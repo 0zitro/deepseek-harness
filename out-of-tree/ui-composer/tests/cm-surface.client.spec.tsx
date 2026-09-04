@@ -173,6 +173,81 @@ describe('the CodeMirror surface', () => {
     expect(surface.held()).toBe('')
   })
 
+  it('walks the send history at the buffer edges, every entry its own undo stack', () => {
+    const { host, surface } = mount()
+    const content = host.querySelector('.cm-content') as HTMLElement
+    const key = (k: string) => {
+      content.dispatchEvent(new KeyboardEvent('keydown', { key: k, bubbles: true, cancelable: true }))
+    }
+    const type = (text: string): void => {
+      surface.view.dispatch({ changes: { from: surface.view.state.doc.length, insert: text } })
+    }
+
+    // No entries yet: ArrowUp at the start is nobody's.
+    surface.view.dispatch({ selection: { anchor: 0 } })
+    key('ArrowUp')
+    expect(surface.held()).toBe('')
+
+    // Two entries: 'one two' composed as two steps, then 'second'.
+    type('one')
+    type(' two')
+    surface.sent()
+    type('second')
+    surface.sent()
+    expect(surface.held()).toBe('')
+
+    // Recall the newest, then the oldest; the caret rides at the end.
+    surface.view.dispatch({ selection: { anchor: 0 } })
+    key('ArrowUp')
+    expect(surface.held()).toBe('second')
+    key('Home')
+    key('ArrowUp')
+    expect(surface.held()).toBe('one two')
+
+    // The entry's OWN stack: undo walks its composing (both steps coalesced
+    // into one event — they were typed in one breath), not the recall walk.
+    surface.undo()
+    expect(surface.held()).toBe('')
+    surface.redo()
+    expect(surface.held()).toBe('one two')
+
+    // Forward to the draft: what was typed there is restored whole.
+    surface.view.dispatch({ selection: { anchor: surface.view.state.doc.length } })
+    key('ArrowDown')
+    expect(surface.held()).toBe('second')
+    surface.view.dispatch({ selection: { anchor: surface.view.state.doc.length } })
+    key('ArrowDown')
+    expect(surface.held()).toBe('')
+
+    // ArrowDown at the draft's end has nowhere to go: the default runs.
+    key('ArrowDown')
+    expect(surface.held()).toBe('')
+  })
+
+  it('a send clears the draft onto a fresh stack; consecutive duplicates do not double', () => {
+    const { surface } = mount()
+    surface.view.dispatch({ changes: { from: 0, insert: 'same' } })
+    surface.sent()
+    expect(surface.held()).toBe('')
+    // Undo at the fresh draft does not resurrect the sent text.
+    surface.undo()
+    expect(surface.held()).toBe('')
+    // Sending the same text twice keeps one walkable entry: recall, return
+    // to the draft, and the walk back still has exactly one 'same'.
+    surface.view.dispatch({ changes: { from: 0, insert: 'same' } })
+    surface.sent()
+    surface.view.dispatch({ selection: { anchor: 0 } })
+    const content = surface.view.dom.querySelector('.cm-content') as HTMLElement
+    content.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowUp', bubbles: true, cancelable: true }))
+    expect(surface.held()).toBe('same')
+    surface.view.dispatch({ selection: { anchor: surface.view.state.doc.length } })
+    content.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true, cancelable: true }))
+    expect(surface.held()).toBe('')
+    surface.view.dispatch({ selection: { anchor: 0 } })
+    content.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowUp', bubbles: true, cancelable: true }))
+    expect(surface.held()).toBe('same')
+  })
+
   it('tears the editor out of the host on dispose', () => {
     const { host, surface } = mount()
     surface.dispose()

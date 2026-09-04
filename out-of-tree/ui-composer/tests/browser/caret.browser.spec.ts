@@ -503,6 +503,44 @@ describe.skipIf(!browserAvailable())('the CodeMirror surface in Chromium', () =>
     expect(Math.abs(x1 - x2)).toBeLessThanOrEqual(2)
   }, 30000)
 
+  it('recalls the send history with real keys, every entry its own undo', async () => {
+    if (page === null) return
+    await page.evaluate('window.__ccxSeed("")')
+    await page.evaluate('window.__ccxFocus()')
+    // Past the history group delay: the seed's adopt transaction and the
+    // typing must not coalesce into one undo event.
+    await new Promise(resolve => setTimeout(resolve, 650))
+    await type('first entry')
+    await page.evaluate('window.__ccxControl.sent()')
+    await type('second entry')
+    await page.evaluate('window.__ccxControl.sent()')
+    // Up from the start (Home first: the caret sits at the end) recalls the
+    // newest, then the oldest; Down walks back to the fresh draft.
+    await press('Home', 36)
+    await press('ArrowUp', 38)
+    expect((await state()).text).toBe('second entry')
+    await press('Home', 36)
+    await press('ArrowUp', 38)
+    expect((await state()).text).toBe('first entry')
+    // The entry's own undo stack rides along: one undo drops its coalesced
+    // composing event, redo restores it.
+    await press('z', 90, { ctrl: true })
+    expect((await state()).text).toBe('')
+    await press('z', 90, { ctrl: true, shift: true })
+    expect((await state()).text).toBe('first entry')
+    await press('End', 35, { ctrl: true })
+    await press('ArrowDown', 40)
+    expect((await state()).text).toBe('second entry')
+    await press('End', 35, { ctrl: true })
+    await press('ArrowDown', 40)
+    expect((await state()).text).toBe('')
+    // ArrowUp on an empty history-free draft does nothing (the entry list is
+    // non-empty here, so walking past the oldest entry is the bound).
+    await press('Home', 36)
+    await press('ArrowUp', 38)
+    expect((await state()).text).toBe('second entry')
+  }, 30000)
+
   it('walks the history by word groups, the caret restored', async () => {
     if (page === null) return
     await page.evaluate('window.__ccxSeed("")')
