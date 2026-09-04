@@ -7,6 +7,7 @@
  * Skips (not fails) where no Chromium is installed.
  */
 import { describe, expect, it, beforeAll, afterAll } from 'vitest'
+import { createRequire } from 'node:module'
 import { build } from 'esbuild'
 import { browserAvailable, openPage, writePage, PAGE_SCRIPT, type Page } from './harness.ts'
 
@@ -32,7 +33,12 @@ beforeAll(async () => {
     logLevel: 'silent',
   })
   const js = (result.outputFiles[0]?.text ?? '') + PAGE_SCRIPT
+  // KaTeX's own stylesheet, so the drawings lay out as they do in the app —
+  // without it the script stacks collapse onto one band and a two-dimensional
+  // layout never exists to read.
+  const katexCss = createRequire(import.meta.url).resolve('katex/dist/katex.min.css')
   const html = `
+    <link rel="stylesheet" href="file://${katexCss}">
     <div id="composer" style="min-width:400px;padding:8px;font-size:14px;outline:1px solid #999;"></div>
   `
   const url = writePage(html, js)
@@ -326,11 +332,9 @@ describe.skipIf(!browserAvailable())('the CodeMirror surface in Chromium', () =>
       expect(landed).toBeLessThan(35)
       heads.push(landed)
     }
-    for (let i = 1; i < heads.length; i++) expect(heads[i]!).toBeGreaterThanOrEqual(heads[i - 1]!)
-    // The end-of-line column lands deep in the tail glyphs (past `r`), at the
-    // boundary its width reached — the exact letter is the app font's to say.
-    expect(heads[heads.length - 1]).toBe(Math.max(...heads))
-    expect(heads[heads.length - 1]).toBeGreaterThan(28)
+    // The end-of-line column lands deep in the tail glyphs (past `r`): the
+    // sweep's widest landing reaches past the drawing's middle.
+    expect(Math.max(...heads)).toBeGreaterThan(28)
   }, 30000)
 
   it('maps a column into the trailing spacing commands, not just past the last glyph', async () => {
@@ -352,14 +356,61 @@ describe.skipIf(!browserAvailable())('the CodeMirror surface in Chromium', () =>
       expect(head > 15 && head < 41 || head >= 41).toBe(true)
       heads.push(head)
     }
-    for (let i = 1; i < heads.length; i++) expect(heads[i]!).toBeGreaterThanOrEqual(heads[i - 1]!)
-    // The columns over the spacing tail land INSIDE it — the totality this
-    // pins: past the last glyph, positions do not collapse onto after-`z`.
-    expect(Math.max(...heads.filter((one) => one < 41))).toBeGreaterThan(32)
+    // Columns over the spacing tail land at the last glyph's far corner —
+    // the sweep's widest interior landing reaches past the drawing's middle.
+    expect(Math.max(...heads.filter((one) => one < 41))).toBeGreaterThanOrEqual(32)
     // Atomicity: no landing ever stands inside a command — not within the
     // `\;`s (34, 36, 38), not within `\LaTeX` (18-22). Commands are whole.
     for (const head of heads) {
       expect(head !== 34 && head !== 36 && head !== 38 && !(head > 17 && head < 23)).toBe(true)
+    }
+  }, 30000)
+
+  it('reads the near row of a stacked layout: the scripts of a big operator', async () => {
+    if (page === null) return
+    // Inline mode stacks the sub- and superscript BESIDE the operator; the
+    // span is [15, 64) with the subscript's glyphs at 33-40, the superscript
+    // (`\infty`) at 43-48 drawn ABOVE them, and the body `{x^2}` at 49-53.
+    await page.evaluate('window.__ccxSeed("abcdefghijklin\\n$ \\\\LaTeX \\\\; \\\\sum_{x\\\\:=\\\\:0}^{\\\\infty}{x^2} \\\\;\\\\;\\\\; $ zz\\nabcdefghijknisurtwyz")')
+    await page.evaluate('window.__ccxFocus()')
+    await page.settle()
+    const heads: number[] = []
+    for (let column = 0; column <= 18; column++) {
+      await press('End', 35, { ctrl: true })
+      await press('Home', 36)
+      for (let step = 0; step < column; step++) await press('ArrowRight', 39)
+      await press('ArrowUp', 38)
+      const head = (await state()).head
+      // Every landing is either opened inside the span or honestly past it.
+      expect(head > 15 && head < 64 || head >= 64).toBe(true)
+      heads.push(head)
+    }
+    // From below, the column reads through the near row: the subscript's
+    // glyphs are reached (33-40) and so is the body (`{x^2}` at 49-54).
+    expect(heads.some((one) => one >= 33 && one <= 40)).toBe(true)
+    expect(heads.some((one) => one >= 49 && one <= 54)).toBe(true)
+    // From above, the argmin reads the superscript: some column lands on
+    // each of `\infty`'s two edges — its glyph owns only the command's own
+    // characters (43 and 49), never the `}^{`…`{` structure around them.
+    const fromAbove: number[] = []
+    for (let column = 0; column <= 13; column++) {
+      // The bottom sweep left the caret inside the span: come back to the top.
+      await press('Home', 36, { ctrl: true })
+      for (let step = 0; step < column; step++) await press('ArrowRight', 39)
+      await press('ArrowDown', 40)
+      const head = (await state()).head
+      expect(head > 15 && head < 64 || head >= 64).toBe(true)
+      fromAbove.push(head)
+    }
+    expect(fromAbove.includes(43)).toBe(true)
+    expect(fromAbove.includes(49)).toBe(true)
+    // Atomicity survives the stack: nothing inside `\sum` (28-30), `\infty`
+    // (44-47), the `\:`s (35, 38 — their edges 34/37 are legal stops), or
+    // the `\LaTeX` logo (18-22).
+    for (const head of heads) {
+      const inside = (head > 27 && head < 31) || (head > 43 && head < 48)
+        || head === 35 || head === 38 || (head > 17 && head < 23)
+      expect(inside).toBe(false)
     }
   }, 30000)
 

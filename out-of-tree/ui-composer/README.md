@@ -56,16 +56,18 @@ deployment's registry mirror). The `@codemirror/*` dependencies are pinned
 to the reviewed 2026-08-31 release train, `@codemirror/view` exactly (its
 next release post-dates the repository's supply-chain release-age window).
 Arrow navigation into folded objects: a plain arrow at a maths span's edge
-opens it at its LaTeX's near end, a vertical move whose column strikes a
-drawing opens it at the position that column lands on, and a group move
-(Ctrl/Mod+Arrow) crosses a whole link as one unit. The drawing's mapping is
-TOTAL and token-atomic — the pseudo text layer the reference built MathJax
-for, derived from KaTeX's own laid-out glyph rects instead: each stamped
-glyph pins its two edges to its source's start and end, the stretches no
-glyph covers (spacing commands, the room around a construct) interpolate
-between their neighbours out to the drawing's edges, and every landed
-position snaps to a caret stop of the grammar's own tokens, so a `\cmd` is
-one giant character — the caret stands before it or after it, never inside
-it. The draft scroll is the stock bar's scrollport: the seat renders inside it, so its cap, its
+opens it at its LaTeX's near end, a vertical move whose column crosses a
+drawing opens it at the drawing's nearest corner, and a group move
+(Ctrl/Mod+Arrow) crosses a whole link as one unit. The placement is a
+corner argmin over the atomic glyphs' own laid-out rects — the pseudo text
+layer the reference built MathJax for, derived from KaTeX's instead: every
+glyph offers its corners, a LEFT one standing for the caret placed before
+the glyph and a RIGHT one for the caret after it, each mapped to the
+glyph's source span and snapped to a caret stop of the grammar's tokens (a
+`\cmd` is one giant character, so the caret never stands inside it). The
+distances are honest two-dimensional ones, so a stacked layout resolves
+itself — from above a superscript's top corners are nearer than the
+subscript's below it, from below the subscript's bottom corners are, and a
+press on a row reads that row. The draft scroll is the stock bar's scrollport: the seat renders inside it, so its cap, its
 scrollbar, and its wheel chaining (forwarding the gesture to the
 conversation only at its own edges) behave exactly as the stock composer's.

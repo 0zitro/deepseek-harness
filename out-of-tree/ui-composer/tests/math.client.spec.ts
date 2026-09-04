@@ -115,6 +115,24 @@ describe('anchoredPairs', () => {
     expect(anchoredPairs('\\pi', ['π'])).toEqual([{ at: 0, end: 3 }])
   })
 
+  it('owns only the command in its gap, never the structure around it', () => {
+    // `}^{` and `{` are nobody's ink: the glyph `\infty` draws carries the
+    // command's own characters, so its edges land inside the gap.
+    expect(anchoredPairs('}^{\\infty}{', ['∞'])).toEqual([{ at: 3, end: 9 }])
+  })
+
+  it('pairs a gap\'s atoms with its drawing commands: each glyph owns the command that drew it', () => {
+    // One gap holds `\LaTeX`, `\;`, and `\sum` (the `x` pairs, closing the
+    // gap); the logo's letters form one atom, the `\;`'s blank another, the
+    // operator's glyph a third — three atoms, three commands, pairwise.
+    expect(anchoredPairs(' \\LaTeX \\; \\sum_{x', ['L', 'A', 'T', 'E', 'X', ' ', '∑', 'x'], [0, 0, 0, 0, 0, 1, 2, 3])).toEqual([
+      { at: 1, end: 7 }, { at: 1, end: 7 }, { at: 1, end: 7 }, { at: 1, end: 7 }, { at: 1, end: 7 },
+      { at: 8, end: 10 },
+      { at: 11, end: 15 },
+      { at: 17, end: 18 },
+    ])
+  })
+
   it('answers an ordinary glyph with the one character it draws', () => {
     expect(anchoredPairs('x+1', ['x', '+', '1'])).toEqual([
       { at: 0, end: 1 },

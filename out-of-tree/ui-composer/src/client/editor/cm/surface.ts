@@ -89,80 +89,61 @@ const entered = (one: MathSpan): { left: number; right: number } => ({
 })
 
 /**
- * Open the folded maths spanning [from, to), caret at the source position a
- * horizontal position lands on — the one place three gestures meet (a press
- * on a drawing, a vertical move whose column fell inside one).
+ * The caret position a point over a drawing lands on: the corner argmin.
  *
- * The mapping is TOTAL: every position over the drawing lands somewhere in
- * the source. Each stamped glyph pins two exact boundaries — its left edge
- * where its source starts, its right edge where that source ends — and the
- * stretches no glyph covers (spacing commands like `\;`, the room around a
- * construct) interpolate between their neighbours, out to the drawing's own
- * edges at the interior's bounds. Atomicity falls out of monotonicity: the
- * boundaries are read in drawing order with their offsets clamped
- * non-decreasing, so a multi-glyph command (`\LaTeX`, a stacked delimiter)
- * whose glyphs all carry the same command span never maps a position inside
- * it outside it — while a command that draws several PAIRED glyphs (the
- * scripts of a big operator) keeps their individual positions. This is the
- * pseudo text layer the reference built MathJax for, derived from KaTeX's
- * own laid-out glyph rects instead.
+ * Every atomic glyph offers its corners, and the corners carry their source:
+ * a LEFT corner stands for the caret placed BEFORE the glyph, a RIGHT corner
+ * for the caret placed AFTER it, each mapped to the glyph's own source span.
+ * The nearest corner to the point wins — an argmin over honest
+ * two-dimensional distances — so a stacked layout resolves itself: from
+ * above, a superscript's top corners are nearer than the subscript's below
+ * it; from below, the subscript's bottom corners are; a press on a row
+ * reads that row. A command that draws several glyphs (`\LaTeX`) has every
+ * glyph carrying the whole command's span, so whichever corner wins, the
+ * caret stands before or after the command — never inside it — and the
+ * final position snaps to a caret stop regardless. This is the pseudo text
+ * layer the reference built MathJax for, derived from KaTeX's own laid-out
+ * glyph rects instead; "corner", "before", and "after" are the notions, and
+ * they generalise to any dimension a layout may grow.
  * @param view - the view the drawing lives in.
  * @param from - where the span begins in the document.
  * @param to - where the span ends in the document.
  * @param x - the horizontal position the gesture was aimed at.
+ * @param y - the vertical position the gesture entered from (the pointer for
+ *   a press, the source caret for a vertical move).
  * @returns true when a drawing answered and the caret moved into it.
  */
-function openMathAt(view: EditorView, from: number, to: number, x: number): boolean {
+function openMathAt(view: EditorView, from: number, to: number, x: number, y: number): boolean {
   const box = view.dom.querySelector(`[data-ccx-atom="${from}"]`)
   if (box === null) return false
-  const drawn = box.getBoundingClientRect()
 
-  const stamps = [...box.querySelectorAll(`[${AT}]`)].flatMap((one) => {
+  const glyphs = [...box.querySelectorAll(`[${AT}]`)].flatMap((one) => {
+    // A blank glyph (a `\;`'s mspace) is an empty span whose space is its
+    // right margin: its right edge is where that margin ends.
     const rect = one.getBoundingClientRect()
+    const margin = parseFloat(getComputedStyle(one).marginRight)
+    const right = rect.right + (Number.isFinite(margin) ? margin : 0)
     const at = Number(one.getAttribute(AT))
     const end = Number(one.getAttribute(END))
-    if (!Number.isInteger(at) || !Number.isInteger(end) || rect.width === 0) return []
+    if (!Number.isInteger(at) || !Number.isInteger(end)) return []
     return [
-      { x: rect.left, at },
-      { x: rect.right, at: end },
+      { x: rect.left, y: rect.top, at },
+      { x: rect.left, y: rect.bottom, at },
+      { x: right, y: rect.top, at: end },
+      { x: right, y: rect.bottom, at: end },
     ]
   })
-  if (stamps.length === 0) return false
+  if (glyphs.length === 0) return false
 
-  // Drawing order, offsets never running backwards: the clamp is what makes a
-  // command's glyphs one unbreakable region carrying its whole source span.
-  stamps.sort((one, other) => one.x - other.x)
-  const marks = [{ x: drawn.left, at: from + 1 }]
-  for (const stamp of stamps) {
-    const previous = marks[marks.length - 1]!
-    marks.push({ x: stamp.x, at: Math.max(stamp.at, previous.at) })
-  }
-  marks.push({ x: drawn.right, at: to - 1 })
-
-  // Where x falls: on a mark, or between two, proportionally across the
-  // stretch no glyph pinned — then SNAPPED to the nearest caret stop, so a
-  // position inside a command (`\%;`) never exists: the caret stands before
-  // the whole command or after it, whichever the column was nearer.
+  const struckBy = (one: { x: number; y: number }): number =>
+    (one.x - x) ** 2 + (one.y - y) ** 2
   const stops = (box.getAttribute('data-ccx-stops') ?? '')
     .split(',').map(Number).filter((one) => Number.isInteger(one))
-  const snap = (at: number): number => {
-    if (stops.length === 0) return at
-    return stops.reduce((near, one) => (Math.abs(one - at) < Math.abs(near - at) ? one : near))
-  }
-  const place = (x: number): number => {
-    if (x <= marks[0]!.x) return marks[0]!.at
-    for (let i = 1; i < marks.length; i++) {
-      const later = marks[i]!
-      if (x <= later.x) {
-        const earlier = marks[i - 1]!
-        const across = later.x - earlier.x
-        const along = across <= 0 ? 0 : (x - earlier.x) / across
-        return Math.round(earlier.at + (later.at - earlier.at) * along)
-      }
-    }
-    return marks[marks.length - 1]!.at
-  }
-  const struck = Math.min(Math.max(snap(place(x)), from + 1), to - 1)
+  const nearest = glyphs.reduce((near, one) => (struckBy(one) < struckBy(near) ? one : near))
+  const snapped = stops.length === 0
+    ? nearest.at
+    : stops.reduce((near, one) => (Math.abs(one - nearest.at) < Math.abs(near - nearest.at) ? one : near))
+  const struck = Math.min(Math.max(snapped, from + 1), to - 1)
   if (!Number.isInteger(struck)) return false
 
   view.dispatch({ selection: { anchor: struck } })
@@ -210,30 +191,40 @@ const groupPastFolds = (forward: boolean) => (view: EditorView): boolean => {
 }
 
 /**
- * A vertical move whose column falls inside a folded maths opens it at the
- * glyph that column struck. The default command makes the move (goal column
- * and wrapping are its); when the landing clamps to a span's edge — the atom
- * holds every column its line covers — the drawing's glyph map says which
- * source offset the column meant, exactly as a press does. This is what the
- * reference needed MathJax's pseudo text layer for: CodeMirror lets the
- * placement be dispatched rather than read out of the layout, so KaTeX plus
- * the stamp map answers it.
+ * A vertical move whose column strikes a drawing opens it at the drawing's
+ * nearest corner.
+ *
+ * The default command makes the move first (goal column and wrapping are
+ * its). Around an atomic span its landing is wherever the layout put it —
+ * an edge, inside the replaced range, or a whole line beyond — so the
+ * drawings that matter are every span on the lines the move touched whose
+ * drawn box the column crosses: a column over a drawing belongs to the
+ * drawing, and the caret goes to its nearest corner (see `openMathAt`);
+ * a column over text belongs to the default landing.
  * @param up - whether the gesture moves upward.
  */
 const verticalIntoMath = (up: boolean) => (view: EditorView): boolean => {
-  const main = view.state.selection.main
-  const before = main.head
+  const before = view.state.selection.main.head
   const coords = view.coordsAtPos(before)
   if (!(up ? cursorLineUp : cursorLineDown)(view)) return false
   const after = view.state.selection.main.head
-  if (after === before) return true
-  // A vertical landing over a drawing is wherever the layout put it — an
-  // edge, or inside the replaced range itself — so the trigger is the span
-  // the landing fell into (or touched), not its edges alone.
-  const one = mathsIn(view.state.doc.toString())
-    .find((m) => after >= m.from && after <= m.to && (before < m.from || before > m.to))
-  if (one === undefined || coords === null) return true
-  openMathAt(view, one.from, one.to, coords.left)
+  if (after === before || coords === null) return true
+
+  const doc = view.state.doc
+  const low = Math.min(doc.lineAt(before).number, doc.lineAt(after).number)
+  const high = Math.max(doc.lineAt(before).number, doc.lineAt(after).number)
+  // The departure corner: the caret's own near corner for the direction.
+  const departY = up ? coords.top : coords.bottom
+
+  for (const one of mathsIn(doc.toString())) {
+    if (before > one.from && before < one.to) continue // leaving it, not entering
+    const line = doc.lineAt(one.from).number
+    if (line < low || line > high) continue
+    const rect = view.dom.querySelector(`[data-ccx-atom="${one.from}"]`)?.getBoundingClientRect()
+    if (rect === undefined || coords.left < rect.left || coords.left > rect.right) continue
+    openMathAt(view, one.from, one.to, coords.left, departY)
+    return true
+  }
   return true
 }
 
@@ -357,5 +348,6 @@ function strikeMath(event: Event, view: EditorView): boolean {
   // selection the stamp just placed.
   event.preventDefault()
   view.focus()
-  return openMathAt(view, from, to, (event as MouseEvent).clientX)
+  const pointer = event as MouseEvent
+  return openMathAt(view, from, to, pointer.clientX, pointer.clientY)
 }

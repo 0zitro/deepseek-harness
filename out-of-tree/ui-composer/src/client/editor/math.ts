@@ -166,9 +166,15 @@ export function glyphs(drawn: Element): Glyph[] {
  * order, and where that glyph's source run ENDS.
  * @param latex - the expression's source.
  * @param chars - one character per glyph, in the layout's order.
+ * @param groups - the atom each glyph was drawn by (same index = one KaTeX
+ *   atom, one source command), in the layout's order; omitted when unknown.
  * @returns one source start/end pair per glyph; unpaired glyphs take the gap they sit in.
  */
-export const anchoredPairs = (latex: string, chars: readonly string[]): { at: number; end: number }[] => {
+export const anchoredPairs = (
+  latex: string,
+  chars: readonly string[],
+  groups?: readonly number[],
+): { at: number; end: number }[] => {
   const tokens = printing(latex)
   const drawn = chars.map(draws)
 
@@ -198,20 +204,67 @@ export const anchoredPairs = (latex: string, chars: readonly string[]): { at: nu
     else kth++
   }
 
+  // The source positions a drawn character claimed: a gap is the stretch
+  // between claims, closed only by what actually paired.
+  const claimed: number[] = [...new Set(paired.filter((kth) => kth >= 0).map((kth) => tokens[kth]!.at))].sort((one, other) => one - other)
   let gap = 0
-  return paired.map((kth) => {
+  interface Placed { at: number; end: number; gapFrom?: number; commands?: { start: number; end: number }[] }
+  const placed = paired.map((kth): Placed => {
     if (kth >= 0) {
       const token = tokens[kth]!
       gap = token.at + token.width
       return { at: token.at, end: token.at + token.width }
     }
     while (gap < latex.length && /\s/.test(latex[gap] ?? '')) gap++
-    // The glyph takes the gap it sits in: from past the last claimed source to
-    // where the next printable token begins — a command's glyph owns the whole
-    // command, so its right edge is after it.
-    const next = tokens.find((token) => token.at >= gap)
-    return { at: gap, end: next !== undefined ? next.at : latex.length }
+    // The glyph takes the gap it sits in: the stretch no CLAIMED character
+    // owns, so a token nobody drew (the `;` of `\;` — its glyph is the blank
+    // the engine renders as an mspace element) does not cut it. The final
+    // span is settled below, once every glyph of the gap is known — commands
+    // pair with the atoms that drew in order when they can.
+    const next = claimed.find((at) => at >= gap)
+    const from = gap
+    const closes = next !== undefined ? next : latex.length
+    const run = latex.slice(from, closes)
+    const commands: { start: number; end: number }[] = []
+    STOP_UNIT.lastIndex = 0
+    for (let read = STOP_UNIT.exec(run); read !== null; read = STOP_UNIT.exec(run)) {
+      if (read[0].startsWith('\\')) {
+        commands.push({ start: from + read.index, end: from + read.index + read[0].length })
+      }
+    }
+    return { at: commands.length > 0 ? commands[0]!.start : from, end: closes, gapFrom: from, commands }
   })
+
+  // The gap each unpaired glyph fell in, by its start: its commands pair
+  // with the distinct atoms that drew there, in order (the logo's letters own
+  // `\LaTeX`, a `\;`'s blank owns itself, the operator's glyph owns `\sum`).
+  // The engine inserts spacing atoms no source drew (an operator's surround);
+  // these pair past the commands and own a zero-width span at the run's end,
+  // where they visually sit.
+  const gaps = new Map<number, { commands: { start: number; end: number }[]; atoms: number[][] }>()
+  placed.forEach((one, nth) => {
+    if (paired[nth]! >= 0 || one.commands === undefined) return
+    const held = gaps.get(one.gapFrom!) ?? { commands: one.commands, atoms: [] }
+    const atom = groups?.[nth] ?? 0
+    if (!held.atoms.some((row) => row[0] === atom)) held.atoms.push([atom, nth])
+    else held.atoms.find((row) => row[0] === atom)!.push(nth)
+    gaps.set(one.gapFrom!, held)
+  })
+  for (const held of gaps.values()) {
+    const owner = (nth: number): { at: number; end: number } => {
+      const index = held.atoms.findIndex((row) => row.includes(nth))
+      const command = index >= 0 ? held.commands[index] : undefined
+      if (command !== undefined) return { at: command.start, end: command.end }
+      const last = held.commands[held.commands.length - 1]
+      if (last !== undefined) return { at: last.end, end: last.end }
+      return { at: placed[nth]!.at, end: placed[nth]!.end }
+    }
+    for (const row of held.atoms) {
+      // The row is [atom id, …glyph indices]: the id is a key, never a glyph.
+      for (const nth of row.slice(1)) placed[nth] = owner(nth)
+    }
+  }
+  return placed.map(({ at, end }) => ({ at, end }))
 }
 
 /**
@@ -238,8 +291,49 @@ export const anchored = (latex: string, chars: readonly string[]): number[] =>
  * @param base - where the LaTeX begins in the text the composer holds.
  */
 export const address = (latex: string, drawn: Element, base: number): void => {
-  const written = glyphs(drawn)
-  const at = anchoredPairs(latex, written.map((one) => one.ch))
+  // The glyphs: the text the drawing carries, plus the BLANK ones — the
+  // elements with no text but a bounding rect the engine renders directly
+  // under the base (a `\;` is an `mspace`, a character of space exactly as
+  // any other character is of ink). No kind is enumerated: whatever the
+  // engine puts there with a box is a glyph.
+  const written: Glyph[] = []
+  const walk = drawn.ownerDocument.createTreeWalker(drawn, NodeFilter.SHOW_ELEMENT | NodeFilter.SHOW_TEXT)
+  for (let node = walk.nextNode(); node !== null; node = walk.nextNode()) {
+    if (node.nodeType === 3 /* text */) {
+      const value = node.nodeValue ?? ''
+      if (value.length === 1) written.push({ el: node.parentElement as Element, ch: value })
+    } else if (
+      (node as Element).classList.contains('mspace')
+      && (node as Element).parentElement?.classList.contains('base')
+    ) {
+      written.push({ el: node as Element, ch: ' ' })
+    }
+  }
+  // The atom each glyph was drawn by: KaTeX renders one source atom per
+  // direct child of `.base`, and glyphs may nest several atoms deep inside
+  // it (a logo's kerned letters ride vlists), so the grouping climbs to the
+  // OUTERMOST atom below the base — all of one atom's glyphs were drawn by
+  // one command, which is the pairing the gap assignment rests on. A blank
+  // glyph already IS that child.
+  const ATOM = '.mord, .mop, .mbin, .mrel, .mopen, .mclose, .mpunct, .minner'
+  const atomRoot = (from: Element): Element | null => {
+    let atom = from.closest(ATOM)
+    while (atom !== null) {
+      const parent = atom.parentElement
+      if (parent === null || parent.classList.contains('base')) break
+      const up = parent.closest(ATOM)
+      if (up === null) break
+      atom = up
+    }
+    return atom
+  }
+  const atomOf = new Map<Element, number>()
+  const groups = written.map((one) => {
+    const atom = one.el.classList.contains('mspace') ? one.el : atomRoot(one.el) ?? one.el
+    if (!atomOf.has(atom)) atomOf.set(atom, atomOf.size)
+    return atomOf.get(atom)!
+  })
+  const at = anchoredPairs(latex, written.map((one) => one.ch), groups)
 
   for (const [nth, glyph] of written.entries()) {
     glyph.el.setAttribute(AT, String(base + (at[nth]?.at ?? 0)))
