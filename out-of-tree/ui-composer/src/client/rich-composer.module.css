@@ -44,15 +44,15 @@
   outline: none;
 }
 
-/* The draft's scrollport: the only scrolling box, capped like the stock bar. */
+/* The CodeMirror host: carries the stock typography down to the scroller.
+ * The scroller itself never caps or scrolls — the stock draft scrollport the
+ * seat renders inside owns the cap, the scrollbar, and the wheel chaining
+ * (it forwards the gesture to the conversation only at its own edges); a
+ * second capped box here would eat the height and strand the wheel. */
 .surface :global(.cm-scroller) {
   font-family: inherit;
   font-size: inherit;
   line-height: inherit;
-  max-height: var(--dsh-composer-text-max-height);
-  overflow-y: auto;
-  --dsh-scrollbar-thumb: var(--dsw-alias-scrollbar-bg-l2);
-  --dsh-scrollbar-thumb-hover: var(--dsw-alias-scrollbar-hover-l2);
 }
 
 /* The editable itself (stock `.input` metrics). */

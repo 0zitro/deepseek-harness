@@ -15,9 +15,13 @@ import { EditorSelection, EditorState, Prec } from '@codemirror/state'
 import {
   EditorView, drawSelection, dropCursor, keymap, placeholder,
 } from '@codemirror/view'
-import { defaultKeymap, history, historyKeymap, redo, undo } from '@codemirror/commands'
+import {
+  cursorGroupBackward, cursorGroupForward, cursorLineDown, cursorLineUp,
+  defaultKeymap, history, historyKeymap, redo, undo,
+} from '@codemirror/commands'
 import { createColorFor, type ColorFor } from '../highlight.ts'
 import { AT } from '../math.ts'
+import { linksIn, mathsIn } from '../segments.ts'
 import { richDecorations, requestColors } from './decorations.ts'
 
 /** Options for {@link createRichSurface}. */
@@ -75,6 +79,112 @@ function plainNewline(view: EditorView): boolean {
   return true
 }
 
+/** One maths span, as the movement handlers read it. */
+type MathSpan = { from: number; to: number; at: number }
+
+/** Where a folded maths opens when entered from an edge: its LaTeX's ends. */
+const entered = (one: MathSpan): { left: number; right: number } => ({
+  left: Math.min(one.at, one.to - 1),
+  right: Math.max(one.to - (one.at - one.from), one.from + 1),
+})
+
+/**
+ * Open the folded maths that begins at `from`, caret at the glyph nearest a
+ * horizontal position — the one place three gestures meet (a press on a
+ * drawing, a vertical move whose column fell inside one). Placing the
+ * selection inside the span IS the opening: open is derived from the caret,
+ * so one dispatch both shows the source and lands the caret in it.
+ * @param view - the view the drawing lives in.
+ * @param from - where the span begins in the document.
+ * @param x - the horizontal position the gesture was aimed at.
+ * @returns true when a drawing answered and the caret moved into it.
+ */
+function openMathAt(view: EditorView, from: number, x: number): boolean {
+  const box = view.dom.querySelector(`[data-ccx-atom="${from}"]`)
+  if (box === null) return false
+
+  const glyphs = [...box.querySelectorAll(`[${AT}]`)]
+    .map((one) => ({ at: Number(one.getAttribute(AT)), drawn: one.getBoundingClientRect() }))
+    .filter((one) => Number.isInteger(one.at) && one.drawn.width > 0)
+
+  // How far a point is from a glyph, which is zero for every point over it.
+  const away = (one: { drawn: DOMRect }): number =>
+    x < one.drawn.left ? one.drawn.left - x : x > one.drawn.right ? x - one.drawn.right : 0
+
+  const struck = glyphs.length > 0
+    ? glyphs.reduce((near, one) => (away(one) < away(near) ? one : near)).at
+    : Number(box.getAttribute('data-ccx-atom'))
+  if (!Number.isInteger(struck)) return false
+
+  view.dispatch({ selection: { anchor: struck } })
+  return true
+}
+
+/**
+ * A horizontal arrow at a folded maths span's edge opens it, caret at its
+ * LaTeX's near end. Links need no counterpart: their label is real text, so
+ * the native arrow already steps into it.
+ * @param entering - the edge the arrow moves in from (`from` for rightward).
+ */
+const arrowIntoMath = (entering: 'from' | 'to') => (view: EditorView): boolean => {
+  const main = view.state.selection.main
+  if (!main.empty) return false
+  const one = mathsIn(view.state.doc.toString())
+    .find((m) => (entering === 'from' ? m.from === main.head : m.to === main.head))
+  if (one === undefined) return false
+  view.dispatch({ selection: { anchor: entered(one)[entering === 'from' ? 'left' : 'right'] } })
+  return true
+}
+
+/**
+ * A group move (Ctrl/Mod+Arrow) treats a whole folded object as one group:
+ * the default command walks the document's words and stops inside a link's
+ * label; when the move ENTERED a fold from outside, the caret leaves at the
+ * far edge instead, as it already does for maths spans.
+ * @param forward - whether the gesture moves rightward.
+ */
+const groupPastFolds = (forward: boolean) => (view: EditorView): boolean => {
+  const before = view.state.selection.main.head
+  if (!(forward ? cursorGroupForward : cursorGroupBackward)(view)) return false
+  const after = view.state.selection.main.head
+  const text = view.state.doc.toString()
+  const folds = [
+    ...linksIn(text).map((link) => ({ from: link.from, to: link.to })),
+    ...mathsIn(text),
+  ]
+  const crossed = folds.find((one) =>
+    after > one.from && after < one.to && (forward ? before <= one.from : before >= one.to))
+  if (crossed !== undefined) {
+    view.dispatch({ selection: { anchor: forward ? crossed.to : crossed.from } })
+  }
+  return true
+}
+
+/**
+ * A vertical move whose column falls inside a folded maths opens it at the
+ * glyph that column struck. The default command makes the move (goal column
+ * and wrapping are its); when the landing clamps to a span's edge — the atom
+ * holds every column its line covers — the drawing's glyph map says which
+ * source offset the column meant, exactly as a press does. This is what the
+ * reference needed MathJax's pseudo text layer for: CodeMirror lets the
+ * placement be dispatched rather than read out of the layout, so KaTeX plus
+ * the stamp map answers it.
+ * @param up - whether the gesture moves upward.
+ */
+const verticalIntoMath = (up: boolean) => (view: EditorView): boolean => {
+  const main = view.state.selection.main
+  const before = main.head
+  const coords = view.coordsAtPos(before)
+  if (!(up ? cursorLineUp : cursorLineDown)(view)) return false
+  const after = view.state.selection.main.head
+  if (after === before) return true
+  const one = mathsIn(view.state.doc.toString())
+    .find((m) => (m.from === after || m.to === after) && (before < m.from || before > m.to))
+  if (one === undefined || coords === null) return true
+  openMathAt(view, one.from, coords.left)
+  return true
+}
+
 /**
  * Mount the rich editing surface into one host element.
  * @param options - the host, the initial text, and the surface callbacks.
@@ -99,9 +209,18 @@ export function createRichSurface(options: RichSurfaceOptions): RichSurface {
         placeholder(options.placeholderText),
         richDecorations(colorFor),
         keymap.of([...defaultKeymap, ...historyKeymap]),
-        // Above the default keymap, whose Enter indents; this is a markdown
-        // source buffer, and a newline is just a newline in it.
-        Prec.high(keymap.of([{ key: 'Enter', run: plainNewline }])),
+        // Above the default keymap: whose Enter indents (this is a markdown
+        // source buffer, and a newline is just a newline in it), and whose
+        // arrows walk the document without ever opening a folded maths.
+        Prec.high(keymap.of([
+          { key: 'Enter', run: plainNewline },
+          { key: 'ArrowRight', run: arrowIntoMath('from') },
+          { key: 'ArrowLeft', run: arrowIntoMath('to') },
+          { key: 'Mod-ArrowRight', run: groupPastFolds(true) },
+          { key: 'Mod-ArrowLeft', run: groupPastFolds(false) },
+          { key: 'ArrowUp', run: verticalIntoMath(true) },
+          { key: 'ArrowDown', run: verticalIntoMath(false) },
+        ])),
         EditorView.contentAttributes.of({
           'aria-label': options.ariaLabel,
           'aria-multiline': 'true',
@@ -166,9 +285,7 @@ export function createRichSurface(options: RichSurfaceOptions): RichSurface {
  *
  * A glyph is a filled outline, so it receives a pointer only where its strokes
  * are — the nearest stamped glyph by pointer x answers where the writer was
- * reaching. Placing the selection inside the span is what OPENS it: open is
- * derived from the caret, so one dispatch both shows the source and lands the
- * caret in it. No two-phase caret: the document selection and its display are
+ * reaching. No two-phase caret: the document selection and its display are
  * different layers, and only the display was waiting on the fold.
  * @param event - the mousedown the surface saw.
  * @param view - the view the drawing lives in.
@@ -179,26 +296,13 @@ function strikeMath(event: Event, view: EditorView): boolean {
   if (target === null || typeof (target as Element).closest !== 'function') return false
   const box = (target as Element).closest('[data-ccx-draw]')
   if (box === null || !view.dom.contains(box)) return false
-  const x = (event as MouseEvent).clientX
-
-  const glyphs = [...box.querySelectorAll(`[${AT}]`)]
-    .map((one) => ({ at: Number(one.getAttribute(AT)), drawn: one.getBoundingClientRect() }))
-    .filter((one) => Number.isInteger(one.at) && one.drawn.width > 0)
-
-  // How far a point is from a glyph, which is zero for every point over it.
-  const away = (one: { drawn: DOMRect }): number =>
-    x < one.drawn.left ? one.drawn.left - x : x > one.drawn.right ? x - one.drawn.right : 0
-
-  const struck = glyphs.length > 0
-    ? glyphs.reduce((near, one) => (away(one) < away(near) ? one : near)).at
-    : Number(box.getAttribute('data-ccx-atom'))
-  if (!Number.isInteger(struck)) return false
+  const from = Number(box.getAttribute('data-ccx-atom'))
+  if (!Number.isInteger(from)) return false
 
   // The press is claimed, and its defaults with it: the browser's own
   // focus-on-click caret would land on the widget's edge and overwrite the
   // selection the stamp just placed.
   event.preventDefault()
   view.focus()
-  view.dispatch({ selection: { anchor: struck } })
-  return true
+  return openMathAt(view, from, (event as MouseEvent).clientX)
 }

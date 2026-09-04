@@ -125,6 +125,43 @@ describe('the CodeMirror surface', () => {
     expect(surface.held()).toBe('  indented\n')
   })
 
+  it('opens a folded maths from either edge with a plain arrow', () => {
+    const { host, surface } = mount({ doc: 'a $x^2$ b' })
+    const content = host.querySelector('.cm-content') as HTMLElement
+    // Caret at the span's left edge: ArrowRight enters at the LaTeX's start.
+    surface.view.dispatch({ selection: { anchor: 2 } })
+    expect(host.querySelector('[data-ccx-atom]')).not.toBeNull()
+    content.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true, cancelable: true }))
+    expect(surface.view.state.selection.main.head).toBe(3)
+    expect(host.querySelector('[data-ccx-atom]')).toBeNull()
+    // From the right edge: ArrowLeft enters at the LaTeX's end.
+    surface.view.dispatch({ selection: { anchor: 7 } })
+    content.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowLeft', bubbles: true, cancelable: true }))
+    expect(surface.view.state.selection.main.head).toBe(6)
+    expect(host.querySelector('[data-ccx-atom]')).toBeNull()
+  })
+
+  it('takes a group move past a whole link, not into its label', () => {
+    const { host, surface } = mount({ doc: 'x [label](/t) y' })
+    const content = host.querySelector('.cm-content') as HTMLElement
+    surface.view.dispatch({ selection: { anchor: 2 } })
+    content.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', ctrlKey: true, bubbles: true, cancelable: true }))
+    // The default group move stops at the label's end (8); the link is one group.
+    expect(surface.view.state.selection.main.head).toBe(13)
+  })
+
+  it('keeps the plain vertical move where no maths is struck', () => {
+    const { host, surface } = mount({ doc: 'ab\ncd' })
+    const content = host.querySelector('.cm-content') as HTMLElement
+    surface.view.dispatch({ selection: { anchor: 5 } })
+    content.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowUp', bubbles: true, cancelable: true }))
+    // jsdom has no layout, so the default fallback lands somewhere on the
+    // previous line; the real column contract is pinned in the CDP suite.
+    expect(surface.view.state.selection.main.head).toBeLessThanOrEqual(2)
+    content.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true, cancelable: true }))
+    expect(surface.view.state.selection.main.head).toBeGreaterThanOrEqual(3)
+  })
+
   it('takes files from a paste and never lets them into the buffer', () => {
     const { host, calls, surface } = mount()
     const content = host.querySelector('.cm-content') as HTMLElement

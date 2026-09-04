@@ -48,11 +48,19 @@ empty draft. The `rich-composer` settings namespace's `enabled` toggle
 declines the election: the same div binds the stock Lexical editor as its
 root, restoring the stock editing behavior without touching registrations.
 
-Known limitations: arrows skip a folded object rather than opening it (a
-click opens it — an Obsidian-style open-on-arrow pass is future work);
-per-position undo stacks for recalled messages are deferred until upstream
-grows message-recall navigation; GFM tables and task lists decorate as
-plain text (`@lezer/gfm` is unreachable from this deployment's registry
-mirror). The `@codemirror/*` dependencies are pinned to the reviewed
-2026-08-31 release train, `@codemirror/view` exactly (its next release
-post-dates the repository's supply-chain release-age window).
+Known limitations: per-position undo stacks for recalled messages are
+deferred until upstream grows message-recall navigation (nothing for
+ArrowUp/ArrowDown at the buffer's edges to walk yet); GFM tables and task
+lists decorate as plain text (`@lezer/gfm` is unreachable from this
+deployment's registry mirror). The `@codemirror/*` dependencies are pinned
+to the reviewed 2026-08-31 release train, `@codemirror/view` exactly (its
+next release post-dates the repository's supply-chain release-age window).
+Arrow navigation into folded objects: a plain arrow at a maths span's edge
+opens it at its LaTeX's near end, a vertical move whose column strikes a
+drawing opens it at the glyph that column hit (the glyph map answers what
+the reference needed MathJax's pseudo text layer for — CodeMirror lets the
+placement be dispatched rather than read out of the layout), and a group
+move (Ctrl/Mod+Arrow) crosses a whole link as one unit. The draft scroll is
+the stock bar's scrollport: the seat renders inside it, so its cap, its
+scrollbar, and its wheel chaining (forwarding the gesture to the
+conversation only at its own edges) behave exactly as the stock composer's.

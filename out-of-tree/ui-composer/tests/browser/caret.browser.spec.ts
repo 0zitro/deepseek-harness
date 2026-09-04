@@ -243,6 +243,67 @@ describe.skipIf(!browserAvailable())('the CodeMirror surface in Chromium', () =>
     expect(atomGone).toBe(true)
   })
 
+  it('opens a folded maths from either edge with plain arrows, and refolds on leaving', async () => {
+    if (page === null) return
+    await page.evaluate('window.__ccxSeed("a $x^2$ b")')
+    await page.evaluate('window.__ccxFocus()')
+    await page.settle()
+    await press('Home', 36)
+    await press('ArrowRight', 39)
+    await press('ArrowRight', 39)
+    expect((await state()).head).toBe(2) // the span's left edge, still folded
+    await press('ArrowRight', 39)
+    const entered = await state()
+    expect(entered.head).toBe(3) // the LaTeX's first character
+    const opened = await page.evaluate('document.querySelector("[data-ccx-atom]") === null')
+    expect(opened).toBe(true)
+    await press('ArrowRight', 39)
+    await press('ArrowRight', 39)
+    await press('ArrowRight', 39)
+    expect((await state()).head).toBe(6) // the LaTeX's last character
+    await press('ArrowRight', 39)
+    expect((await state()).head).toBe(7) // the span's right edge — left, so refolded
+    const folded = await page.evaluate('document.querySelector("[data-ccx-atom]") !== null')
+    expect(folded).toBe(true)
+    await press('ArrowLeft', 37)
+    const reentered = await state()
+    expect(reentered.head).toBe(6)
+  })
+
+  it('takes a group move past a whole link without stopping inside it', async () => {
+    if (page === null) return
+    await page.evaluate('window.__ccxSeed("x [label](/t \\"ti\\") y")')
+    await page.evaluate('window.__ccxFocus()')
+    await page.settle()
+    await press('Home', 36)
+    const heads: number[] = []
+    for (let step = 0; step < 4; step++) {
+      await press('ArrowRight', 39, { ctrl: true })
+      heads.push((await state()).head)
+    }
+    // From 0: the word `x` (1), then the whole link in one step, never inside (2, 18).
+    expect(heads[1]).toBe(18)
+    for (const head of heads) {
+      expect(head <= 2 || head >= 18).toBe(true)
+    }
+  })
+
+  it('opens a display maths with a vertical move whose column strikes it', async () => {
+    if (page === null) return
+    await page.evaluate('window.__ccxSeed("top\\n$e^{i\\\\pi} + 1 = 0$\\ntail")')
+    await page.evaluate('window.__ccxFocus()')
+    await page.settle()
+    await press('End', 35, { ctrl: true })
+    expect((await state()).head).toBe('top\n$e^{i\\pi} + 1 = 0$\ntail'.length)
+    await press('ArrowUp', 38)
+    const landed = await state()
+    // Strictly inside the span, at a glyph the column struck — never an edge.
+    expect(landed.head).toBeGreaterThan(4)
+    expect(landed.head).toBeLessThan(20)
+    const opened = await page.evaluate('document.querySelector("[data-ccx-atom]") === null')
+    expect(opened).toBe(true)
+  })
+
   it('walks the history by word groups, the caret restored', async () => {
     if (page === null) return
     await page.evaluate('window.__ccxSeed("")')
