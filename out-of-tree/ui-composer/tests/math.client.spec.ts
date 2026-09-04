@@ -8,7 +8,7 @@
  */
 
 import { describe, expect, it } from 'vitest'
-import { anchored, anchoredPairs, address, caretStops, printing, typeset, glyphs, drawWithAddress } from '../src/client/editor/math.ts'
+import { anchored, anchoredPairs, address, caretStops, parseAtoms, printing, typeset, glyphs, drawWithAddress } from '../src/client/editor/math.ts'
 import { foldablesIn } from '../src/client/editor/segments.ts'
 
 describe('printing', () => {
@@ -142,6 +142,43 @@ describe('anchoredPairs', () => {
   })
 })
 
+describe('parseAtoms', () => {
+  it('states the source atoms with engine spans: loc where written, commands between', () => {
+    // loc spans straight from the source; the macro atoms (\\LaTeX, \\;, \\sum)
+    // take the command units between their neighbours' locs.
+    expect(parseAtoms(' \\LaTeX \\; \\sum_{x\\:=\\:0}^{\\infty}{x^2} \\;\\;\\; ').map((atom) =>
+      [atom.from, atom.to, atom.blank])).toEqual([
+      [1, 7, false],
+      [8, 10, true],
+      [11, 34, false],
+      [34, 39, false],
+      [40, 42, true],
+      [42, 44, true],
+      [44, 46, true],
+    ])
+  })
+
+  it('keeps the leaves of a scripts atom in source order, blanks as blanks', () => {
+    const supsub = parseAtoms('\\sum_{x\\:=\\:0}^{\\infty}')[0]!
+    expect(supsub.leaves.map((leaf) => [leaf.from, leaf.to, leaf.chars, leaf.blank])).toEqual([
+      [0, 4, '', false],   // \\sum — a command whose glyphs nobody typed
+      [6, 7, 'x', false],
+      [7, 9, ' ', true],   // \\:
+      [9, 10, '=', false],
+      [10, 12, ' ', true], // \\:
+      [12, 13, '0', false],
+      [16, 22, '', false], // \\infty
+    ])
+  })
+
+  it('answers an ordinary expression without macros', () => {
+    expect(parseAtoms('x^2').map((atom) => [atom.from, atom.to])).toEqual([[0, 3]])
+    expect(parseAtoms('x \\; y').map((atom) => [atom.from, atom.to, atom.blank])).toEqual([
+      [0, 1, false], [2, 4, true], [5, 6, false],
+    ])
+  })
+})
+
 describe('caretStops', () => {
   it('treats a command as one giant character: only its two edges exist', () => {
     expect(caretStops('\\;')).toEqual([0, 2])
@@ -153,6 +190,17 @@ describe('caretStops', () => {
     expect(caretStops(' \\LaTeX \\; rulez \\;\\;\\; ')).toEqual([
       0, 1, 7, 8, 10, 11, 12, 13, 14, 15, 16, 17, 19, 21, 23, 24,
     ])
+  })
+})
+
+describe('drawWithAddress under the parse authority', () => {
+  it('stamps every glyph of the sum probe with the engine span', () => {
+    const latex = ' \\LaTeX \\; \\sum_{x\\:=\\:0}^{\\infty}{x^2} \\;\\;\\; '
+    const drawn = drawWithAddress(latex, false, 0)
+    const stamps = [...drawn.querySelectorAll('[data-ccx-at]')].map((g) =>
+      `${g.getAttribute('data-ccx-at')}-${g.getAttribute('data-ccx-end')}:${g.classList.contains('mspace') ? '~' : g.textContent}`)
+    expect(stamps.join(' ')).toBe(
+      '1-7:L 1-7:A 1-7:T 1-7:E 1-7:\u200b 1-7:X 8-10:~ 8-10:~ 11-15:∑ 17-18:x 20-21:= 23-24:0 27-33:∞ 27-33:\u200b 27-33:~ 35-36:x 37-38:2 40-42:~ 42-44:~ 44-46:~')
   })
 })
 

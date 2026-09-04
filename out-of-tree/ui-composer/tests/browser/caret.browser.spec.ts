@@ -352,6 +352,7 @@ describe.skipIf(!browserAvailable())('the CodeMirror surface in Chromium', () =>
       for (let step = 0; step < column; step++) await press('ArrowRight', 39)
       await press('ArrowUp', 38)
       const head = (await state()).head
+      console.log('DBGT', column, head)
       // Every landing is either opened inside the span or honestly past it.
       expect(head > 15 && head < 41 || head >= 41).toBe(true)
       heads.push(head)

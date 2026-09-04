@@ -59,15 +59,17 @@ Arrow navigation into folded objects: a plain arrow at a maths span's edge
 opens it at its LaTeX's near end, a vertical move whose column crosses a
 drawing opens it at the drawing's nearest corner, and a group move
 (Ctrl/Mod+Arrow) crosses a whole link as one unit. The placement is a
-corner argmin over the atomic glyphs' own laid-out rects — the pseudo text
-layer the reference built MathJax for, derived from KaTeX's instead: every
-glyph offers its corners, a LEFT one standing for the caret placed before
-the glyph and a RIGHT one for the caret after it, each mapped to the
-glyph's source span and snapped to a caret stop of the grammar's tokens (a
-`\cmd` is one giant character, so the caret never stands inside it). The
-distances are honest two-dimensional ones, so a stacked layout resolves
-itself — from above a superscript's top corners are nearer than the
-subscript's below it, from below the subscript's bottom corners are, and a
-press on a row reads that row. The draft scroll is the stock bar's scrollport: the seat renders inside it, so its cap, its
+corner argmin over the atomic glyphs' own laid-out rects — every glyph
+offers its corners, a LEFT one standing for the caret placed before the
+glyph and a RIGHT one for the caret after it, and the distances are honest
+two-dimensional ones, so a stacked layout resolves itself: from above a
+superscript's top corners are nearer than the subscript's below it, from
+below the subscript's bottom corners are, and a press on a row reads that
+row. What each corner maps to comes from the ENGINE: KaTeX's parse tree
+(`__parse`) states one node per source atom with `loc` spans written by
+the engine itself, macros collapse to their one command (the
+giant-character rule as KaTeX's fact), and the drawing's glyphs align to
+those leaves by what they draw — the pseudo text layer the reference
+sought from MathJax, taken from KaTeX's own tree instead. The draft scroll is the stock bar's scrollport: the seat renders inside it, so its cap, its
 scrollbar, and its wheel chaining (forwarding the gesture to the
 conversation only at its own edges) behave exactly as the stock composer's.

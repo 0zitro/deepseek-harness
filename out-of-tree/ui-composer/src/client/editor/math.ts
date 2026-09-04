@@ -313,8 +313,7 @@ export const address = (latex: string, drawn: Element, base: number): void => {
   // direct child of `.base`, and glyphs may nest several atoms deep inside
   // it (a logo's kerned letters ride vlists), so the grouping climbs to the
   // OUTERMOST atom below the base — all of one atom's glyphs were drawn by
-  // one command, which is the pairing the gap assignment rests on. A blank
-  // glyph already IS that child.
+  // one command. A blank glyph already IS that child.
   const ATOM = '.mord, .mop, .mbin, .mrel, .mopen, .mclose, .mpunct, .minner'
   const atomRoot = (from: Element): Element | null => {
     let atom = from.closest(ATOM)
@@ -333,13 +332,256 @@ export const address = (latex: string, drawn: Element, base: number): void => {
     if (!atomOf.has(atom)) atomOf.set(atom, atomOf.size)
     return atomOf.get(atom)!
   })
-  const at = anchoredPairs(latex, written.map((one) => one.ch), groups)
 
+  const spans = spansForAtoms(latex, written, groups, anchoredPairs)
   for (const [nth, glyph] of written.entries()) {
-    glyph.el.setAttribute(AT, String(base + (at[nth]?.at ?? 0)))
-    glyph.el.setAttribute(END, String(base + (at[nth]?.end ?? 0)))
+    glyph.el.setAttribute(AT, String(base + (spans[nth]?.at ?? 0)))
+    glyph.el.setAttribute(END, String(base + (spans[nth]?.end ?? 0)))
   }
 }
+
+/**
+ * The spans of a drawing's glyphs from the ENGINE'S OWN parse tree, with the
+ * character alignment as the fallback for when the tree is unavailable.
+ *
+ * The parse tree states what no DOM reading can: exactly one top-level node
+ * per source atom, in source order, with engine-written `loc` spans on every
+ * node parsed straight from the source (macros expand to nodes without them —
+ * a macro's replacement is re-lexed, and any positions it synthesises are
+ * relative to the replacement, not the writer's text). Those loc-less atoms
+ * take the source's command units between their neighbours' locs, and a
+ * macro that draws several glyphs gives them all its one command — the
+ * giant-character rule, now the engine's fact rather than our policy.
+ *
+ * The drawing's glyphs then match the tree's leaves in order — both streams
+ * run in reading order, scripts included — by what they draw: a leaf with
+ * characters matches the glyph that draws them, a blank leaf (the engine's
+ * own spacing kinds) matches a blank glyph (an `mspace` character of space),
+ * a leaf with no characters (a command whose glyphs nobody typed) matches
+ * the next glyph positionally, and whatever matches nothing — inter-atom
+ * glue the engine drew from no source, a glyph inside a merged atom after
+ * its own leaf — takes the last matched leaf's span, which is where it
+ * visually sits.
+ * @param latex - the expression's source.
+ * @param written - the drawing's glyphs, in document order.
+ * @param groups - the atom index each glyph belongs to (the fallback's).
+ * @param fallback - the character-alignment span computation.
+ * @returns one source start/end pair per glyph.
+ */
+function spansForAtoms(
+  latex: string,
+  written: readonly Glyph[],
+  groups: readonly number[],
+  fallback: (latex: string, chars: readonly string[], groups?: readonly number[]) => { at: number; end: number }[],
+): { at: number; end: number }[] {
+  const atoms = parseAtoms(latex)
+  if (atoms.length === 0) return fallback(latex, written.map((one) => one.ch), groups)
+  const leaves = atoms.flatMap((atom) => atom.leaves)
+
+  // The alignment of the two orders: longest run of glyph/leaf pairs neither
+  // side has to skip. A leaf pairs with the glyph that draws it — a blank
+  // with a blank, a leaf with characters with a glyph drawing one of them, a
+  // leaf with none (a command whose glyphs nobody typed) with any glyph. The
+  // longest alignment is the honest one: it keeps a logo's extra letters
+  // paired to nothing (they share the command's span) while a sum's operator
+  // and an infinity each keep their own.
+  const pairs = (glyph: number, leaf: number): boolean => {
+    const one = leaves[leaf]!
+    const ch = written[glyph]!.ch
+    if (one.blank) return ch === ' '
+    if (ch === ' ') return false
+    return one.chars === '' || one.chars.includes(draws(ch) ?? '\x00')
+  }
+  const glyphs = written.length
+  const reach: number[][] = Array.from({ length: glyphs + 1 }, () => new Array(leaves.length + 1).fill(0))
+  for (let g = glyphs - 1; g >= 0; g--) {
+    for (let l = leaves.length - 1; l >= 0; l--) {
+      reach[g]![l] = pairs(g, l)
+        ? reach[g + 1]![l + 1]! + 1
+        : Math.max(reach[g + 1]![l]!, reach[g]![l + 1]!)
+    }
+  }
+  const matched = new Array<number | undefined>(glyphs).fill(undefined)
+  for (let g = 0, l = 0; g < glyphs && l < leaves.length;) {
+    if (pairs(g, l) && reach[g]![l] === reach[g + 1]![l + 1]! + 1) matched[g++] = l++
+    else if (reach[g + 1]![l]! >= reach[g]![l + 1]!) g++
+    else l++
+  }
+
+  // Whatever paired nothing takes the nearest earlier pair's span — where it
+  // visually sits — and the nearest later one when nothing earlier paired.
+  const spanOf = (leaf: number | undefined): { at: number; end: number } => {
+    const one = leaf !== undefined ? leaves[leaf] : undefined
+    return one !== undefined ? { at: one.from, end: one.to } : { at: 0, end: 0 }
+  }
+  const spans = matched.map((leaf, glyph) => {
+    if (leaf !== undefined) return spanOf(leaf)
+    let back = glyph - 1
+    while (back >= 0 && matched[back] === undefined) back--
+    if (back >= 0) return spanOf(matched[back])
+    let forth = glyph + 1
+    while (forth < matched.length && matched[forth] === undefined) forth++
+    return spanOf(matched[forth])
+  })
+  return spans
+}
+
+/** One leaf of the parse tree: a thing the drawing draws, and where it lives in the source. */
+interface ParseLeaf { from: number; to: number; chars: string; blank: boolean }
+
+/** One source atom: what one direct child of the drawing's base renders. */
+export interface ParseAtom { from: number; to: number; leaves: ParseLeaf[]; blank: boolean }
+
+/** The parse node, loosely: `katex.__parse` hands untyped trees. */
+type PNode = Record<string, unknown>
+
+/** KaTeX's parse-tree entry point, absent from the shipped types. */
+const KATEX_PARSE = (katex as unknown as { __parse?: (tex: string) => PNode[] }).__parse
+
+/**
+ * The children a parse node orders for us: a base, a body array, a
+ * subscript, a superscript — the source puts the base first and the scripts
+ * after it, which is the order the spans need.
+ */
+const childrenOf = (node: PNode): PNode[] => {
+  const kids: PNode[] = []
+  const push = (value: unknown): void => {
+    if (value !== null && value !== undefined && typeof value === 'object' && !Array.isArray(value)) {
+      kids.push(value as PNode)
+    }
+  }
+  push(node.base)
+  if (Array.isArray(node.body)) for (const one of node.body) push(one)
+  push(node.sub)
+  push(node.sup)
+  return kids
+}
+
+/** The command units (`\cmd`, `\begin{…}`) inside a stretch of source. */
+const commandsIn = (src: string, from: number, to: number): { from: number; to: number }[] => {
+  const found: { from: number; to: number }[] = []
+  STOP_UNIT.lastIndex = from
+  for (let read = STOP_UNIT.exec(src); read !== null && read.index < to; read = STOP_UNIT.exec(src)) {
+    if (read[0].startsWith('\\')) found.push({ from: read.index, to: read.index + read[0].length })
+  }
+  return found
+}
+
+/**
+ * The expression's source atoms from the engine's parse tree: one per
+ * top-level node, in source order, each with its span and its leaves.
+ * Macro-expanded subtrees are collapsed whole (the positions they carry are
+ * replacement-relative); loc-less atoms take the command units between
+ * their neighbours' locs, all of them sharing the one command when a macro
+ * draws several glyphs.
+ * @param latex - the expression's source.
+ * @returns the atoms; empty where the engine's parse is unavailable.
+ */
+export function parseAtoms(latex: string): ParseAtom[] {
+  if (KATEX_PARSE === undefined) return []
+  let tree: PNode[]
+  try {
+    tree = KATEX_PARSE.call(katex, latex)
+  } catch {
+    return []
+  }
+
+  // Per top-level node: its walk items — anchors (loc'd nodes, any depth)
+  // and pending leaves (terminal nodes without a loc) — and whether its
+  // anchors read monotonically, the signature of a tree parsed straight
+  // from the source rather than a macro's replacement.
+  interface Item { node: PNode; loc: { start: number; end: number } | undefined; terminal: boolean }
+  const walkOf = (node: PNode, items: Item[]): void => {
+    const kids = childrenOf(node)
+    items.push({ node, loc: node.loc as { start: number; end: number } | undefined, terminal: kids.length === 0 })
+    for (const kid of kids) walkOf(kid, items)
+  }
+  const walked = tree.map((node) => {
+    const items: Item[] = []
+    walkOf(node, items)
+    const anchors = items.flatMap((item) => (item.loc !== undefined ? [item.loc] : []))
+    // Starts never run backwards: a node's children carry positions within
+    // or after it, while a macro's html/mathml double-tree restarts the
+    // positions mid-walk — that regression is the poison signature.
+    const monotone = anchors.every((loc, nth) =>
+      loc.end <= latex.length && (nth === 0 || loc.start >= anchors[nth - 1]!.start))
+    return { items, monotone }
+  })
+
+  // Assign spans in one source-order pass: an anchor claims its loc; a
+  // pending queues until the next anchor closes its stretch, then takes the
+  // stretch's command units in order — a macro that draws several glyphs
+  // gives them all its one command (the giant-character rule), an overflow
+  // past the last command shares it, and a stretch with no command at all
+  // leaves them zero-width where the stretch begins.
+  const atoms: ParseAtom[] = tree.map(() => ({ from: latex.length, to: 0, leaves: [], blank: false }))
+  const leafSpans = new Map<Item, { from: number; to: number }>()
+  let covered = 0
+  let pending: Array<{ item: Item; atom: number }> = []
+  const flush = (to: number): void => {
+    const commands = commandsIn(latex, covered, to)
+    const shared = commands.length > 0 ? commands[commands.length - 1] : undefined
+    for (const held of pending) {
+      const command = commands.shift()
+      const span = command ?? shared ?? { from: Math.min(covered, to), to: Math.min(covered, to) }
+      leafSpans.set(held.item, span)
+      atoms[held.atom]!.from = Math.min(atoms[held.atom]!.from, span.from)
+      atoms[held.atom]!.to = Math.max(atoms[held.atom]!.to, span.to)
+    }
+    pending = []
+  }
+  for (const [nth, top] of walked.entries()) {
+    if (!top.monotone) {
+      // A macro's replacement tree: one atom, one command, however much it
+      // draws — its synthesized positions are replacement-relative.
+      pending.push({ item: { node: tree[nth]!, loc: undefined, terminal: true }, atom: nth })
+      continue
+    }
+    for (const item of top.items) {
+      if (item.loc !== undefined) {
+        flush(item.loc.start)
+        leafSpans.set(item, { from: item.loc.start, to: item.loc.end })
+        atoms[nth]!.from = Math.min(atoms[nth]!.from, item.loc.start)
+        atoms[nth]!.to = Math.max(atoms[nth]!.to, item.loc.end)
+        covered = item.loc.end
+      } else if (item.terminal) {
+        pending.push({ item, atom: nth })
+      }
+    }
+  }
+  flush(latex.length)
+
+  // The leaves a drawing can match: terminals with their spans, characters
+  // from the printable source inside each span; a blank leaf (the engine's
+  // own kern and spacing kinds) draws a character of space.
+  for (const [nth, top] of walked.entries()) {
+    if (!top.monotone) {
+      atoms[nth]!.leaves = [{
+        from: atoms[nth]!.from,
+        to: atoms[nth]!.to,
+        chars: charsWithin(latex, atoms[nth]!.from, atoms[nth]!.to),
+        blank: false,
+      }]
+      continue
+    }
+    atoms[nth]!.leaves = top.items
+      .filter((item) => item.terminal && leafSpans.has(item))
+      .map((item) => {
+        const span = leafSpans.get(item)!
+        const blank = typeof item.node.type === 'string' && ['kern', 'spacing', 'mspace'].includes(item.node.type)
+        return { from: span.from, to: span.to, chars: blank ? ' ' : charsWithin(latex, span.from, span.to), blank }
+      })
+    atoms[nth]!.blank = atoms[nth]!.leaves.length > 0 && atoms[nth]!.leaves.every((leaf) => leaf.blank)
+  }
+  return atoms.filter((atom) => atom.to > 0 || atom.leaves.length > 0)
+}
+
+/** The drawing characters of a stretch of source, folded to what they draw. */
+const charsWithin = (latex: string, from: number, to: number): string =>
+  printing(latex)
+    .filter((token) => token.at >= from && token.at + token.width <= to)
+    .map((token) => draws(token.ch) ?? '')
+    .join('')
 
 /**
  * Split every multi-character text node of a drawing into one span per
