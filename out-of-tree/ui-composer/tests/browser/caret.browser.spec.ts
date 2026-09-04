@@ -452,6 +452,57 @@ describe.skipIf(!browserAvailable())('the CodeMirror surface in Chromium', () =>
     expect(top.head).toBeLessThan(up.head)
   })
 
+  it('leaves an open maths span by the render: the column is the glyphs\', not the source\'s', async () => {
+    if (page === null) return
+    // The span is open (caret inside at its closing `$`); LaTeX is more
+    // text-verbose than what it draws, so the RENDER — not the source
+    // column — must decide where the caret lands in the line below.
+    const text = 'abcdefghi\n$ \\LaTeX \\; \\sum_{x}^{2}$\nabcdefghp'
+    await page.evaluate(`window.__ccxSeed(${JSON.stringify(text)})`)
+    await page.evaluate('window.__ccxFocus()')
+    await page.settle()
+    await page.evaluate(`window.__ccxCaret(${text.length - 1})`) // just before the closing `$`
+    await press('ArrowDown', 40)
+    const landed = JSON.parse(await page.evaluate<string>('window.__ccxState()')) as { text: string; head: number }
+    const below = text.indexOf('\n', text.indexOf('\n') + 1) + 1
+    expect(landed.head).toBeGreaterThanOrEqual(below)
+    // The landed column in 'abcdefghp' is the drawing's width — the source
+    // column there would be 14+; the render is compact.
+    expect(landed.head - below).toBeLessThan(13)
+  }, 30000)
+
+  it('mirrors: equal adjacent spans land the same column via the render', async () => {
+    if (page === null) return
+    // source_pos → render corner → column, twice over equal spans: the
+    // same inside offset lands the same column in equal lines.
+    const text = 'abcdefgh\n$ \\LaTeX $\nmiddle text\n$ \\LaTeX $\nmiddle text'
+    await page.evaluate(`window.__ccxSeed(${JSON.stringify(text)})`)
+    await page.evaluate('window.__ccxFocus()')
+    await page.settle()
+    const inside = '$ \\La'.length
+    const firstSpan = 'abcdefgh\n'.length + inside
+    const secondSpan = 'abcdefgh\n$ \\LaTeX $\nmiddle text\n'.length + inside
+    const xOf = async (head: number): Promise<number> => {
+      if (page === null) return -1
+      return page.evaluate<number>(`(() => {
+        const control = window.__ccxControl
+        if (control === undefined) return -1
+        const coords = control.view.coordsAtPos(${head})
+        return coords === null ? -1 : Math.round(coords.left)
+      })()`)
+    }
+    await page.evaluate(`window.__ccxCaret(${firstSpan})`)
+    await press('ArrowDown', 40)
+    const first = JSON.parse(await page.evaluate<string>('window.__ccxState()')) as { head: number }
+    await page.evaluate(`window.__ccxCaret(${secondSpan})`)
+    await press('ArrowDown', 40)
+    const second = JSON.parse(await page.evaluate<string>('window.__ccxState()')) as { head: number }
+    const x1 = await xOf(first.head)
+    const x2 = await xOf(second.head)
+    expect(x1).toBeGreaterThanOrEqual(0)
+    expect(Math.abs(x1 - x2)).toBeLessThanOrEqual(2)
+  }, 30000)
+
   it('walks the history by word groups, the caret restored', async () => {
     if (page === null) return
     await page.evaluate('window.__ccxSeed("")')

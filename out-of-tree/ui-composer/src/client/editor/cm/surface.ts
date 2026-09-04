@@ -20,7 +20,7 @@ import {
   defaultKeymap, history, historyKeymap, redo, undo,
 } from '@codemirror/commands'
 import { createColorFor, type ColorFor } from '../highlight.ts'
-import { AT, END } from '../math.ts'
+import { AT, END, caretStops, drawWithAddress } from '../math.ts'
 import { linksIn, mathsIn } from '../segments.ts'
 import { richDecorations, requestColors } from './decorations.ts'
 
@@ -205,6 +205,13 @@ const groupPastFolds = (forward: boolean) => (view: EditorView): boolean => {
  */
 const verticalIntoMath = (up: boolean) => (view: EditorView): boolean => {
   const before = view.state.selection.main.head
+  // Leaving an open maths span goes by the RENDER, not the source: the span's
+  // line shows LaTeX while open, and LaTeX is more text-verbose than what it
+  // draws, so the source column would land the caret far right of where the
+  // eye sits.
+  const inside = mathsIn(view.state.doc.toString()).find((m) => before > m.from && before < m.to)
+  if (inside !== undefined) return verticalOutOfMath(up, inside, view)
+
   const coords = view.coordsAtPos(before)
   if (!(up ? cursorLineUp : cursorLineDown)(view)) return false
   const after = view.state.selection.main.head
@@ -226,6 +233,97 @@ const verticalIntoMath = (up: boolean) => (view: EditorView): boolean => {
     return true
   }
   return true
+}
+
+/**
+ * Move the caret OUT of an open maths span by the RENDER it would draw.
+ *
+ * The machinery of entering, run backwards: the caret's source offset snaps
+ * to the nearest caret stop (a mid-command position — `\La|TeX` — has no
+ * glyph, so it goes to the command's nearer end), the render's glyph that
+ * owns the snapped offset offers its corner for it, and the caret lands in
+ * the adjacent line at that corner's column — `posAtCoords` answers for
+ * whatever that line holds, text or folded atoms alike. Two equal spans
+ * therefore mirror: the same source offset maps to the same render corner,
+ * and the same corner to the same column in equal lines.
+ *
+ * The render is measured from a hidden copy of the drawing (the open span
+ * shows source, so the drawing is absent from the DOM); the copy rides the
+ * editor's own element, where the KaTeX stylesheet and the surface's font
+ * apply, and its left edge anchors the corner into the line's coordinates.
+ * @param up - whether the gesture moves upward.
+ * @param one - the open maths span the caret sits in.
+ * @param view - the view being edited.
+ * @returns true when the move was made here; false leaves the default to run.
+ */
+function verticalOutOfMath(
+  up: boolean,
+  one: { from: number; to: number; at: number; latex: string; display: boolean },
+  view: EditorView,
+): boolean {
+  const doc = view.state.doc
+  const line = doc.lineAt(one.from)
+  const target = up ? doc.line(line.number - 1) : doc.line(line.number + 1)
+  if (target === undefined) return false
+
+  // The caret's offset, snapped to where the glyphs live (a stop).
+  const inside = Math.min(Math.max(view.state.selection.main.head - one.at, 0), one.latex.length)
+  const snapped = caretStops(one.latex).reduce((near, stop) =>
+    Math.abs(stop - inside) < Math.abs(near - inside) ? stop : near, 0)
+  const offset = one.at + snapped
+
+  // A hidden copy of the drawing, on the editor's own element, stamps and
+  // all — measured, then gone.
+  const host = document.createElement('div')
+  host.setAttribute('aria-hidden', 'true')
+  host.style.position = 'absolute'
+  host.style.visibility = 'hidden'
+  host.style.left = '0'
+  host.style.top = '0'
+  const drawn = drawWithAddress(one.latex, one.display, one.at)
+  host.appendChild(drawn)
+  view.dom.appendChild(host)
+  const anchor = view.coordsAtPos(one.from)
+  const landing = view.coordsAtPos(target.from)
+  const made = (() => {
+    if (anchor === null || landing === null) return false
+    const home = host.getBoundingClientRect()
+    if (home.width === 0) return false
+
+    // The render's corner owning the snapped offset: every stamped glyph
+    // offers the two edges of its source span, blanks carrying their margin;
+    // the corner on the row nearest the caret's own line wins ties.
+    const midY = (anchor.top + anchor.bottom) / 2
+    let corner: { x: number; away: number; row: number } | null = null
+    for (const glyph of [...drawn.querySelectorAll(`[${AT}]`)]) {
+      const rect = glyph.getBoundingClientRect()
+      const margin = parseFloat(getComputedStyle(glyph).marginRight)
+      const right = rect.right + (Number.isFinite(margin) ? margin : 0)
+      const at = Number(glyph.getAttribute(AT))
+      const end = Number(glyph.getAttribute(END))
+      if (!Number.isInteger(at) || !Number.isInteger(end)) continue
+      for (const edge of [{ x: rect.left, at }, { x: right, at: end }]) {
+        const away = Math.abs(edge.at - offset)
+        const row = Math.abs((rect.top + rect.bottom) / 2 - midY)
+        if (corner === null || away < corner.away || (away === corner.away && row < corner.row)) {
+          corner = { x: edge.x, away, row }
+        }
+      }
+    }
+    if (corner === null) return false
+
+    // The hidden copy's left edge is the drawing's origin; the span's own
+    // start position anchors it into the line, and the adjacent line's
+    // middle answers for the column.
+    const x = anchor.left + (corner.x - home.left)
+    const y = (landing.top + landing.bottom) / 2
+    const placed = view.posAtCoords({ x, y }, false)
+    if (placed === null) return false
+    view.dispatch({ selection: { anchor: placed }, scrollIntoView: true })
+    return true
+  })()
+  host.remove()
+  return made
 }
 
 /**

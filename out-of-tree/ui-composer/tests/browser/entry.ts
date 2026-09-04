@@ -6,6 +6,7 @@ declare global {
     __ccxState(): string
     __ccxFocus(): void
     __ccxSeed(text: string): void
+    __ccxCaret(offset: number): void
     __ccxBox(selector: string): { x: number; y: number; width: number; height: number } | null
   }
 }
@@ -37,3 +38,4 @@ window.__ccxState = () => JSON.stringify({
 })
 window.__ccxFocus = () => { surface()?.focus() }
 window.__ccxSeed = (text) => { surface()?.adopt(text) }
+window.__ccxCaret = (offset) => { surface()?.view.dispatch({ selection: { anchor: offset } }) }

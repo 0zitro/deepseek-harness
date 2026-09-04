@@ -70,6 +70,10 @@ row. What each corner maps to comes from the ENGINE: KaTeX's parse tree
 the engine itself, macros collapse to their one command (the
 giant-character rule as KaTeX's fact), and the drawing's glyphs align to
 those leaves by what they draw — the pseudo text layer the reference
-sought from MathJax, taken from KaTeX's own tree instead. The draft scroll is the stock bar's scrollport: the seat renders inside it, so its cap, its
+sought from MathJax, taken from KaTeX's own tree instead. Leaving runs
+the machinery backwards: the caret's offset snaps to the nearest caret
+stop, a hidden copy of the drawing supplies the owning glyph's corner,
+and the adjacent line answers for that column — the render's width, not
+the source's, so equal spans mirror to equal columns. The draft scroll is the stock bar's scrollport: the seat renders inside it, so its cap, its
 scrollbar, and its wheel chaining (forwarding the gesture to the
 conversation only at its own edges) behave exactly as the stock composer's.
